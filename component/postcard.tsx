@@ -19,7 +19,7 @@ export default function PostCard({ slug, data }: {
     >
       <h2 className="
         mb-1
-        font-bold font-zen-kaku-gothic-new-medium
+        font-bold font-zen-maru-gothic-medium
         text-base md:text-xl"
       >
         {data.title}

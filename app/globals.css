@@ -8,9 +8,10 @@
 
 @theme {
   --font-noto-sans: var(--font-noto-sans-jp);
-  --font-zen-kaku-gothic: var(--font-zkgn-medium);
   --font-zen-kaku-gothic-new-medium: var(--font-zkgn-medium);
   --font-zen-kaku-gothic-new-bold: var(--font-zkgn-bold);
+  --font-zen-maru-gothic-medium: var(--font-zmg-medium);
+  --font-zen-maru-gothic-bold: var(--font-zmg-bold);
   --font-system: var(--font-nunito), var(--font-kosugi-maru), sans-serif;
   --font-mono: Consolas, var(--font-fira-mono);
   --font-kosugi-maru: var(--font-kosugi-maru), sans-serif;

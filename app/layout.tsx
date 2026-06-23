@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Noto_Sans_JP, Zen_Kaku_Gothic_New, Kosugi_Maru, Nunito, Fira_Mono } from "next/font/google";
+import { Noto_Sans_JP, Zen_Kaku_Gothic_New, Zen_Maru_Gothic, Kosugi_Maru, Nunito, Fira_Mono } from "next/font/google";
 
 import "./globals.css";
 import MathEnvironment from "@/component/mathenv";
@@ -15,9 +15,19 @@ const zen_kaku_gothic_new_medium = Zen_Kaku_Gothic_New({
   variable: "--font-zkgn-medium"
 });
 const zen_kaku_gothic_new_bold = Zen_Kaku_Gothic_New({
-  weight: "900",
+  weight: "700",
   subsets: ["latin"],
   variable: "--font-zkgn-bold"
+});
+const zen_maru_gothic_medium = Zen_Maru_Gothic({
+  weight: "500",
+  subsets: ["latin"],
+  variable: "--font-zmg-medium"
+});
+const zen_maru_gothic_bold = Zen_Maru_Gothic({
+  weight: "700",
+  subsets: ["latin"],
+  variable: "--font-zmg-bold"
 });
 
 const kosugi_maru = Kosugi_Maru({
@@ -53,6 +63,8 @@ export default function RootLayout({
       ${fira_mono.variable}
       ${zen_kaku_gothic_new_medium.variable}
       ${zen_kaku_gothic_new_bold.variable}
+      ${zen_maru_gothic_medium.variable}
+      ${zen_maru_gothic_bold.variable}
        antialiased`}
     >
       <body>
