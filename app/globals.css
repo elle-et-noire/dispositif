@@ -166,6 +166,12 @@ svg {
   @apply bg-[#d9dce1] rounded-md py-0.5 px-1 mx-0.5 text-base;
 }
 
+/* @tailwindcss/typography がインライン code の前後に付ける `` を消す */
+.post code::before,
+.post code::after {
+  content: none;
+}
+
 .post pre code {
   @apply pt-3 text-sm font-[400];
 }
