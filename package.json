@@ -13,6 +13,7 @@
     "@tailwindcss/typography": "^0.5.20",
     "better-react-mathjax": "^3.0.1",
     "clsx": "^2.1.1",
+    "github-slugger": "^2.0.0",
     "gray-matter": "^4.0.3",
     "next": "16.2.9",
     "next-mdx-remote": "^6.0.0",

@@ -1,5 +1,6 @@
 import { GetAllSlugs, GetPostBySlug } from "@/lib/post";
-// import Toc from "@/components/toc";
+import Toc from "@/component/toc";
+import { getHeadings } from "@/lib/toc";
 import Link from "next/link";
 import DateInfo from "@/component/dateinfo";
 import { markdownToHtml } from "@/lib/convert";
@@ -26,6 +27,7 @@ export default async function PostPage({ params }: PostPageProps) {
   const { slug } = await params;
   const { content, data } = GetPostBySlug(slug);
   const [mdx, mathblocks] = await markdownToHtml(content || "");
+  const headings = getHeadings(content || "");
 
   return (
     <>
@@ -63,7 +65,7 @@ export default async function PostPage({ params }: PostPageProps) {
           </div>
           <div //right column
             className="hidden md:block w-full md:w-[12rem] pl-4">
-            {/* <Toc /> */}
+            <Toc headings={headings} />
           </div>
         </div>
       </div>

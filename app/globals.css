@@ -8,6 +8,7 @@
 
 @theme {
   --font-noto-sans: var(--font-noto-sans-jp);
+  --font-zen-maru-gothic: var(--font-zen-maru-gothic);
   --font-system: var(--font-nunito), var(--font-kosugi-maru), sans-serif;
   --font-mono: Consolas, var(--font-fira-mono);
   --font-kosugi-maru: var(--font-kosugi-maru), sans-serif;
@@ -25,6 +26,7 @@
   color utility to any element that depends on these defaults.
 */
 @layer base {
+
   *,
   ::after,
   ::before,
@@ -74,6 +76,19 @@
 
 .is-active-li .toc-link {
   @apply border-l-4 border-l-[#324e73] text-[#324e73];
+}
+
+html.dark .toc-list-item .toc-link:hover {
+  @apply text-[#9db8d6];
+}
+
+html.dark .is-active-li .toc-link {
+  @apply border-l-[#76b5e6] text-[#cbd9ea];
+}
+
+/* TOC リンクのスムーズスクロール時に、上部の sticky 要素へ潜り込まないようにする */
+.post :is(h2, h3) {
+  scroll-margin-top: 1.5rem;
 }
 
 .batsu {
@@ -154,7 +169,7 @@ html.dark .post {
   @apply mb-0;
 }
 
-.post .scrollable + p {
+.post .scrollable+p {
   @apply mt-0;
 }
 
@@ -262,12 +277,16 @@ hr {
   box-shadow: 0 3px 3px -3px #324e73 inset;
 }
 
-.scrollable path, .scrollable line, .scrollable g {
+.scrollable path,
+.scrollable line,
+.scrollable g {
   stroke: #101828;
   fill: #101828;
 }
 
-html.dark .scrollable path, html.dark .scrollable line, html.dark .scrollable g {
+html.dark .scrollable path,
+html.dark .scrollable line,
+html.dark .scrollable g {
   stroke: #e6edf6;
   fill: #e6edf6;
 }

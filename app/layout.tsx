@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Noto_Sans_JP, Kosugi_Maru, Nunito, Fira_Mono } from "next/font/google";
+import { Noto_Sans_JP, Zen_Maru_Gothic, Kosugi_Maru, Nunito, Fira_Mono } from "next/font/google";
 
 import "./globals.css";
 import MathEnvironment from "@/component/mathenv";
@@ -9,6 +9,12 @@ const noto_sans_jp = Noto_Sans_JP({
   subsets: ["latin"],
   variable: "--font-noto-sans-jp"
 });
+const zen_maru_gothic = Zen_Maru_Gothic({
+  weight: "400",
+  subsets: ["latin"],
+  variable: "--font-zen-maru-gothic"
+});
+
 const kosugi_maru = Kosugi_Maru({
   weight: "400",
   subsets: ["latin"],
@@ -25,8 +31,8 @@ const fira_mono = Fira_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Weekly Run Demo",
-  description: "Description of something with working codes",
+  title: "Dispositif",
+  description: "A personal blog featuring articles on mathematics and physics.",
 };
 
 export default function RootLayout({
@@ -40,6 +46,7 @@ export default function RootLayout({
       ${kosugi_maru.variable}
       ${nunito.variable}
       ${fira_mono.variable}
+      ${zen_maru_gothic.variable}
        antialiased`}
     >
       <body>
