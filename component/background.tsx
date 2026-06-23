@@ -148,8 +148,12 @@ export function BackgroundPattern() {
       backgroundImage: `url('data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgHTML)}')`
     });
 
-    // 全体のテキストカラーなども追従させたい場合はbodyのclassをトグルする（オプショナル）
-    document.body.classList.toggle('dark-mode', isDarkMode);
+    // ページ本体（page.tsx / [slug]/page.tsx など）も追従させるため、
+    // <html> に dark / light クラスをトグルする。Tailwind の dark: variant と
+    // globals.css の html.dark / html.light ルールがこれに反応する。
+    const root = document.documentElement;
+    root.classList.toggle('dark', isDarkMode);
+    root.classList.toggle('light', !isDarkMode);
 
   }, [isDarkMode, isMounted]);
 

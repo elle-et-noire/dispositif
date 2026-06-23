@@ -13,7 +13,9 @@ export default function PostCard({ slug, data }: {
       className="
         px-3 md:px-6 pt-2 sm:pt-4 pb-1 sm:pb-2
         no-underline w-full bg-[#f8f8f8] text-[#324e73] rounded-md border-[#dadfe4] border-[0.5pt]
-        shadow-[0_1px_1px_1px_rgba(0,0,0,0.2)] overflow-hidden"
+        shadow-[0_1px_1px_1px_rgba(0,0,0,0.2)] overflow-hidden
+        transition-colors duration-500
+        dark:bg-[#0f1a2b] dark:text-[#9db8d6] dark:border-[#1d2c44] dark:shadow-[0_1px_1px_1px_rgba(0,0,0,0.5)]"
     >
       <h2 className="
         mb-1

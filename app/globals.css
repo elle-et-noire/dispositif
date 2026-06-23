@@ -2,6 +2,10 @@
 
 @plugin '@tailwindcss/typography';
 
+/* class ベースの dark mode（<html> の .dark で切り替え）。
+   既定の prefers-color-scheme ベースを上書きする。 */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --font-noto-sans: var(--font-noto-sans-jp);
   --font-system: var(--font-nunito), var(--font-kosugi-maru), sans-serif;
@@ -112,6 +116,12 @@ svg {
   text-autospace: normal;
 }
 
+/* 平文・行内数式（currentColor 追従の SVG）の色をダークモードで反転。
+   .post が prose の内側で色を固定してしまうため、ここで上書きする。 */
+html.dark .post {
+  @apply text-[#cbd9ea];
+}
+
 .post a {
   @apply underline underline-offset-4;
 }
@@ -164,6 +174,11 @@ svg {
 .post p code,
 .post li code {
   @apply bg-[#d9dce1] rounded-md py-0.5 px-1 mx-0.5 text-base;
+}
+
+html.dark .post p code,
+html.dark .post li code {
+  @apply bg-[#1d2c44] text-[#cbd5e1];
 }
 
 /* @tailwindcss/typography がインライン code の前後に付ける `` を消す */
@@ -250,4 +265,9 @@ hr {
 .scrollable path, .scrollable line, .scrollable g {
   stroke: #101828;
   fill: #101828;
+}
+
+html.dark .scrollable path, html.dark .scrollable line, html.dark .scrollable g {
+  stroke: #e6edf6;
+  fill: #e6edf6;
 }
