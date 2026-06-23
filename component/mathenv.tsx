@@ -47,6 +47,13 @@ export default function MathEnvironment(props: Props) {
     },
     output: {
       font: 'mathjax-tex'
+    },
+    // better-react-mathjax が各 <MathJax> 単位で typeset するため、
+    // MathJax 既定の「読み込み時に文書全体を自動 typeset」を無効化する。
+    // これを有効のままにすると、React のハイドレーション前に DOM が
+    // 書き換わり hydration mismatch を起こす。
+    startup: {
+      typeset: false
     }
   };
 
