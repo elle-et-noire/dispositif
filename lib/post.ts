@@ -2,23 +2,16 @@ import { readFileSync, readdirSync } from "fs";
 import path from "path";
 import matter from "gray-matter";
 
-// MDXファイルのディレクトリ
-const POSTS_PATH = path.join(process.cwd(), "post");
+const postPath = path.join(process.cwd(), "post");
 
-// ファイル名（slug）の一覧を取得
-export function GetAllPostSlugs() {
-  const postFilePaths = readdirSync(POSTS_PATH).filter((path) =>
-    /\.md?$/.test(path)
-  );
-  return postFilePaths.map((path) => {
-    const slug = path.replace(/\.md?$/, "");
-    return slug;
-  });
+export function GetAllSlugs() {
+  return readdirSync(postPath)
+    .filter((path) => /\.md?$/.test(path))
+    .map((path) => path.replace(/\.md?$/, ""));
 }
 
-// slugからファイルの中身を取得
 export function GetPostBySlug(slug: string) {
-  const markdown = readFileSync(path.join(POSTS_PATH, `${slug}.md`), "utf8");
+  const markdown = readFileSync(path.join(postPath, `${slug}.md`), "utf8");
 
   const { content, data } = matter(markdown);
   return {
@@ -28,23 +21,12 @@ export function GetPostBySlug(slug: string) {
 }
 
 export function GetAllPosts() {
-  const slugs = GetAllPostSlugs();
-  const posts = slugs.map((slug) => {
-    const markdown = readFileSync(path.join(POSTS_PATH, `${slug}.md`), 'utf8');
+  const slugs = GetAllSlugs();
+  const posts = slugs.map((slug) => ({ slug, ...GetPostBySlug(slug) }));
 
-    const { content, data } = matter(markdown);
-    return {
-      slug,
-      content,
-      data,
-    };
-  });
-
-  const sortedPosts = posts.sort((a, b) => {
-    const dateA = new Date(a.data.publish);
-    const dateB = new Date(b.data.publish);
-    return dateB.getTime() - dateA.getTime();
-  })
-
-  return sortedPosts;
+  // sort by date
+  return posts.sort((a, b) =>
+    (new Date(b.data.publish)).getTime()
+    - (new Date(a.data.publish).getTime())
+  );
 }

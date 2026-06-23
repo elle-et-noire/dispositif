@@ -1,5 +1,9 @@
-import { GetAllPostSlugs, GetPostBySlug } from "@/lib/post";
-import { MDXRemote } from "next-mdx-remote/rsc";
+import { GetAllSlugs, GetPostBySlug } from "@/lib/post";
+// import Toc from "@/components/toc";
+import Link from "next/link";
+import DateInfo from "@/component/dateinfo";
+import { markdownToHtml } from "@/lib/convert";
+import PostContentMath from "@/component/postcontent";
 
 interface PostPageProps {
   params: Promise<{
@@ -7,22 +11,60 @@ interface PostPageProps {
   }>;
 }
 
+export const dynamicParams = false;
+
 export async function generateStaticParams() {
-  const slugs = GetAllPostSlugs();
-  return slugs.map((slug) => ({ params: { slug } }));
+  const slugs = GetAllSlugs();
+  return slugs.map((slug) => {
+    return {
+      slug: slug
+    }
+  });
 }
 
-export default async function PostPage(props: PostPageProps) {
-  const params = await props.params;
-  const { content, data } = GetPostBySlug(params.slug);
+export default async function PostPage({ params }: PostPageProps) {
+  const { slug } = await params;
+  const { content, data } = GetPostBySlug(slug);
+  const [mdx, mathblocks] = await markdownToHtml(content || "");
 
   return (
-    <div>
-      <h1>{data.title}</h1>
-      <p>{data.category}</p>
-      <div>
-        <MDXRemote source={content} />
+    <>
+      <div // glass morphism background
+        className="
+          z-10 fixed top-0 left-0 right-0
+          size-full bg-[#76ddfc]/15
+          backdrop-blur-[3px]
+        "
+      />
+      <div // modal window like
+        className="
+          z-20 relative flex flex-col
+          mx-auto mt-8 px-4 md:pl-16 md:pr-4 pb-16
+          w-[22rem] sm:w-[40rem] md:w-[68rem] rounded-lg
+          bg-[#f8f8f8] shadow-[0_0px_3px_0px_rgba(128,128,128,0.5)]
+          prose max-w-none
+        "
+      >
+        <div // to put close button right
+          className="invisible flex justify-end z-30 sticky top-0 pt-4">
+          <Link href="/" className="visible h-8" prefetch={true}>
+            <div className="batsu"></div>
+          </Link>
+        </div>
+        <div className="grid grid-flow-col justify-stretch">
+          <div // left column
+            className="w-[20rem] sm:w-[38rem] md:w-[48rem] font-noto-sans overflow-x-visible"
+          >
+            <h1 className="mb-1 md:mb-3 font-[600] text-lg sm:text-3xl md:text-4xl">{data.title}</h1>
+            <DateInfo data={data} className="text-xs sm:text-base" />
+            <PostContentMath mathblocks={mathblocks} mdx={mdx} />
+          </div>
+          <div //right column
+            className="hidden md:block w-full md:w-[12rem] pl-4">
+            {/* <Toc /> */}
+          </div>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

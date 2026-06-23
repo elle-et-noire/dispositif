@@ -2,7 +2,8 @@
 title: Sample Post
 publish: 2025-05-05
 lastUpdate: 2025-05-05
-category: category
+tag:
+- category
 ---
 
 ## Paragraph
