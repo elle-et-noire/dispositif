@@ -26,3 +26,25 @@ export function GetPostBySlug(slug: string) {
     data,
   };
 }
+
+export function GetAllPosts() {
+  const slugs = GetAllPostSlugs();
+  const posts = slugs.map((slug) => {
+    const markdown = readFileSync(path.join(POSTS_PATH, `${slug}.md`), 'utf8');
+
+    const { content, data } = matter(markdown);
+    return {
+      slug,
+      content,
+      data,
+    };
+  });
+
+  const sortedPosts = posts.sort((a, b) => {
+    const dateA = new Date(a.data.publish);
+    const dateB = new Date(b.data.publish);
+    return dateB.getTime() - dateA.getTime();
+  })
+
+  return sortedPosts;
+}
