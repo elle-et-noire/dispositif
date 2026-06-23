@@ -45,9 +45,15 @@ export default function MathEnvironment(props: Props) {
       mtextInheritFont: true,
       scale: 0.88,
     },
-    output: {
-      font: 'mathjax-tex'
-    },
+    // 既定の mathjax-newcm フォントを使う。これは tex-svg.js バンドルに
+    // 同梱されているため追加ダウンロードが発生しない（≈ MathJax v3 の単一バンドル）。
+    // 'mathjax-tex' を指定すると別パッケージ (~466KB) を tex-svg.js のパース後に
+    // CDN からウォーターフォールで取得し、その完了まで hideUntilTypeset により
+    // 記事全体が非表示のままになるため、初回表示が大幅に遅くなる。
+    // （旧 TeX フォントの見た目を厳密に保ちたい場合は MathJax の自己ホストを検討）
+    // output: {
+    //   font: 'mathjax-modern'
+    // },
     // better-react-mathjax が各 <MathJax> 単位で typeset するため、
     // MathJax 既定の「読み込み時に文書全体を自動 typeset」を無効化する。
     // これを有効のままにすると、React のハイドレーション前に DOM が
