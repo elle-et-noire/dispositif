@@ -126,7 +126,7 @@ svg {
 }
 
 .post .scrollable {
-  @apply overflow-x-auto p-0 m-0 indent-0 whitespace-nowrap;
+  @apply block overflow-x-auto p-0 m-0 indent-0 whitespace-nowrap;
 }
 
 .post {

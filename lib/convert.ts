@@ -130,7 +130,7 @@ ${content}
     }).concat(footnotes).replace(/(<(?:inmath|dispmath)\d+\/>)(\r?\n|<br\/>)/g, "$1") // 数式と文章の間の改行による隙間を消す
     .replace(/<((?:inmath|dispmath)\d+)\/>/g, (_, mode: string): string => {
       if (mode.substring(0, 6) == "inmath") return "<span>{`" + evacuees[mode].replace(/\\/g, "\\\\") + "`}</span>";
-      if (mode.substring(0, 8) == "dispmath") return "<div className='scrollable'>{`" + evacuees[mode].replace(/\\/g, "\\\\") + "`}</div>";
+      if (mode.substring(0, 8) == "dispmath") return "<span className='scrollable'>{`" + evacuees[mode].replace(/\\/g, "\\\\") + "`}</span>";
       return "";
     })
     .replace(/<(quote\d+)\/>/g, (_, mode: string) => evacuees[mode].replace(/(^`{3,})([^`\r\n]+)/g, (__, p1: string, p2: string): string => {
