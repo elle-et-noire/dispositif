@@ -4,6 +4,7 @@ import { Noto_Sans_JP, Zen_Kaku_Gothic_New, Zen_Maru_Gothic, Kosugi_Maru, Nunito
 import "./globals.css";
 import MathEnvironment from "@/component/mathenv";
 import { BackgroundPattern } from "@/component/background";
+import NavigationFix from "@/component/navfix";
 
 const noto_sans_jp = Noto_Sans_JP({
   subsets: ["latin"],
@@ -68,6 +69,7 @@ export default function RootLayout({
        antialiased`}
     >
       <body>
+        <NavigationFix />
         <BackgroundPattern />
         <MathEnvironment>
           {/* <ProgressBarProvider> */}

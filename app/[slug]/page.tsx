@@ -1,10 +1,10 @@
 import { GetAllSlugs, GetPostBySlug } from "@/lib/post";
 import Toc from "@/component/toc";
 import { getHeadings } from "@/lib/toc";
-import Link from "next/link";
 import DateInfo from "@/component/dateinfo";
 import { markdownToHtml } from "@/lib/convert";
 import PostContentMath from "@/component/postcontent";
+import CloseButton from "@/component/closebutton";
 
 interface PostPageProps {
   params: Promise<{
@@ -51,9 +51,7 @@ export default async function PostPage({ params }: PostPageProps) {
       >
         <div // to put close button right
           className="invisible flex justify-end z-30 sticky top-0 pt-4">
-          <Link href="/" className="visible h-8" prefetch={true}>
-            <div className="batsu"></div>
-          </Link>
+          <CloseButton />
         </div>
         <div className="grid grid-flow-col justify-stretch">
           <div // left column
