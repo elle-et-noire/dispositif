@@ -128,4 +128,5 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v5
         with:
+          # Milliseconds. Extend beyond the 10-minute default to absorb transient Pages queue delays.
           timeout: 1200000
