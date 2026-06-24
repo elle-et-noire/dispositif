@@ -47,7 +47,7 @@ export default async function PostPage({ params }: PostPageProps) {
       <div // glass morphism background
         className="
           z-10 fixed top-0 left-0 right-0
-          size-full bg-[#76ddfc]/15 dark:bg-[#001533]/25
+          size-full bg-[#1f1b1c]/15 dark:bg-[#001533]/30
           backdrop-blur-[3px]
         "
       />
@@ -56,7 +56,7 @@ export default async function PostPage({ params }: PostPageProps) {
           z-20 relative flex flex-col
           mx-auto mt-8 px-4 md:pl-16 md:pr-4 pb-16
           w-[22rem] sm:w-[40rem] md:w-[68rem] rounded-lg
-          bg-[#f8f8f8] shadow-[0_0px_3px_0px_rgba(128,128,128,0.5)]
+          bg-[#f5f0e6] shadow-[0_0px_4px_0px_rgba(31,27,28,0.45)]
           prose max-w-none
           transition-colors duration-500
           dark:bg-[#0b1422] dark:shadow-[0_0px_3px_0px_rgba(0,0,0,0.6)] dark:prose-invert

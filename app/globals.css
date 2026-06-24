@@ -70,7 +70,7 @@
 }
 
 .toc-list-item .toc-link:hover {
-  @apply text-[#324e73];
+  @apply text-[#90332f];
 }
 
 .toc-list-item {
@@ -78,7 +78,7 @@
 }
 
 .is-active-li .toc-link {
-  @apply border-l-4 border-l-[#324e73] text-[#324e73];
+  @apply border-l-4 border-l-[#90332f] text-[#90332f];
 }
 
 html.dark .toc-list-item .toc-link:hover {
@@ -109,8 +109,13 @@ html.dark .is-active-li .toc-link {
   left: 50%;
   width: 2px;
   height: 30px;
-  background: #324e73;
+  background: #90332f;
   border-radius: 2.5px;
+}
+
+html.dark .batsu::before,
+html.dark .batsu::after {
+  background: #76b5e6;
 }
 
 .batsu::before {
@@ -130,7 +135,7 @@ svg {
 }
 
 .post {
-  @apply text-[#101828];
+  @apply text-[#1f1b1c];
   text-autospace: normal;
 }
 
@@ -145,15 +150,27 @@ html.dark .post {
 }
 
 .post a:hover {
-  @apply text-[#324e73] no-underline;
+  @apply text-[#90332f] no-underline;
+}
+
+html.dark .post a:hover {
+  @apply text-[#76b5e6];
 }
 
 .post h2 {
-  @apply text-[#324e73] text-base sm:text-2xl font-bold py-0.5 sm:py-1 border-l-4 border-l-[#324e73] pl-2 sm:pl-4;
+  @apply text-[#90332f] text-base sm:text-2xl font-bold py-0.5 sm:py-1 border-l-4 border-l-[#90332f] pl-2 sm:pl-4;
+}
+
+html.dark .post h2 {
+  @apply text-[#76b5e6] border-l-[#76b5e6];
 }
 
 .post h3 {
-  @apply text-[#324e73] text-base sm:text-xl font-bold;
+  @apply text-[#90332f] text-base sm:text-xl font-bold;
+}
+
+html.dark .post h3 {
+  @apply text-[#76b5e6];
 }
 
 .post p {
@@ -191,7 +208,7 @@ html.dark .post {
 
 .post p code,
 .post li code {
-  @apply bg-[#d9dce1] rounded-md py-0.5 px-1 mx-0.5 text-base;
+  @apply bg-[#e6dec9] rounded-md py-0.5 px-1 mx-0.5 text-base;
 }
 
 html.dark .post p code,
@@ -242,15 +259,25 @@ html.dark .post li code {
   right: 0;
   z-index: -1;
   border-radius: 3px;
-  border: solid #97c8d8;
+  border: solid #d8cdb5;
   border-width: 1px;
-  box-shadow: 0px 1px 1px 0px #4ba4cc;
+  box-shadow: 0px 1px 1px 0px #b59b6b;
   transform: skewX(-10deg);
-  background-color: #fff;
+  background-color: #f5f0e6;
 }
 
 .post details[open] summary::before {
-  box-shadow: inset 0px 1px 1px 0px #4ba4cc;
+  box-shadow: inset 0px 1px 1px 0px #b59b6b;
+}
+
+html.dark .post details summary::before {
+  border-color: #16345c;
+  box-shadow: 0px 1px 1px 0px #007ba7;
+  background-color: #0e264a;
+}
+
+html.dark .post details[open] summary::before {
+  box-shadow: inset 0px 1px 1px 0px #007ba7;
 }
 
 details[open] summary::after {
@@ -259,11 +286,15 @@ details[open] summary::after {
 
 details summary::after {
   content: "+";
-  color: #324e73;
+  color: #90332f;
   font-weight: 600;
   float: right;
   width: 1rem;
   text-align: center;
+}
+
+html.dark details summary::after {
+  color: #76b5e6;
 }
 
 html.light[data-theme="dark"] {
@@ -277,14 +308,18 @@ html.dark[data-theme="light"] {
 hr {
   height: 3px;
   border: 0;
-  box-shadow: 0 3px 3px -3px #324e73 inset;
+  box-shadow: 0 3px 3px -3px #90332f inset;
+}
+
+html.dark hr {
+  box-shadow: 0 3px 3px -3px #2c4a73 inset;
 }
 
 .scrollable path,
 .scrollable line,
 .scrollable g {
-  stroke: #101828;
-  fill: #101828;
+  stroke: #1f1b1c;
+  fill: #1f1b1c;
 }
 
 html.dark .scrollable path,
