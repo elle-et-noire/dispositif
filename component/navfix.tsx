@@ -3,23 +3,6 @@
 import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
 
-// この JS バンドルが最初に評価された（＝フルロードで文書が読み込まれた）時点の
-// パスを 1 度だけ記録する。SPA 遷移ではモジュールは再評価されないので値は保たれ、
-// フルロード（直接アクセス／リロード）のたびに新しい window で取り直される。
-// 「記事を直接開いたのか、サイト内から遷移してきたのか」の判定に使う。
-if (typeof window !== "undefined") {
-  const w = window as Window & { __docInitialPath?: string };
-  if (w.__docInitialPath === undefined) {
-    w.__docInitialPath = window.location.pathname;
-  }
-}
-
-/** 文書をフルロードした時点のパス（basePath 込み）。未取得なら null。 */
-export function getDocumentInitialPath(): string | null {
-  if (typeof window === "undefined") return null;
-  return (window as Window & { __docInitialPath?: string }).__docInitialPath ?? null;
-}
-
 /**
  * Next.js App Router を `output: "export"`（静的エクスポート）で使うと、
  * ページをリロードした後などに「戻る/進む」(popstate) を押したとき、

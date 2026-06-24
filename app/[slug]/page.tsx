@@ -5,6 +5,7 @@ import DateInfo from "@/component/dateinfo";
 import { markdownToHtml } from "@/lib/convert";
 import PostContentMath from "@/component/postcontent";
 import CloseButton from "@/component/closebutton";
+import PostList from "@/component/postlist";
 
 interface PostPageProps {
   params: Promise<{
@@ -14,9 +15,17 @@ interface PostPageProps {
 
 export const dynamicParams = false;
 
+// 記事一覧用の予約スラッグ。一覧を `[slug]` の 1 パラメータとして持たせることで、
+// 記事ページ（同じ `[slug]` 動的ルート）から「記事→記事」と同じ要領で一覧へ
+// SPA 遷移できる。Next.js の output:export では index ルート(`/`)への push は
+// フルリロードにフォールバックしてしまうが、動的ルートのパラメータ遷移は SPA で
+// 行えるため、これが直接アクセスした記事を（リロードせず）閉じる鍵になる
+// （CloseButton 参照）。実在の記事スラッグと衝突してはならない。
+const LIST_SLUG = "posts";
+
 export async function generateStaticParams() {
   const slugs = GetAllSlugs();
-  return slugs.map((slug) => {
+  return [...slugs, LIST_SLUG].map((slug) => {
     return {
       slug: slug
     }
@@ -25,6 +34,10 @@ export async function generateStaticParams() {
 
 export default async function PostPage({ params }: PostPageProps) {
   const { slug } = await params;
+  // 予約スラッグなら記事一覧を描画する（記事のモーダル枠などは出さない）。
+  if (slug === LIST_SLUG) {
+    return <PostList />;
+  }
   const { content, data } = GetPostBySlug(slug);
   const [mdx, mathblocks] = await markdownToHtml(content || "");
   const headings = getHeadings(content || "");

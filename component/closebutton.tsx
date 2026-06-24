@@ -2,43 +2,33 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { getDocumentInitialPath } from "./navfix";
 
 /**
- * 記事を閉じてトップ（記事一覧）へ戻るボタン。
+ * 記事を閉じて記事一覧へ戻るボタン。
  *
- * このサイトは Next.js App Router を `output: "export"` ＋ `basePath`
- * （GitHub Pages のサブパス配信）で動かしている。この構成では「index ルート
- * (`/`) への前進クライアント遷移」だけが壊れており、`<Link href="/">` の
- * クリックや `router.push("/")` がネットワークも出さずに無反応になる
- * （ルーターが basePath を剥がすとパスが空文字になり `/` ルートにマッチ
- * しないため）。記事→別記事など index 以外への前進遷移や、戻る(popstate)は
- * 正常に動く。MathJax の有無とは無関係であることは検証済み。
+ * フルリロードせず SPA 遷移で一覧へ戻す（背景模様を維持するため）。実現には
+ * 2 つの Next.js (output:export) の癖を回避する必要がある：
  *
- * そこでトップへ戻るには `router.back()`（履歴 popstate 経由）を使う。SPA 遷移の
- * ままなのでフルリロードによる背景の白飛びも起きない。ただし back() で戻れるのは
- * サイト内から遷移して来た場合だけなので、記事を直接開いた（＝この文書の初期
- * パスが記事自身）場合は戻り先が無く、その時だけ本物のナビゲーションでトップへ
- * 移動する（この経路のみフルリロードになる）。
+ *  1. index ルート(`/`)への `router.push("/")` は SPA にならずフルリロードに
+ *     フォールバックする。一方、動的ルート `[slug]` へのパラメータ遷移は SPA で
+ *     行える。そこで一覧を `[slug]` の予約スラッグ `/posts` として用意し
+ *     （app/[slug]/page.tsx 参照）、そこへ `push("/posts")` する。
+ *  2. `<Link>` の prefetch は一部ルートで RSC 取得に失敗し、その失敗がルーターの
+ *     キャッシュを汚染して以後の遷移を無反応にする。よって `prefetch={false}`。
+ *
+ * また素の `<Link>` クリックは（プリフェッチされていない遷移先だと）フルリロード
+ * になるため、`onClick` で明示的に `router.push` する。
  */
 export default function CloseButton() {
   const router = useRouter();
   return (
     <Link
-      href="/"
+      href="/posts"
+      prefetch={false}
       className="visible h-8"
-      prefetch={true}
       onClick={(e) => {
         e.preventDefault();
-        const home = e.currentTarget.href;
-        const initial = getDocumentInitialPath();
-        if (initial !== null && initial !== window.location.pathname) {
-          // サイト内から来た → SPA で戻る（白飛びなし）
-          router.back();
-        } else {
-          // 直接アクセス等で戻り先が無い → 実ナビゲーションでトップへ
-          window.location.assign(home);
-        }
+        router.push("/posts");
       }}
     >
       <div className="batsu"></div>

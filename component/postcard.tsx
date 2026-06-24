@@ -9,7 +9,7 @@ export default function PostCard({ slug, data }: {
 }) {
   return (
     <Link
-      href={slug}
+      href={`/${slug}`}
       className="
         px-3 md:px-6 pt-2 sm:pt-4 pb-1 sm:pb-2
         no-underline w-full bg-[#f8f8f8] text-[#324e73] rounded-md border-[#dadfe4] border-[0.5pt]
