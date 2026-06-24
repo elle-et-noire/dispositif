@@ -5,13 +5,6 @@ import { useEffect, useState, useRef } from "react";
 const patternSize = 750;
 const eyesCount = 40;
 
-// 模様（目玉の配置）とテーマをセッション内で保持するためのキー。
-// 記事を開閉するとページ全体がリロードされるため、これが無いと毎回
-// 模様が再計算されて変わってしまう。sessionStorage なのでタブを開いている
-// 間は同じ模様・テーマが保たれ、新しい訪問では新しい模様になる。
-const EYES_STORAGE_KEY = 'bg-pattern-eyes-v1';
-const THEME_STORAGE_KEY = 'bg-pattern-dark-v1';
-
 const retroColors = ['#ece5d3', '#90332f', '#8b7a95', '#1f1b1c'];
 const retroBg = '#1f1b1c';
 
@@ -102,31 +95,14 @@ export function BackgroundPattern() {
   useEffect(() => {
     setIsMounted(true);
 
-    // テーマをセッションから復元（記事を閉じる＝リロードを跨いでも維持する）
-    try {
-      const savedTheme = sessionStorage.getItem(THEME_STORAGE_KEY);
-      if (savedTheme !== null) setIsDarkMode(savedTheme === '1');
-    } catch { /* sessionStorage 不可（プライベートモード等）の場合は既定値のまま */ }
-
-    // 目玉の配置（設計図）を用意する。
-    // セッションに保存済みならそれを再利用し、無ければ生成して保存する。
-    // これにより記事を開閉してページがリロードされても模様が変わらない。
+    // 目玉の配置（設計図）を一度だけ生成する。
+    // BackgroundPattern はルートレイアウトに置かれているため、記事を開く
+    // （<Link> による SPA 遷移）／閉じる（router.back()）操作ではアンマウント
+    // されず、この ref に保持した配置がそのまま維持される＝模様は変わらない。
+    // 一方、リロード・新しいタブ・直接アクセスではモジュールが再評価されて
+    // コンポーネントが作り直されるので、自然に新しい模様が生成される。
     if (baseEyesRef.current.length === 0) {
-      let restored: BaseEye[] | null = null;
-      try {
-        const saved = sessionStorage.getItem(EYES_STORAGE_KEY);
-        if (saved) restored = JSON.parse(saved) as BaseEye[];
-      } catch { /* 破損データ等は無視して再生成する */ }
-
-      if (restored && restored.length > 0) {
-        baseEyesRef.current = restored;
-      } else {
-        const baseEyes = generateBaseEyes();
-        baseEyesRef.current = baseEyes;
-        try {
-          sessionStorage.setItem(EYES_STORAGE_KEY, JSON.stringify(baseEyes));
-        } catch { /* 保存できなくても描画自体は続行する */ }
-      }
+      baseEyesRef.current = generateBaseEyes();
     }
   }, []);
 
@@ -198,11 +174,7 @@ export function BackgroundPattern() {
     <>
       {/* テーマ切り替えボタン */}
       <button
-        onClick={() => setIsDarkMode((prev) => {
-          const next = !prev;
-          try { sessionStorage.setItem(THEME_STORAGE_KEY, next ? '1' : '0'); } catch { /* 保存不可でもトグルは行う */ }
-          return next;
-        })}
+        onClick={() => setIsDarkMode((prev) => !prev)}
         aria-label={isDarkMode ? 'ライトモードに切り替え' : 'ダークモードに切り替え'}
         className="fixed top-5 left-5 z-50 flex items-center justify-center size-11 text-xl leading-none bg-white/90 text-gray-900 rounded-full shadow-md backdrop-blur-md transition-all hover:-translate-y-0.5 hover:shadow-lg dark:bg-slate-900/90 dark:text-cyan-400 dark:shadow-cyan-400/20"
       >
