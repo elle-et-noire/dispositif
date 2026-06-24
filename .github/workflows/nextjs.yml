@@ -107,7 +107,7 @@ jobs:
 
               const blockingRun = data.workflow_runs.find((run) =>
                 run.path === targetPath &&
-                ["queued", "in_progress"].includes(run.status) &&
+                ["requested", "waiting", "queued", "in_progress"].includes(run.status) &&
                 run.id !== context.runId
               );
 
@@ -127,3 +127,6 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
+        with:
+          # actions/deploy-pages expects milliseconds (default: 600000 = 10m).
+          timeout: 1200000
