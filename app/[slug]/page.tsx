@@ -6,6 +6,7 @@ import { markdownToHtml } from "@/lib/convert";
 import PostContentMath from "@/component/postcontent";
 import CloseButton from "@/component/closebutton";
 import PostList from "@/component/postlist";
+import Seal from "@/component/seal";
 
 interface PostPageProps {
   params: Promise<{
@@ -62,6 +63,24 @@ export default async function PostPage({ params }: PostPageProps) {
           dark:bg-[#0b1422] dark:shadow-[0_0px_3px_0px_rgba(0,0,0,0.6)] dark:prose-invert
         "
       >
+        {/* カードの破線＝この窓の上端かつ下端、と見立てる。カードでは封蝋が破線を
+            またいでいたので、その封蝋を上端には下半分、下端には上半分として割って
+            描く。上下を綴じれば一つの封蝋になり、破線の下に来ていたタイトル・日付の
+            並びがそのまま窓の冒頭に対応する。 */}
+        <div // 上端：封蝋の下半分（容器に余裕を持たせ、円弧と左右端が切れないようにする）
+          aria-hidden
+          className="pointer-events-none absolute left-1/2 top-0 z-40 h-8 w-12 -translate-x-1/2 overflow-hidden"
+        >
+          {/* 封蝋の中心を容器上端（＝窓の上端）に合わせる → 直径が窓の縁に flush し下半分が出る */}
+          <Seal className="absolute left-1/2 -top-[1.125rem] size-9 -translate-x-1/2" />
+        </div>
+        <div // 下端：封蝋の上半分
+          aria-hidden
+          className="pointer-events-none absolute left-1/2 bottom-0 z-40 h-8 w-12 -translate-x-1/2 overflow-hidden"
+        >
+          {/* 封蝋の中心を容器下端（＝窓の下端）に合わせる → 直径が窓の縁に flush し上半分が出る */}
+          <Seal className="absolute left-1/2 -bottom-[1.125rem] size-9 -translate-x-1/2" />
+        </div>
         <div // to put close button right
           className="invisible flex justify-end z-30 sticky top-0 pt-4">
           <CloseButton />

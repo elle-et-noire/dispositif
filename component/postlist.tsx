@@ -8,7 +8,7 @@ import PostCard from "@/component/postcard";
 export default function PostList() {
   const posts = GetAllPosts();
   return (
-    <main className="min-h-screen min-w-max m-0 pb-12">
+    <main className="min-h-screen m-0 pb-12">
       {/* 一覧ページ専用の集中スクリム。中央列に向けて背景の目玉模様をゆるく暗転させ、
           カードへ視線を集める。ぼかしは使わずクリックも透過させる。 */}
       <div
@@ -18,10 +18,13 @@ export default function PostList() {
           bg-[radial-gradient(ellipse_46%_64%_at_50%_42%,rgba(31,27,28,0.55),rgba(31,27,28,0)_72%)]
           dark:bg-[radial-gradient(ellipse_46%_64%_at_50%_42%,rgba(2,5,10,0.62),rgba(2,5,10,0)_72%)]"
       />
+      {/* 上・左から行方向に詰めていく（Zenn の一覧風）。1→2→3 列にレスポンシブ。
+          auto-rows-fr と各カードの h-full で全カードの高さを揃える。 */}
       <div className="
-        pb-16 pt-20 px-16 mx-auto
-        w-full md:w-[48rem]
-        flex flex-col gap-3 items-center"
+        mx-auto w-full max-w-[64rem]
+        px-5 sm:px-8 pt-20 pb-16
+        grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3
+        auto-rows-fr gap-4 sm:gap-5"
       >
         {posts.map((post) => (
           <PostCard key={post.slug} slug={post.slug} data={post.data} />

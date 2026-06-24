@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import DateInfo from "./dateinfo";
+import Seal from "./seal";
 
 export default function PostCard({ slug, data }: {
   slug: string;
@@ -11,33 +12,51 @@ export default function PostCard({ slug, data }: {
     <Link
       href={`/${slug}`}
       className="
-        group block w-full overflow-hidden no-underline
-        rounded-lg border-l-4 border-y border-r
-        pl-4 pr-4 md:pl-6 md:pr-6 pt-3 pb-2.5
+        group relative flex h-full min-h-[10rem] flex-col overflow-hidden no-underline
+        rounded-lg border
         transition-colors duration-200
-        /* レトロ：背景のクリーム×深紅に合わせた不透明なパーチメント面。
-           左罫は本文見出しと同じ作法で深紅のアクセントを置く。 */
-        bg-[#ece5d3] text-[#1f1b1c]
-        border-l-[#90332f] border-y-[#cdbfa3] border-r-[#cdbfa3]
+        /* レトロ：羊皮紙（封筒）。地から明確に浮くよう静的な影を効かせる。 */
+        border-[#cdbfa3] bg-[#ece5d3]
         shadow-[0_5px_16px_-5px_rgba(0,0,0,0.55)]
-        hover:bg-[#e4dcc6]
-        /* ダーク：背景の濃紺×シアンに合わせた不透明な濃紺面。
-           地（ほぼ漆黒）から明確に浮くよう面を一段明るくする。 */
-        dark:bg-[#11294d] dark:text-[#9db8d6]
-        dark:border-l-[#007ba7] dark:border-y-[#1d4170] dark:border-r-[#1d4170]
-        dark:shadow-[0_5px_16px_-5px_rgba(0,0,0,0.75)]
-        dark:hover:bg-[#15315a]"
+        /* ダーク：背景の濃紺×シアンに合わせた濃紺の封筒。 */
+        dark:border-[#1d4170] dark:bg-[#11294d]
+        dark:shadow-[0_5px_16px_-5px_rgba(0,0,0,0.75)]"
     >
-      <h2 className="
-        mb-1
-        font-bold font-zen-maru-gothic-medium
-        text-base md:text-xl
+      {/* 封筒のフラップ（折り返した蓋）。下端の破線が「折り目＝ここを開ける」を示し、
+          その上に封蝋がまたがって「封がされている」ことを表す。 */}
+      <div className="relative h-11 shrink-0 bg-[#e4dcc6] dark:bg-[#0d244a]">
+        <div className="
+          absolute inset-x-3 bottom-0
+          border-b border-dashed
+          border-[#b59b6b] dark:border-[#3a5c86]"
+        />
+        {/* 封蝋。フラップ下端の折り目をまたいで本体側へ半分かかる。 */}
+        <Seal className="
+          absolute left-1/2 bottom-0 z-10 size-9
+          -translate-x-1/2 translate-y-1/2"
+        />
+      </div>
+
+      {/* 封筒の本体（宛名面）。ホバーで便箋色 #f5f0e6 へ変わり、
+          「開くとこの色の文書（postcontent）になる」ことを予告する。 */}
+      <div className="
+        flex flex-1 flex-col px-4 pt-6 pb-3
         transition-colors duration-200
-        group-hover:text-[#90332f] dark:group-hover:text-[#76ddfc]"
+        text-[#1f1b1c] group-hover:bg-[#f5f0e6]
+        dark:text-[#9db8d6] dark:group-hover:bg-[#15315a]"
       >
-        {data.title}
-      </h2>
-      <DateInfo data={data} className="text-xs md:text-sm" />
+        <h2 className="
+          font-bold font-zen-maru-gothic-medium
+          text-sm md:text-base leading-snug line-clamp-3
+          transition-colors duration-200
+          group-hover:text-[#90332f] dark:group-hover:text-[#76b5e6]"
+        >
+          {data.title}
+        </h2>
+        <div className="mt-auto pt-2">
+          <DateInfo data={data} className="text-xs" />
+        </div>
+      </div>
     </Link>
   )
 }
