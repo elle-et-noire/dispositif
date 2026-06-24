@@ -18,6 +18,14 @@ import { useRouter } from "next/navigation";
  *
  * また素の `<Link>` クリックは（プリフェッチされていない遷移先だと）フルリロード
  * になるため、`onClick` で明示的に `router.push` する。
+ *
+ * ── 実測（直接アクセスした記事ページから router.push、GitHub Pages 相当の静的
+ *    サーバ＋basePath で計測。docReqs = 遷移時に飛んだ HTML ドキュメント要求数）──
+ *      push("/")        : docReqs=2  → フルリロード（index ルートは SPA 不可）
+ *      push("/posts")   : docReqs=0  → SPA（予約スラッグの動的ルート）
+ *      push("/<記事>")  : docReqs=0  → SPA（通常の記事＝動的ルート）
+ *    すなわち閉じる遷移先は index 以外（動的ルート）でなければならず、`/posts`
+ *    を用意している理由がこれ。
  */
 export default function CloseButton() {
   const router = useRouter();
