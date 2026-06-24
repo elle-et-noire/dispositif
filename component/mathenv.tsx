@@ -60,6 +60,23 @@ export default function MathEnvironment(props: Props) {
     // 書き換わり hydration mismatch を起こす。
     startup: {
       typeset: false
+    },
+    // MathJax v4 はデフォルトで semantic enrichment（SRE: Speech Rule
+    // Engine による音声・点字ラベル生成）を有効化する。これは v3 には無かった
+    // 挙動で、数式1つごとに SRE が構文木を解析して読み上げ用ノードを生成するため
+    // typeset の CPU 時間を数倍に押し上げる（対称多項式の記事＝約196式で実測:
+    // typeset ~7600ms / 音声ノード4808個 → enrich:false で ~1600ms / 0個。
+    // v3 同等まで短縮。あわせて SRE worker と mathmaps JSON の追加ダウンロード
+    // (~167KB) も無くなる）。スクリーンリーダ向けの読み上げ情報は失われるが、
+    // v3 でもそもそも生成していなかったため挙動は v3 と一致する。
+    // 無効化は document オプションではなくメニュー設定経由でないと効かない点に注意
+    // （メニューの settings が startup 時に document.options を上書きするため）。
+    options: {
+      menuOptions: {
+        settings: {
+          enrich: false
+        }
+      }
     }
   };
 
