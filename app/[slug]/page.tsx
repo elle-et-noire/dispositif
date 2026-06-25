@@ -4,8 +4,9 @@ import { getHeadings } from "@/lib/toc";
 import DateInfo from "@/component/dateinfo";
 import { markdownToHtml } from "@/lib/convert";
 import CloseButton from "@/component/closebutton";
+import CloseOverlay from "@/component/closeoverlay";
+import CloseSeal from "@/component/closeseal";
 import PostList from "@/component/postlist";
-import Seal from "@/component/seal";
 
 interface PostPageProps {
   params: Promise<{
@@ -47,13 +48,8 @@ export default async function PostPage({ params }: PostPageProps) {
       {/* ビルド時に抽出した、この記事で使われたグリフぶんの CHTML スタイル。
           MathJax の JS をクライアントで動かさずに数式を表示するために必要。 */}
       <style dangerouslySetInnerHTML={{ __html: mathCss }} />
-      <div // glass morphism background
-        className="
-          z-10 fixed top-0 left-0 right-0
-          size-full bg-[#1f1b1c]/15 dark:bg-[#001533]/30
-          backdrop-blur-[3px]
-        "
-      />
+      {/* グラスモーフィズム背景。透けて見える領域のクリックで記事を閉じる。 */}
+      <CloseOverlay />
       <div // modal window like
         className="
           z-20 relative flex flex-col
@@ -69,20 +65,9 @@ export default async function PostPage({ params }: PostPageProps) {
             またいでいたので、その封蝋を上端には下半分、下端には上半分として割って
             描く。上下を綴じれば一つの封蝋になり、破線の下に来ていたタイトル・日付の
             並びがそのまま窓の冒頭に対応する。 */}
-        <div // 上端：封蝋の下半分（容器に余裕を持たせ、円弧と左右端が切れないようにする）
-          aria-hidden
-          className="pointer-events-none absolute left-1/2 top-0 z-40 h-8 w-12 -translate-x-1/2 overflow-hidden"
-        >
-          {/* 封蝋の中心を容器上端（＝窓の上端）に合わせる → 直径が窓の縁に flush し下半分が出る */}
-          <Seal className="absolute left-1/2 -top-[1.125rem] size-9 -translate-x-1/2" />
-        </div>
-        <div // 下端：封蝋の上半分
-          aria-hidden
-          className="pointer-events-none absolute left-1/2 bottom-0 z-40 h-8 w-12 -translate-x-1/2 overflow-hidden"
-        >
-          {/* 封蝋の中心を容器下端（＝窓の下端）に合わせる → 直径が窓の縁に flush し上半分が出る */}
-          <Seal className="absolute left-1/2 -bottom-[1.125rem] size-9 -translate-x-1/2" />
-        </div>
+        {/* 上端：封蝋の下半分／下端：封蝋の上半分。どちらもクリックで記事を閉じる。 */}
+        <CloseSeal position="top" />
+        <CloseSeal position="bottom" />
         <div // to put close button right
           className="invisible flex justify-end z-30 sticky top-0 pt-4">
           <CloseButton />
@@ -91,7 +76,7 @@ export default async function PostPage({ params }: PostPageProps) {
           <div // left column
             className="w-[20rem] sm:w-[38rem] md:w-[48rem] font-zen-maru-gothic-medium overflow-x-visible"
           >
-            <h1 className="mb-1 md:mb-3 text-lg sm:text-3xl md:text-4xl">{data.title}</h1>
+            <h1 className="mb-1 md:mb-3 text-lg sm:text-3xl md:text-4xl dark:text-[#cbd9ea]">{data.title}</h1>
             <DateInfo data={data} className="text-xs sm:text-base" />
             <div className="post">{mdx.content}</div>
           </div>
