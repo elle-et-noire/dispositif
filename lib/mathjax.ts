@@ -10,11 +10,21 @@
 // 正しく解決される（数式を 1 つずつ変換すると番号がリセットされ参照が壊れる）。
 
 import { createRequire } from "node:module";
+import { join } from "node:path";
 
 // mathjax の node 版 API は CommonJS（node-main.cjs）で型定義も無いため、
 // Next/Turbopack のバンドル対象から外して（next.config の serverExternalPackages）
 // 実行時に node_modules から require する。
 const require = createRequire(import.meta.url);
+
+// mathjax のコンポーネント（input/tex.js など）の動的ロード元（ルート）。
+// 既定では mathjax の node-main が記録した __dirname を使うが、Turbopack が
+// （serverExternalPackages を外して）node-main をバンドルすると __dirname が
+// "/ROOT/node_modules/mathjax" のような仮想パスに書き換わり、CI のビルド時に
+// "Can't load /ROOT/node_modules/mathjax/input/tex.js" で失敗する。これを避けるため
+// 実行時の作業ディレクトリ（next build の実行元 = プロジェクトルート）から
+// 実体パスを組み立て、loader.paths.mathjax で明示する（__dirname に依存しない）。
+const MATHJAX_ROOT = join(process.cwd(), "node_modules", "mathjax");
 
 // CDN 上の mathjax-newcm フォントパッケージ。@font-face の src がこのパスを指す。
 // 末尾に /chtml/woff2 を補って各 woff2 を参照する（例: mjx-ncm-n.woff2）。
@@ -24,6 +34,8 @@ const FONT_URL = "https://cdn.jsdelivr.net/npm/@mathjax/mathjax-newcm-font@4/cht
 // 出力のみ SVG → CHTML（ビルド時）に置き換える。
 const config = {
   loader: {
+    // コンポーネントのロード元を実体パスで固定する（上記 MATHJAX_ROOT 参照）。
+    paths: { mathjax: MATHJAX_ROOT },
     load: [
       "input/tex",
       "output/chtml",
