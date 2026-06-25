@@ -1,44 +1,20 @@
 import type { Metadata } from "next";
-import { Noto_Sans_JP, Zen_Kaku_Gothic_New, Zen_Maru_Gothic, Kosugi_Maru, Nunito, Fira_Mono } from "next/font/google";
+import { Zen_Maru_Gothic, Fira_Mono } from "next/font/google";
 
 import "./globals.css";
 import { BackgroundPattern } from "@/component/background";
 import NavigationFix from "@/component/navfix";
 
-const noto_sans_jp = Noto_Sans_JP({
-  subsets: ["latin"],
-  variable: "--font-noto-sans-jp"
-});
-const zen_kaku_gothic_new_medium = Zen_Kaku_Gothic_New({
-  weight: "500",
-  subsets: ["latin"],
-  variable: "--font-zkgn-medium"
-});
-const zen_kaku_gothic_new_bold = Zen_Kaku_Gothic_New({
-  weight: "700",
-  subsets: ["latin"],
-  variable: "--font-zkgn-bold"
-});
+// 実際に適用されているフォントのみ読み込む。和文フォントは next/font/google が
+// Unicode-range で約120分割の @font-face 目録（1ファミリーあたり ~91KB の
+// レンダーブロッキング CSS）を生成するため、未使用ファミリーの削除が FCP/LCP に
+// 直結する。本文＝Zen Maru Gothic medium、日付＝Kosugi Maru、コード＝Fira Mono。
 const zen_maru_gothic_medium = Zen_Maru_Gothic({
   weight: "500",
   subsets: ["latin"],
   variable: "--font-zmg-medium"
 });
-const zen_maru_gothic_bold = Zen_Maru_Gothic({
-  weight: "700",
-  subsets: ["latin"],
-  variable: "--font-zmg-bold"
-});
 
-const kosugi_maru = Kosugi_Maru({
-  weight: "400",
-  subsets: ["latin"],
-  variable: "--font-kosugi-maru"
-});
-const nunito = Nunito({
-  subsets: ["latin"],
-  variable: "--font-nunito"
-});
 const fira_mono = Fira_Mono({
   weight: "400",
   subsets: ["latin"],
@@ -57,14 +33,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ja" suppressHydrationWarning className={`
-      ${noto_sans_jp.variable}
-      ${kosugi_maru.variable}
-      ${nunito.variable}
       ${fira_mono.variable}
-      ${zen_kaku_gothic_new_medium.variable}
-      ${zen_kaku_gothic_new_bold.variable}
       ${zen_maru_gothic_medium.variable}
-      ${zen_maru_gothic_bold.variable}
        antialiased`}
     >
       <head>

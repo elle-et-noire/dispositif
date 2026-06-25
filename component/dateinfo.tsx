@@ -8,7 +8,7 @@ export default function DateInfo({ data, className = "" }: {
 }) {
   return (
     <div className={cn("flex justify-start \
-      font-kosugi-maru font-[400] \
+      font-zen-maru-gothic-medium font-[400] \
       text-[#6f6152] dark:text-[#8aa0bb] italic", className)}
     >
       <span className="pr-1">投稿日</span>{(new Date(data.publish)).toISOString().split('T')[0]}
