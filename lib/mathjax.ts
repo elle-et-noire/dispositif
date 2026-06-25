@@ -55,7 +55,6 @@ const config = {
       e: "{\\mathrm{e}}",
       Im: "\\operatorname{Im}",
       det: "\\operatorname*{det}",
-      eqref: ["{\\large \\ref{#1}}", 1],
     },
     tags: "ams",
     tagSide: "right",
