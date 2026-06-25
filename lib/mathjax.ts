@@ -67,7 +67,13 @@ const config = {
     // plan.md #2: 実際に出現したグリフのぶんだけ CSS を生成する。
     adaptiveCSS: true,
     displayOverflow: "overflow",
-    mtextInheritFont: true,
+    // \text / \tag / \eqref の文字を MathJax フォントの字形ボックス（mjx-c）ではなく
+    // 実テキスト（mjx-utext）として出力させる。クライアント版の mtextInheritFont:true は
+    // 「実行時に DOM から周囲フォントを実測する」仕組みで、DOM の無いビルド時
+    // （liteAdaptor）では機能しないため、mtextFont を非空にして explicit-font 経路に乗せる。
+    // 実際のフォント指定（Zen Maru Gothic）と、メトリクス未実測による固定幅の解除は
+    // globals.css の `.post mjx-utext` 側で行う（ビルド時は実フォント幅を測れないため）。
+    mtextFont: "inherit",
     scale: 1.0,
     // @font-face の src を CDN のフォントパッケージへ向ける（ブラウザは JS 無しで
     // CSS 経由のみ woff2 を読み込む）。グリフのメトリクスはビルド時にローカルの

@@ -129,6 +129,18 @@ svg {
   @apply block overflow-x-auto p-0 m-0 indent-0 whitespace-nowrap;
 }
 
+/* \text / \tag / \eqref など MathJax フォント外のテキスト（mjx-utext）は、ビルド時
+   レンダリング（liteAdaptor、DOM 無し）では実フォント幅を実測できず、メトリクス用の
+   フォールバックフォント（MJX-NCM-ZERO）で見積もった固定幅 (style="width:...em") が
+   付く。実際の本文フォント幅と合わないため、タグ末尾と閉じ括弧の間や \eqref と本文の
+   間に余白が生じる。固定幅を解除して内容幅に合わせる。
+   あわせて MathJax が出力する font-family（MJX-NCM-ZERO, inherit ＝ inherit がリスト内
+   では無効でフォールバックも効かない）を、本文と同じ Zen Maru Gothic で上書きする。 */
+.post mjx-utext {
+  width: auto !important;
+  font-family: var(--font-zen-maru-gothic-medium), sans-serif !important;
+}
+
 .post {
   @apply text-[#101828];
   text-autospace: normal;
