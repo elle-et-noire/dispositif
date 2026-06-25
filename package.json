@@ -15,6 +15,7 @@
     "clsx": "^2.1.1",
     "github-slugger": "^2.0.0",
     "gray-matter": "^4.0.3",
+    "mathjax": "^4.1.2",
     "next": "16.2.9",
     "next-mdx-remote": "^6.0.0",
     "react": "19.2.4",
