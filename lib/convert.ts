@@ -1,5 +1,6 @@
+import { createElement } from "react";
 import { compileMDX, CompileMDXResult } from "next-mdx-remote/rsc";
-import { MathJax } from "better-react-mathjax"
+import { renderArticleMath } from "@/lib/mathjax";
 
 import { Root } from "hast";
 import { visit } from "unist-util-visit";
@@ -18,12 +19,13 @@ import _Link from "@/component/safelink";
 // import _Image from "@/components/_image";
 // import rehypeUnwrapImages from "rehype-unwrap-images";
 
-export const markdownToHtml = async (text: string): Promise<[CompileMDXResult<Record<string, unknown>>, string[]]> => {
+export const markdownToHtml = async (text: string): Promise<[CompileMDXResult<Record<string, unknown>>, string]> => {
   const spacer = "\\hspace{0.2em}";
   const rsmashers = ["。", "、", "）", "，", "．", " ", "　", "-", "：", "", "(", "（"];
   const lsmashers = ["（", "-", "", ")", "）"];
-  const mathblocks: string[] = [];
-  const validlabels = new Set<string>();
+  // 記事内の数式（区切り記号付きの TeX）を出現順に集める。ビルド時に CHTML へ
+  // 一括組版し、各プレースホルダ <Imath>/<Dmath> へ結果 HTML を流し込む。
+  const mathexprs: string[] = [];
   let ord = 0;
 
   const evacuees: { [label: string]: string } = {};
@@ -61,10 +63,7 @@ export const markdownToHtml = async (text: string): Promise<[CompileMDXResult<Re
     return (nextop ? opener(string, offset) : closer(string, offset));
   }
 
-  const processible = text.replace(/\\(?:eq)?ref\{([^}]*)\}/g, (match: string, p1: string) => { // 参照される式ラベルを調べておく。
-    validlabels.add(p1);
-    return match;
-  }).replace(/````[\s\S]*?````|```[\s\S]*?```|``[\s\S]*?``|`[\s\S]*?`/g, (match: string) => { // pre > code
+  const processible = text.replace(/````[\s\S]*?````|```[\s\S]*?```|``[\s\S]*?``|`[\s\S]*?`/g, (match: string) => { // pre > code
     evacuees["quote" + ord] = match;
     return `<quote${ord++}/>`;
   }).replace(/<!--[\s\S]*?-->/g, (match: string) => `<p className="hidden">{\`${match}\`}</p>`)
@@ -74,14 +73,8 @@ export const markdownToHtml = async (text: string): Promise<[CompileMDXResult<Re
     .replace(/\\\)/g, (_, offset: number, string: string) => closer(string, offset + 1))
     .replace(/\\\[[\s\S]*?\\\]|\$\$[\s\S]*?\$\$|\\begin\{([^\}]*)\}[\s\S]*?\\end\{\1\}/g, (math: string) => {
       rear = -1;  // dispmath の直下では rear = -1
-      const added = false;
       // ここでは nextop はマッチした $ の開 or 閉
-      evacuees["dispmath" + ord] = math.replace(/(?<=\\\\|[^\\\$]|^)\$(?!\$)/g, dollarspacer)
-        .replace(/\\label\{([^}]*)\}/g, (ret: string, label: string, _, string: string) => { // prev-window
-          if (!added && validlabels.has(label))
-            mathblocks.push(string.replace(/(?:\\tag\{[^}]+\})?\\label\{([^}]*)\}(?:\\tag\{[^}]+\})?/g, "\\tag*{\\eqref{$1}}"));
-          return ret;
-        });
+      evacuees["dispmath" + ord] = math.replace(/(?<=\\\\|[^\\\$]|^)\$(?!\$)/g, dollarspacer);
       opnum = clnum = 0;
       nextop = true;
       return `<dispmath${ord++}/>`;
@@ -129,9 +122,10 @@ ${content}
       return `<span className='has-tooltip relative items-center no-underline'><span className='inline-block tooltip balloon'>${p1}</span>[^${footnum}]</span>`;
     }).concat(footnotes).replace(/(<(?:inmath|dispmath)\d+\/>)(\r?\n|<br\/>)/g, "$1") // 数式と文章の間の改行による隙間を消す
     .replace(/<((?:inmath|dispmath)\d+)\/>/g, (_, mode: string): string => {
-      if (mode.substring(0, 6) == "inmath") return "<span>{`" + evacuees[mode].replace(/\\/g, "\\\\") + "`}</span>";
-      if (mode.substring(0, 8) == "dispmath") return "<span className='scrollable'>{`" + evacuees[mode].replace(/\\/g, "\\\\") + "`}</span>";
-      return "";
+      const display = mode.substring(0, 8) == "dispmath";
+      const index = mathexprs.length;
+      mathexprs.push(evacuees[mode]); // 区切り記号付きの TeX をそのまま渡す
+      return display ? `<Dmath i={${index}}/>` : `<Imath i={${index}}/>`;
     })
     .replace(/<(quote\d+)\/>/g, (_, mode: string) => evacuees[mode].replace(/(^`{3,})([^`\r\n]+)/g, (__, p1: string, p2: string): string => {
       const titles = p2.split(':');
@@ -185,16 +179,25 @@ ${content}
     },
   };
 
+  // 収集した数式をビルド時に一括で CHTML へ組版する。Imath/Dmath は組版済み
+  // HTML をそのまま埋め込む（クライアントで MathJax は動かない）。
+  const { html: mathHtml, css } = await renderArticleMath(mathexprs);
+  const Imath = ({ i }: { i: number }) =>
+    createElement("span", { dangerouslySetInnerHTML: { __html: mathHtml[i] ?? "" } });
+  const Dmath = ({ i }: { i: number }) =>
+    createElement("span", { className: "scrollable", dangerouslySetInnerHTML: { __html: mathHtml[i] ?? "" } });
+
   const mdx = await compileMDX({
-    source: `<MathJax hideUntilTypeset={"first"}>\n${processible}\n</MathJax>`,
+    source: processible,
     options: { ...options, blockJS: false },
     components: {
       a: _Link,
       // pre: _Pre,
       // img: _Image,
-      MathJax: MathJax,
+      Imath,
+      Dmath,
     }
   });
 
-  return [mdx, mathblocks];
+  return [mdx, css];
 };

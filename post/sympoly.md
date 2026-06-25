@@ -64,7 +64,10 @@ $$\sum_{j=1}^\infty j e_j t^{j-1} = \qty( \sum_{m=0}^\infty e_m t^m ) \qty( \sum
 ## Jacobi-Trudi公式
 
 Schur多項式は完全対称多項式の線形結合で表される:
-$$s_\lambda = \det_{1 \le i,j \le \mathrm{length}(\lambda)}(h_{\lambda_i - i + j}).$$
+$$\begin{align}
+	s_\lambda &= \det_{1 \le i,j \le \mathrm{length}(\lambda)} (h_{\lambda_i - i + j}).
+	\label{eq:jacobi-trudi}\tag{Jacobi-Trudi​公式}
+\end{align}$$
 このことは以下のようにして分かる。変数を$X=(x_1,\ldots,x_N)$とし、分割は（ゼロ埋めによって）一般性を失わずに$\lambda = (\lambda_1,\ldots,\lambda_N)$とおける。すると$N$次正方行列$H,E$を以下のように定義できる:
 - $H_{i,k} = h_{\lambda_i - i + k}(X)$
 
@@ -85,7 +88,7 @@ $$A_{i,j} = \sum_{k=1}^N H_{i,k} E_{k,j} = \sum_{k=1}^N h_{\lambda_i - i + k}(X)
 $$\det E = \det_{1\le i,j\le N}(x_j^{N-j})$$
 となることが分かる。結局$\det A = \det H \cdot \det E$は
 $$\det_{1 \le i,j \le N} (x_i^{\lambda_j + N - j}) = \det_{1 \le i,j \le N}(h_{\lambda_i - i + j}) \cdot \det_{1 \le i,j \le N}(x_i^{N-j})$$
-に落とし込まれ、Jacobi-Trudi公式が成り立つことが分かった。
+に落とし込まれ、\eqref{eq:jacobi-trudi}が成り立つことが分かった。
 
 ## Jacobiの小行列式定理
 
