@@ -54,7 +54,7 @@ export default function Toc({ headings }: Props) {
   };
 
   return (
-    <nav aria-label="目次" className="sticky top-4 max-h-[calc(100svh-2rem)] overflow-y-auto font-zen-maru-gothic-medium">
+    <nav aria-label="目次" className="styled-scrollbar sticky top-4 max-h-[calc(100svh-2rem)] overflow-y-auto font-zen-maru-gothic-medium">
       <ul className="toc-list">
         {headings.map((h) => (
           <li
