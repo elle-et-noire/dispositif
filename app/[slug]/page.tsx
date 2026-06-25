@@ -3,7 +3,6 @@ import Toc from "@/component/toc";
 import { getHeadings } from "@/lib/toc";
 import DateInfo from "@/component/dateinfo";
 import { markdownToHtml } from "@/lib/convert";
-import PostContentMath from "@/component/postcontent";
 import CloseButton from "@/component/closebutton";
 import PostList from "@/component/postlist";
 
@@ -39,11 +38,14 @@ export default async function PostPage({ params }: PostPageProps) {
     return <PostList />;
   }
   const { content, data } = GetPostBySlug(slug);
-  const [mdx, mathblocks] = await markdownToHtml(content || "");
+  const [mdx, mathCss] = await markdownToHtml(content || "");
   const headings = getHeadings(content || "");
 
   return (
     <>
+      {/* ビルド時に抽出した、この記事で使われたグリフぶんの CHTML スタイル。
+          MathJax の JS をクライアントで動かさずに数式を表示するために必要。 */}
+      <style dangerouslySetInnerHTML={{ __html: mathCss }} />
       <div // glass morphism background
         className="
           z-10 fixed top-0 left-0 right-0
@@ -72,7 +74,7 @@ export default async function PostPage({ params }: PostPageProps) {
           >
             <h1 className="mb-1 md:mb-3 text-lg sm:text-3xl md:text-4xl">{data.title}</h1>
             <DateInfo data={data} className="text-xs sm:text-base" />
-            <PostContentMath mathblocks={mathblocks} mdx={mdx} />
+            <div className="post">{mdx.content}</div>
           </div>
           <div //right column
             className="hidden md:block w-full md:w-[12rem] pl-4">
