@@ -85,38 +85,101 @@ html.dark :focus-visible {
   }
 }
 
+/* 左端に少し余白を持たせる。丸（特にアクティブ時のハロ）が左へはみ出して、
+   nav の overflow で見切れるのを防ぐ。 */
 .toc-list {
-  @apply w-full my-0 px-0;
+  @apply w-full my-0 pl-1.5 pr-0 relative;
+}
+
+.toc-list-item {
+  @apply list-none w-full py-0 my-0 relative;
+}
+
+/* Zenn 風の縦線。全項目を貫く 1 本の線として left:6px に引き、丸（同じ left:6px）の
+   中心をちょうど通す。先頭は最初の丸より上、末尾は最後の丸より下へはみ出さないよう、
+   各 li いっぱいに引いた線を first/last だけ半分に切って端を丸の位置で止める。 */
+.toc-list-item::before {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #d8cdb5;
+  transform: translateX(-50%);
+  z-index: 0;
+}
+
+.toc-list-item:first-child::before {
+  top: 50%;
+}
+
+.toc-list-item:last-child::before {
+  bottom: 50%;
+}
+
+html.dark .toc-list-item::before {
+  background: #2c4a73;
 }
 
 /* 非アクティブの目次リンク。羊皮紙地でも WCAG AA を満たすよう、gray-400(約2:1) から
-   地色になじむ濃い茶系へ。tap 領域確保のため最小高さも持たせる。 */
+   地色になじむ濃い茶系へ。tap 領域確保のため最小高さも持たせる。
+   左の丸マーカーぶんだけ字下げする。
+   ※ position は付けない。丸（::before）の基準を縦線と同じ li に揃えることで、prose が
+   　 li に付ける padding-inline-start に関わらず線と丸の左端を一致させる。 */
 .toc-list-item .toc-link {
-  @apply border-l-4 no-underline transition-colors duration-200 inline-block w-full min-h-11 py-1.5 pl-2 text-[#6f6152];
+  @apply no-underline transition-colors duration-200 flex items-center w-full min-h-8 py-0.5 pl-7 text-[#6f6152];
+}
+
+/* 各見出しの左横に描く丸。縦線と同じく li(left:6px) を基準に置き、線より大きい不透明な
+   丸を重ねることで、線が丸の中心をまっすぐ貫いて見える。 */
+.toc-list-item .toc-link::before {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background: #c2b596;
+  transform: translate(-50%, -50%);
+  transition: background-color 200ms, width 200ms, height 200ms, box-shadow 200ms;
+  z-index: 1;
+}
+
+html.dark .toc-list-item .toc-link::before {
+  background: #3a5f8f;
+}
+
+/* h3 はテキストをさらに字下げし、丸もひとまわり小さくして階層を示す。 */
+.toc-level-3 .toc-link {
+  @apply pl-10 text-sm;
+}
+
+.toc-level-3 .toc-link::before {
+  width: 6px;
+  height: 6px;
 }
 
 html.dark .toc-list-item .toc-link {
   @apply text-[#8aa0bb];
 }
 
-.is-collapsible .toc-list-item {
-  @apply ml-0 pl-0;
-}
-
-.is-collapsible .toc-link {
-  @apply ml-0 pl-4 text-sm;
-}
-
 .toc-list-item .toc-link:hover {
   @apply text-accent;
 }
 
-.toc-list-item {
-  @apply list-none w-full py-0 my-0;
+/* アクティブな項目は丸をアクセント色で塗りつぶし、ひとまわり大きくしてハロを添える。 */
+.is-active-li .toc-link {
+  @apply text-accent;
 }
 
-.is-active-li .toc-link {
-  @apply border-l-4 border-l-accent text-accent;
+.is-active-li .toc-link::before,
+.is-active-li.toc-level-3 .toc-link::before {
+  width: 11px;
+  height: 11px;
+  background: var(--color-accent);
+  box-shadow: 0 0 0 3px rgba(144, 51, 47, 0.18);
 }
 
 html.dark .toc-list-item .toc-link:hover {
@@ -124,7 +187,13 @@ html.dark .toc-list-item .toc-link:hover {
 }
 
 html.dark .is-active-li .toc-link {
-  @apply border-l-accent-dark text-[#cbd9ea];
+  @apply text-[#cbd9ea];
+}
+
+html.dark .is-active-li .toc-link::before,
+html.dark .is-active-li.toc-level-3 .toc-link::before {
+  background: var(--color-accent-dark);
+  box-shadow: 0 0 0 3px rgba(118, 181, 230, 0.22);
 }
 
 /* TOC リンクのスムーズスクロール時に、上部の sticky 要素へ潜り込まないようにする */
@@ -208,11 +277,11 @@ html.dark .post a:hover {
 }
 
 .post h2 {
-  @apply text-accent text-base sm:text-2xl font-bold py-0.5 sm:py-1 border-l-4 border-l-accent pl-2 sm:pl-4;
+  @apply text-accent text-base sm:text-2xl font-bold py-0.5 sm:py-1 pb-1 sm:pb-2 border-b-2 border-b-[#d8cdb5];
 }
 
 html.dark .post h2 {
-  @apply text-accent-dark border-l-accent-dark;
+  @apply text-accent-dark border-b-[#2c4a73];
 }
 
 .post h3 {

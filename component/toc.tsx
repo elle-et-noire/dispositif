@@ -54,17 +54,16 @@ export default function Toc({ headings }: Props) {
   };
 
   return (
-    <nav aria-label="目次" className="sticky top-4 max-h-[calc(100svh-2rem)] overflow-y-auto font-kosugi-maru">
+    <nav aria-label="目次" className="sticky top-4 max-h-[calc(100svh-2rem)] overflow-y-auto font-zen-maru-gothic-medium">
       <ul className="toc-list">
         {headings.map((h) => (
           <li
             key={h.id}
-            className={`toc-list-item${activeId === h.id ? " is-active-li" : ""}`}
+            className={`toc-list-item toc-level-${h.level}${activeId === h.id ? " is-active-li" : ""}`}
           >
             <a
               href={`#${h.id}`}
               className="toc-link"
-              style={h.level >= 3 ? { paddingLeft: "1.25rem" } : undefined}
               onClick={(e) => handleClick(e, h.id)}
             >
               {h.text}

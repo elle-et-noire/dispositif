@@ -140,6 +140,13 @@ export function renderArticleMath(texList: string[]): Promise<RenderedMath> {
     OutputJax.clearCache?.();
     OutputJax.font?.clearCache?.();
 
+    // TeX の式番号と \label を記事ごとに初期化する。InputJax は全ページで共有される
+    // ため、リセットしないと前のページ（や Next が同一ワーカーで同じページを複数回
+    // 生成した際）の \label が登録されたまま残り、同じラベルに再遭遇すると
+    // "Label multiply defined" となって、その数式が組版結果の代わりにエラー文字列へ
+    // 置き換わってしまう（例: sympoly の eq:jacobi-trudi）。
+    MathJax.texReset?.();
+
     // 動的フォント（必要字形の遅延ロード）に対応するため handleRetriesFor で待つ。
     await mathjax.handleRetriesFor(() => doc.render());
 
@@ -188,6 +195,8 @@ type LiteAdaptor = {
 
 type MathJaxInstance = {
   chtmlStylesheet: () => MathJaxNode;
+  // tex 入力ロード時に startup が生やす。式番号と \label/\eqref の登録を初期化する。
+  texReset?: (start?: number | number[]) => void;
   startup: {
     adaptor: LiteAdaptor;
     input: unknown;
