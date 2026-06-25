@@ -33,13 +33,14 @@ export default function CloseButton() {
     <Link
       href="/posts"
       prefetch={false}
-      className="visible h-8"
+      aria-label="記事を閉じて一覧へ戻る"
+      className="visible flex size-11 items-center justify-center -m-1.5"
       onClick={(e) => {
         e.preventDefault();
         router.push("/posts");
       }}
     >
-      <div className="batsu"></div>
+      <div className="batsu" aria-hidden></div>
     </Link>
   );
 }

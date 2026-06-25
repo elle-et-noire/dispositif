@@ -7,8 +7,11 @@ import PostCard from "@/component/postcard";
  */
 export default function PostList() {
   const posts = GetAllPosts();
+  // ランドマークの <main> は app/layout.tsx が一つだけ提供する。ここを <main> にすると
+  // 入れ子になるため <section> にし、スクリーンリーダー向けに見出しを与える。
   return (
-    <main className="min-h-screen m-0 pb-12">
+    <section aria-labelledby="post-list-heading" className="m-0">
+      <h1 id="post-list-heading" className="sr-only">記事一覧</h1>
       {/* 一覧ページ専用の集中スクリム。中央列に向けて背景の目玉模様をゆるく暗転させ、
           カードへ視線を集める。ぼかしは使わずクリックも透過させる。 */}
       <div
@@ -30,6 +33,6 @@ export default function PostList() {
           <PostCard key={post.slug} slug={post.slug} data={post.data} />
         ))}
       </div>
-    </main>
+    </section>
   );
 }

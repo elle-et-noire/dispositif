@@ -45,7 +45,10 @@ export default function Toc({ headings }: Props) {
     e.preventDefault();
     const el = document.getElementById(id);
     if (!el) return;
-    el.scrollIntoView({ behavior: "smooth", block: "start" });
+    // 「動きを減らす」設定時は smooth を使わず即座にジャンプする。
+    // scrollIntoView の behavior は CSS の scroll-behavior を上書きするため JS 側で判定する。
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    el.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
     history.replaceState(null, "", `#${id}`);
     setActiveId(id);
   };

@@ -95,6 +95,11 @@ export function BackgroundPattern() {
   useEffect(() => {
     setIsMounted(true);
 
+    // 初期テーマは layout.tsx の inline script が <html> に付けたクラスを正とする
+    // （保存値 → OS 設定の順で決定済み）。ここで state をそれに同期させ、ちらつきと
+    // 「保存したのにリロードで戻る」不整合を防ぐ。
+    setIsDarkMode(document.documentElement.classList.contains("dark"));
+
     // 目玉の配置（設計図）を一度だけ生成する。
     // BackgroundPattern はルートレイアウトに置かれているため、記事を開く／閉じる
     // 操作は（直接アクセスから閉じる場合も含め）すべて SPA 遷移で行われ、この
@@ -175,7 +180,16 @@ export function BackgroundPattern() {
     <>
       {/* テーマ切り替えボタン */}
       <button
-        onClick={() => setIsDarkMode((prev) => !prev)}
+        onClick={() =>
+          setIsDarkMode((prev) => {
+            const next = !prev;
+            // 選択を永続化（次回ロードで inline script が読む）。
+            try {
+              localStorage.setItem("theme", next ? "dark" : "light");
+            } catch { }
+            return next;
+          })
+        }
         aria-label={isDarkMode ? 'ライトモードに切り替え' : 'ダークモードに切り替え'}
         className="fixed top-5 left-5 z-50 flex items-center justify-center size-11 text-xl leading-none bg-white/90 text-gray-900 rounded-full shadow-md backdrop-blur-md transition-all hover:-translate-y-0.5 hover:shadow-lg dark:bg-slate-900/90 dark:text-cyan-400 dark:shadow-cyan-400/20"
       >
