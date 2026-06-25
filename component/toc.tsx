@@ -11,6 +11,9 @@ export default function Toc({ headings }: Props) {
   const [activeId, setActiveId] = useState<string>(headings[0]?.id ?? "");
   // 各見出しが（上部の判定バンド内に）見えているかどうかを保持
   const visible = useRef<Record<string, boolean>>({});
+  // TOC のスクロールコンテナ（nav）と各項目（li）への参照
+  const navRef = useRef<HTMLElement>(null);
+  const itemRefs = useRef<Map<string, HTMLLIElement>>(new Map());
 
   useEffect(() => {
     const elements = headings
@@ -36,6 +39,29 @@ export default function Toc({ headings }: Props) {
     return () => observer.disconnect();
   }, [headings]);
 
+  // TOC が長くて全項目を表示しきれないとき、本体スクロールでアクティブ項目が変わったら
+  // その項目が nav の表示範囲に入るよう nav 内だけをスクロールする（ページ全体は動かさない）。
+  useEffect(() => {
+    const nav = navRef.current;
+    const li = itemRefs.current.get(activeId);
+    if (!nav || !li) return;
+
+    const navRect = nav.getBoundingClientRect();
+    const liRect = li.getBoundingClientRect();
+    const margin = 16; // 端に張り付かないよう少し余白を確保
+
+    let delta = 0;
+    if (liRect.top < navRect.top + margin) {
+      delta = liRect.top - navRect.top - margin;
+    } else if (liRect.bottom > navRect.bottom - margin) {
+      delta = liRect.bottom - navRect.bottom + margin;
+    }
+    if (delta === 0) return;
+
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    nav.scrollBy({ top: delta, behavior: reduceMotion ? "auto" : "smooth" });
+  }, [activeId]);
+
   if (headings.length === 0) return null;
 
   const handleClick = (
@@ -54,11 +80,15 @@ export default function Toc({ headings }: Props) {
   };
 
   return (
-    <nav aria-label="目次" className="styled-scrollbar sticky top-4 max-h-[calc(100svh-2rem)] overflow-y-auto font-zen-maru-gothic-medium">
+    <nav ref={navRef} aria-label="目次" className="styled-scrollbar sticky top-4 max-h-[calc(100svh-2rem)] overflow-y-auto font-zen-maru-gothic-medium">
       <ul className="toc-list">
         {headings.map((h) => (
           <li
             key={h.id}
+            ref={(el) => {
+              if (el) itemRefs.current.set(h.id, el);
+              else itemRefs.current.delete(h.id);
+            }}
             className={`toc-list-item toc-level-${h.level}${activeId === h.id ? " is-active-li" : ""}`}
           >
             <a

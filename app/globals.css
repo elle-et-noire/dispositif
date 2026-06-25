@@ -110,12 +110,19 @@ html.dark :focus-visible {
   z-index: 0;
 }
 
+/* 線は各丸（top:1rem）を通す。先頭は最初の丸より上、末尾は最後の丸より下へはみ出さない。 */
 .toc-list-item:first-child::before {
-  top: 50%;
+  top: 1rem;
 }
 
 .toc-list-item:last-child::before {
-  bottom: 50%;
+  bottom: auto;
+  height: 1rem;
+}
+
+/* 項目が 1 つだけのときは丸の上下に余計な線が出ないよう線自体を消す。 */
+.toc-list-item:first-child:last-child::before {
+  display: none;
 }
 
 html.dark .toc-list-item::before {
@@ -137,7 +144,9 @@ html.dark .toc-list-item::before {
   content: "";
   position: absolute;
   left: 6px;
-  top: 50%;
+  /* min-h-8(2rem) の中央。リンクは flex items-center なので 1 行のときは行中央＝1rem に
+     一致し、2 行以上に折り返したときも丸は 1 行目の位置に留まる（行全体の中央には来ない）。 */
+  top: 1rem;
   width: 8px;
   height: 8px;
   border-radius: 9999px;
