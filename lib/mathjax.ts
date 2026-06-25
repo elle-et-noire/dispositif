@@ -68,7 +68,7 @@ const config = {
     adaptiveCSS: true,
     displayOverflow: "overflow",
     mtextInheritFont: true,
-    scale: 0.88,
+    scale: 1.0,
     // @font-face の src を CDN のフォントパッケージへ向ける（ブラウザは JS 無しで
     // CSS 経由のみ woff2 を読み込む）。グリフのメトリクスはビルド時にローカルの
     // フォントパッケージから読まれるため、ここはブラウザ向けの URL のみを指す。
