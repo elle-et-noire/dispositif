@@ -9,6 +9,7 @@ import CloseOverlay from "@/component/closeoverlay";
 import CloseSeal from "@/component/closeseal";
 import PostList from "@/component/postlist";
 import CodeCopy from "@/component/codecopy";
+import MathRef from "@/component/mathref";
 
 interface PostPageProps {
   params: Promise<{
@@ -95,6 +96,8 @@ export default async function PostPage({ params }: PostPageProps) {
             <div className="post">{mdx.content}</div>
             {/* コードブロック右上に Zenn 風コピーボタンをクライアントで注入する。 */}
             <CodeCopy />
+            {/* \eqref のリンクを TOC と同じ滑らかなスクロールで遷移させる。 */}
+            <MathRef />
           </div>
           <div //right column
             className="hidden md:block w-full md:w-[12rem] pl-4">

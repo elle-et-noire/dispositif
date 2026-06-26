@@ -209,6 +209,12 @@ html.dark .is-active-li.toc-level-3 .toc-link::before {
   scroll-margin-top: 1.5rem;
 }
 
+/* \eqref のスムーズスクロール（component/mathref.tsx）時に、ジャンプ先の式番号
+   （MathJax が id="mjx-eqn:..." を振る要素）が上端へ張り付かないよう余白を確保する。 */
+.post [id^="mjx-eqn:"] {
+  scroll-margin-top: 1.5rem;
+}
+
 .batsu {
   display: block;
   position: relative;
