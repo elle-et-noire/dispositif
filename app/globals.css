@@ -495,7 +495,16 @@ html.dark .post li code {
   color: rgba(255, 255, 255, 0.5);
   background: rgba(255, 255, 255, 0.07);
   cursor: pointer;
-  transition: color 0.15s ease, background-color 0.15s ease;
+  /* 既定では隠し、コードブロックにホバーした時だけ現す。コピー直後（data-copied）と
+     キーボードフォーカス時は、ホバーしていなくても表示する。 */
+  opacity: 0;
+  transition: color 0.15s ease, background-color 0.15s ease, opacity 0.15s ease;
+}
+
+.post figure[data-rehype-pretty-code-figure]:hover .code-copy-button,
+.post .code-copy-button:focus-visible,
+.post .code-copy-button[data-copied="true"] {
+  opacity: 1;
 }
 
 .post .code-copy-button:hover {
