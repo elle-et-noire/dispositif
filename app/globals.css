@@ -240,12 +240,12 @@ html.dark .batsu::after {
    .batsu は閉じるボタンの <a> 内でのみ使うので a:hover でスコープできる。 */
 .batsu::before,
 .batsu::after {
-  transition: background 0.2s;
+  transition: background-color 0.2s;
 }
 
 a:hover .batsu::before,
 a:hover .batsu::after {
-  background: #c14a44;
+  background: #dc4e47;
 }
 
 html.dark a:hover .batsu::before,
@@ -355,7 +355,7 @@ html.dark .post {
 }
 
 .post a:hover {
-  @apply text-[#df534f];
+  @apply text-[#dc4e47];
 }
 
 html.dark .post a {
@@ -363,7 +363,7 @@ html.dark .post a {
 }
 
 html.dark .post a:hover {
-  @apply text-[#aedcff];
+  @apply text-[#bdf2ff];
 }
 
 /* \eqref のリンクを本文中のリンク（.post a）と揃える。MathJax は SVG リンクの色を
