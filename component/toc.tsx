@@ -77,6 +77,11 @@ export default function Toc({ headings }: Props) {
     el.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
     history.replaceState(null, "", `#${id}`);
     setActiveId(id);
+    // マウス等のポインタ操作（detail>0）で押したリンクはフォーカスを外す。残しておくと、
+    // クリック直後は :focus-visible が出ない（ポインタ起点）のに、その後 ESC などのキーを
+    // 押した瞬間にブラウザの focus-visible 判定がキーボード扱いに切り替わり、押した箇所へ
+    // 不自然な枠線が出てしまう。キーボード操作（Enter, detail===0）では枠線は妥当なので残す。
+    if (e.detail > 0) e.currentTarget.blur();
   };
 
   return (
