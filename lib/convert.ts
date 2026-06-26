@@ -14,7 +14,7 @@ import rehypePrettyCode from "rehype-pretty-code";
 // import { transformerLineNumbers } from "@rehype-pretty/transformers";
 import rehypeSlug from "rehype-slug";
 import { ShikiTransformer } from "shiki";
-import { codeThemes } from "@/lib/codeTheme";
+import { codeTheme } from "@/lib/codeTheme";
 import _Link from "@/component/safelink";
 // import _Pre from "@/components/_pre";
 // import _Image from "@/components/_image";
@@ -156,15 +156,14 @@ ${content}
           });
         },
         [rehypePrettyCode, {
-          // 地色は globals.css の .post pre に任せ、トークン色だけ自作テーマで塗る。
-          // ライト／ダークの2テーマを CSS 変数（--shiki-light / --shiki-dark）として
-          // 出力し、globals.css 側で .dark クラスに応じて切り替える。
-          theme: codeThemes,
+          // Zenn を模した単一のダークテーマ。地色は globals.css の .post pre（#1a2638）に
+          // 任せ、トークン色だけこのテーマで塗る。
+          theme: codeTheme,
           keepBackground: false,
           transformers: [
             // transformerLineNumbers({ autoApply: true }),
           ],
-        }] as [typeof rehypePrettyCode, { theme: typeof codeThemes; keepBackground: boolean; transformers: ShikiTransformer[] }],
+        }] as [typeof rehypePrettyCode, { theme: typeof codeTheme; keepBackground: boolean; transformers: ShikiTransformer[] }],
         () => (tree: Root) => {
           visit(tree, (node) => {
             if (node?.type === "element" && node?.tagName === "figure") {

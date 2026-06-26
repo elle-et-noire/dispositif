@@ -458,35 +458,99 @@ html.dark .post li code {
 
 .post pre code {
   @apply pt-3 text-sm font-[400];
-}
-
-/* rehype-pretty-code の複数テーマ出力。各トークンは色とフォントスタイルを
-   --shiki-light / --shiki-dark に CSS 変数として持つので、.dark クラスに応じて
-   どちらを使うか切り替える（lib/codeTheme.ts のライト／ダークパレットに対応）。
-   font-style の変数が無いトークンでは var() が無効値になり normal にフォールバックする。 */
-.post pre code span {
-  color: var(--shiki-light);
-  font-style: var(--shiki-light-font-style);
-}
-
-html.dark .post pre code span {
-  color: var(--shiki-dark);
-  font-style: var(--shiki-dark-font-style);
+  /* Zenn 同様、トークン化されない素テキストは白。各トークン色は単一テーマの
+     インライン color で上書きされる（lib/codeTheme.ts）。 */
+  color: #fff;
 }
 
 .post h2 code {
   @apply text-2xl;
 }
 
-/* コードブロックの地色。各テーマの地（ライト=白 / ダーク=ほぼ黒）から一段
-   はっきり浮く色＋縁にして、本文の中でパネルとして目立たせる。ライトは濃いめの
-   羊皮紙、ダークは黒から持ち上げた藍。トークン色は上の --shiki-* で切り替わる。 */
+/* コードブロックの地色。Zenn を模してテーマ問わず常にダーク（#1a2638）。 */
 .post pre {
-  @apply bg-[#edf0f6] border border-[#dadfeb];
+  @apply bg-[#1a2638];
+  border-radius: 4px;
 }
 
-html.dark .post pre {
-  @apply bg-[#181d42] border-[#2c4a73];
+/* Zenn 風コードコピーボタン。コードブロック（figure）の右上隅に重ねる。
+   ボタン本体は component/codecopy.tsx がクライアントで注入する。 */
+.post figure[data-rehype-pretty-code-figure] {
+  position: relative;
+}
+
+.post .code-copy-button {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.85rem;
+  height: 1.85rem;
+  padding: 0;
+  border: none;
+  border-radius: 5px;
+  color: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.07);
+  cursor: pointer;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.post .code-copy-button:hover {
+  color: rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.post .code-copy-button:focus-visible {
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.post .code-copy-button svg {
+  width: 1rem;
+  height: 1rem;
+  display: block;
+}
+
+/* コピー済みの間はチェックアイコン＋ツールチップに切り替える。 */
+.post .code-copy-button .check-icon {
+  display: none;
+  color: #b4ff9b;
+}
+
+.post .code-copy-button[data-copied="true"] {
+  color: #b4ff9b;
+}
+
+.post .code-copy-button[data-copied="true"] .copy-icon {
+  display: none;
+}
+
+.post .code-copy-button[data-copied="true"] .check-icon {
+  display: block;
+}
+
+.post .code-copy-tooltip {
+  position: absolute;
+  top: 50%;
+  right: calc(100% + 8px);
+  transform: translateY(-50%);
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: #323e52;
+  color: #fff;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: nowrap;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.post .code-copy-button[data-copied="true"] .code-copy-tooltip {
+  opacity: 1;
 }
 
 .post figure {
