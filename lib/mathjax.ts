@@ -59,10 +59,15 @@ const config = {
       "[tex]/upgreek",
       "[tex]/centernot",
       "[tex]/tagformat",
+      // 可換図式は tikz-cd ではなく MathJax 同梱の amscd（\begin{CD}…\end{CD}）で
+      // 描く。MathJax v4 には tikz-cd 拡張が存在せず（npm/CDN の mathjax-tikzcd は
+      // 実在せず 404）、かつビルド時の node ローダはローカルの component しか読めない
+      // ため、CDN 上の拡張も読み込めない。amscd は同梱コンポーネントで追加依存なし。
+      "[tex]/amscd",
     ],
   },
   tex: {
-    packages: { "[+]": ["html", "physics", "mathtools", "color", "upgreek", "centernot", "tagformat"] },
+    packages: { "[+]": ["html", "physics", "mathtools", "color", "upgreek", "centernot", "tagformat", "amscd"] },
     inlineMath: [["$", "$"], ["\\(", "\\)"]],
     displayMath: [["$$", "$$"], ["\\[", "\\]"]],
     macros: {

@@ -139,10 +139,10 @@ const great = () => {
 
 ## 数式
 
-$$
-e^{i\theta} = \cos\theta + i\sin\theta\\
-=\operatorname{cis}\theta
-$$
+\begin{align*}
+e^{i\theta} &= \cos\theta + i\sin\theta\\
+&=\operatorname{cis}\theta
+\end{align*}
 
 のように数式を書ける。また`\text`でフォントが引き継がれる：$S_\text{Bekenstein-Hawking}$
 
@@ -166,13 +166,26 @@ $$
 
 可換図式も描ける。
 
-\begin{array}{cc|c}{\begin{xy}
-\xymatrix{V\times W \ar[r]^{B} \ar[rd]_{\otimes} & T \ar[d]^{\gamma} \\   & V\otimes W}
-\end{xy}}\ \mqty{\\[25pt]\implies} &{\begin{xy}
-\xymatrix{V\times W \ar[r]^{\otimes} \ar[d]_{\otimes} \ar[rd]_{B} & V\otimes W \ar[d]^{\beta} \\ V\otimes W & T \ar[l]^{\gamma}}
-\end{xy}}&{\begin{xy}
-\xymatrix{V\times W \ar[r]^{\otimes} \ar[rd]_{\otimes} & V\otimes W \ar[d]^{\operatorname{id}} \\ & V\otimes W}
-\end{xy}}\end{array}
+\begin{array}{cc|c}
+\begin{CD}
+V\times W @>B>> T \\
+@V\otimes VV @VV\gamma V \\
+V\otimes W @= V\otimes W
+\end{CD}
+\ \mqty{\\[25pt]\implies} &
+\begin{CD}
+V\times W @>\otimes>> V\otimes W \\
+@V\otimes VV @VV\beta V \\
+V\otimes W @<\gamma<< T
+\end{CD}
+&
+\begin{CD}
+V\times W @>\otimes>> V\otimes W \\
+@V\otimes VV @VV\operatorname{id}V \\
+V\otimes W @= V\otimes W
+\end{CD}
+\end{array}
+
 
 ## 引用
 
