@@ -18,12 +18,14 @@ export default function CloseSeal({ position }: { position: "top" | "bottom" }) 
       aria-hidden
       onClick={close}
       className={`
-        absolute left-1/2 ${isTop ? "top-0" : "bottom-0"} z-40
+        group absolute left-1/2 ${isTop ? "top-0" : "bottom-0"} z-40
         h-8 w-12 -translate-x-1/2 overflow-hidden cursor-pointer
       `}
     >
-      {/* 封蝋の中心を窓の縁に合わせる → 直径が縁に flush し半分が出る */}
+      {/* 封蝋の中心を窓の縁に合わせる → 直径が縁に flush し半分が出る。
+          半円の封蝋（group）にホバーで封蝋がハイライトされる。 */}
       <Seal
+        highlight
         className={`absolute left-1/2 ${isTop ? "-top-[1.125rem]" : "-bottom-[1.125rem]"} size-9 -translate-x-1/2`}
       />
     </div>

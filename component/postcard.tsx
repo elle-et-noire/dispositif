@@ -30,8 +30,11 @@ export default function PostCard({ slug, data }: {
           border-b border-dashed
           border-[#b59b6b] dark:border-[#3a5c86]"
         />
-        {/* 封蝋。フラップ下端の折り目をまたいで本体側へ半分かかる。 */}
-        <Seal className="
+        {/* 封蝋。フラップ下端の折り目をまたいで本体側へ半分かかる。
+            カード（group）ホバーで封蝋がハイライトされる。 */}
+        <Seal
+          highlight
+          className="
           absolute left-1/2 bottom-0 z-10 size-9
           -translate-x-1/2 translate-y-1/2"
         />

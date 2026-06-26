@@ -236,6 +236,23 @@ html.dark .batsu::after {
   transform: translate(-50%, -50%) rotate(-45deg);
 }
 
+/* 閉じるボタン（×）にホバーで封蝋のハイライトと同じ色変化を与える。
+   .batsu は閉じるボタンの <a> 内でのみ使うので a:hover でスコープできる。 */
+.batsu::before,
+.batsu::after {
+  transition: background 0.2s;
+}
+
+a:hover .batsu::before,
+a:hover .batsu::after {
+  background: #c14a44;
+}
+
+html.dark a:hover .batsu::before,
+html.dark a:hover .batsu::after {
+  background: #bdf2ff;
+}
+
 svg {
   @apply inline align-baseline;
 }
