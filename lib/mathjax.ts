@@ -26,9 +26,15 @@ const require = createRequire(import.meta.url);
 // 実体パスを組み立て、loader.paths.mathjax で明示する（__dirname に依存しない）。
 const MATHJAX_ROOT = join(process.cwd(), "node_modules", "mathjax");
 
-// CDN 上の mathjax-newcm フォントパッケージ。@font-face の src がこのパスを指す。
-// 末尾に /chtml/woff2 を補って各 woff2 を参照する（例: mjx-ncm-n.woff2）。
-const FONT_URL = "https://cdn.jsdelivr.net/npm/@mathjax/mathjax-newcm-font@4/chtml/woff2";
+// 数式グリフのフォント。MathJax v4 既定の New Computer Modern（newcm）は線が細く、
+// 標準 DPI だとヘアラインがにじんで見えるため、MathJax v3 時代の TeX フォント
+// （mathjax-tex）を使う。これは chtml.font: "mathjax-tex" で選び、fontPath テンプレート
+// （@mathjax/%%FONT%%-font）経由でビルド時に @mathjax/mathjax-tex-font が require される
+// （next.config の serverExternalPackages で外部化）。
+//
+// CDN 上の同フォントパッケージ。@font-face の src がこのパスを指す。末尾に /chtml/woff2 を
+// 補って各 woff2 を参照する（例: mjx-tex-n.woff2）。
+const FONT_URL = "https://cdn.jsdelivr.net/npm/@mathjax/mathjax-tex-font@4/chtml/woff2";
 
 // クライアント側だった component/mathenv.tsx と同一の TeX 設定を再現する。
 // 出力のみ SVG → CHTML（ビルド時）に置き換える。
@@ -73,6 +79,9 @@ const config = {
     tagIndent: "0.8em",
   },
   chtml: {
+    // 既定の newcm ではなく v3 時代の TeX フォントを使う（上記 FONT_URL 参照）。
+    // fontPath（@mathjax/%%FONT%%-font）が @mathjax/mathjax-tex-font に解決される。
+    font: "mathjax-tex",
     // plan.md #3: 周囲フォントとの高さ自動合わせを無効化（CPU 負荷削減）。
     matchFontHeight: false,
     // plan.md #2: 実際に出現したグリフのぶんだけ CSS を生成する。
