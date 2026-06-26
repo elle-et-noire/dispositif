@@ -332,23 +332,27 @@ html.dark .post {
   @apply text-[#cbd9ea];
 }
 
+/* 本文リンクは下線を引かず、アクセント色で示す。ホバーでさらに濃く強調する。 */
 .post a {
-  @apply underline underline-offset-4;
+  @apply text-accent no-underline transition-colors duration-200;
 }
 
 .post a:hover {
-  @apply text-accent no-underline;
+  @apply text-[#df534f];
+}
+
+html.dark .post a {
+  @apply text-accent-dark;
 }
 
 html.dark .post a:hover {
-  @apply text-accent-dark;
+  @apply text-[#aedcff];
 }
 
 /* \eqref のリンクを本文中のリンク（.post a）と揃える。MathJax は SVG リンクの色を
    既定で青（fill/stroke:blue）にするので、グリフの塗りを currentColor に合わせる。
-   こうすると色（通常＝本文リンク色／ホバー＝アクセント色）も下線（\tag 全体を実テキスト化
-   したので <text> に一様に付く）も、すべて .post a / .post a:hover からそのまま継承され、
-   本文リンクと同じ配色・下線・ホバー挙動になる。 */
+   こうすると色（通常＝本文リンクのアクセント色／ホバー＝強調色）が .post a / .post a:hover
+   からそのまま継承され、本文リンクと同じ配色・ホバー挙動になる。 */
 .post mjx-container[jax="SVG"] a {
   fill: currentColor;
   stroke: currentColor;
