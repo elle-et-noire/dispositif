@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type MouseEvent } from "react";
 
 // テーマ切り替えボタン。背景（background.tsx）は両テーマ分を SSR 済みで、
 // <html> の dark/light クラスに応じて CSS（globals.css の data-theme ルール）が
@@ -15,7 +15,8 @@ export function ThemeToggle() {
     setIsDarkMode(document.documentElement.classList.contains("dark"));
   }, []);
 
-  function toggle() {
+  function toggle(event: MouseEvent<HTMLButtonElement>) {
+    const button = event.currentTarget;
     setIsDarkMode((prev) => {
       const next = !prev;
       const root = document.documentElement;
@@ -29,6 +30,10 @@ export function ThemeToggle() {
       } catch { }
       return next;
     });
+    // マウス／タッチでの起動（detail!==0）なら、クリック後にフォーカスを外す。
+    // 残したままだと、その状態で Esc 等のキーを押した瞬間にブラウザが focus-visible へ
+    // 昇格させ、不要なフォーカス枠が出てしまう。キーボード起動（detail===0）では残す。
+    if (event.detail !== 0) button.blur();
   }
 
   return (

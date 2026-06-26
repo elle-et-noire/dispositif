@@ -51,6 +51,11 @@ export default function CodeCopy() {
       const figure = button.closest("figure");
       if (!figure) return;
 
+      // マウス／タッチでの起動（detail!==0）なら、コピー後にフォーカスを外す。
+      // 残したままだと、その状態で Esc 等のキーを押した瞬間にブラウザが focus-visible へ
+      // 昇格させ、不要なフォーカス枠が出てしまう。キーボード起動（detail===0）では残す。
+      if (event.detail !== 0) button.blur();
+
       const finish = () => {
         button.setAttribute("data-copied", "true");
         const prev = timers.get(button);
@@ -82,8 +87,23 @@ export default function CodeCopy() {
       }
     };
 
+    // rehype-pretty-code は <pre> に tabindex="0" を付ける（長いコードをキーボードで
+    // 横スクロールできるように）。そのため領域内をポインタでクリックすると <pre> に
+    // フォーカスが入り、その状態で Esc 等のキーを押すとブラウザが focus-visible へ昇格させ、
+    // ブロック全体に枠線が出てしまう。ポインタ由来のフォーカスだけ解除する（Tab による
+    // キーボードフォーカスは pre 内で pointerup が起きないので影響しない）。
+    const onPointerUp = (event: PointerEvent) => {
+      const target = event.target as Element | null;
+      const pre = target?.closest(".post pre");
+      if (pre && document.activeElement === pre) (pre as HTMLElement).blur();
+    };
+
     document.addEventListener("click", onClick);
-    return () => document.removeEventListener("click", onClick);
+    document.addEventListener("pointerup", onPointerUp);
+    return () => {
+      document.removeEventListener("click", onClick);
+      document.removeEventListener("pointerup", onPointerUp);
+    };
   }, []);
 
   return null;

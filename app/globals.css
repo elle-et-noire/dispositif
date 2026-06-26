@@ -55,11 +55,13 @@ html.dark {
 }
 
 /* キーボード操作時の可視フォーカス。これまでどの要素にも指定が無く、リンク・カード・
-   ボタン・目次がキーボードで辿れても見た目に分からなかった。アクセント色で統一する。 */
+   ボタン・目次がキーボードで辿れても見た目に分からなかった。アクセント色で統一する。
+   border-radius はここで上書きしない。指定すると円形のテーマ切替ボタン（rounded-full）や
+   コピーボタン（border-radius:5px）の角が 2px に潰され、四角い枠が出てしまう。
+   outline は最近のブラウザでは要素自身の border-radius に追従するので、形は各要素に任せる。 */
 :focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
-  border-radius: 2px;
 }
 
 html.dark :focus-visible {
