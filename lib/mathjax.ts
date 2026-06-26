@@ -77,6 +77,12 @@ const config = {
     tagIndent: "0.8em",
   },
   svg: {
+    // 数式グリフのフォント。MathJax v4 の既定 New Computer Modern（mathjax-newcm）は
+    // 線が細く、標準 DPI でヘアラインがアンチエイリアスでにじんで粗く見える。MathJax v3
+    // 時代の TeX フォント（mathjax-tex）は線がしっかりしていて表示が安定するため、これを
+    // 使う。動的グリフ（\mathbb など）も含め MathJax の loader が @mathjax/mathjax-tex-font
+    // から実行時に require する（next.config の serverExternalPackages で外部化）。
+    font: "mathjax-tex",
     // 長い数式は枠外へあふれさせる（横スクロールは .scrollable 側で扱う）。
     displayOverflow: "overflow",
     scale: 1.0,
