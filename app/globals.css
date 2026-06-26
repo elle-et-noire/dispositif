@@ -264,21 +264,24 @@ svg {
   @apply block overflow-x-auto p-0 m-0 indent-0 whitespace-nowrap;
 }
 
-/* スクロールバーをサイトの世界観に合わせて作り込む。対象は2つ：
+/* スクロールバーをサイトの世界観に合わせて作り込む。対象は3つ：
    ・数式のはみ出し（.post .scrollable）
    ・目次（.styled-scrollbar な nav）
+   ・コードブロックの横はみ出し（.post pre）
    ページ全体（html/body）のメインスクロールバーはブラウザ既定のままにしておく。
    ライトは羊皮紙の縁と同じ薄茶（#d8cdb5）→ hover でひと段濃い砂色（#c2b596）、ダークは
    見出し罫と同じ紺（#2c4a73）→ hover で丸マーカーの青（#3a5f8f）。track は地色になじむ
    よう透明。Firefox 用に scrollbar-width/color も指定する。 */
 .post .scrollable,
-.styled-scrollbar {
+.styled-scrollbar,
+.post pre {
   scrollbar-width: thin;
   scrollbar-color: #d8cdb5 transparent;
 }
 
 .post .scrollable::-webkit-scrollbar,
-.styled-scrollbar::-webkit-scrollbar {
+.styled-scrollbar::-webkit-scrollbar,
+.post pre::-webkit-scrollbar {
   width: 8px;
   height: 8px;
   /* ガター（つまみの背後）も透明にして、地の羊皮紙／紺がそのまま透ける。 */
@@ -290,12 +293,16 @@ svg {
 .post .scrollable::-webkit-scrollbar-corner,
 .styled-scrollbar::-webkit-scrollbar-track,
 .styled-scrollbar::-webkit-scrollbar-track-piece,
-.styled-scrollbar::-webkit-scrollbar-corner {
+.styled-scrollbar::-webkit-scrollbar-corner,
+.post pre::-webkit-scrollbar-track,
+.post pre::-webkit-scrollbar-track-piece,
+.post pre::-webkit-scrollbar-corner {
   background: transparent;
 }
 
 .post .scrollable::-webkit-scrollbar-thumb,
-.styled-scrollbar::-webkit-scrollbar-thumb {
+.styled-scrollbar::-webkit-scrollbar-thumb,
+.post pre::-webkit-scrollbar-thumb {
   background-color: #d8cdb5;
   border-radius: 9999px;
   /* 縁を地色で抜いて track から少し浮いた細い丸棒に見せる。 */
@@ -305,25 +312,31 @@ svg {
 
 .post .scrollable:hover::-webkit-scrollbar-thumb,
 .styled-scrollbar:hover::-webkit-scrollbar-thumb,
+.post pre:hover::-webkit-scrollbar-thumb,
 .post .scrollable::-webkit-scrollbar-thumb:hover,
-.styled-scrollbar::-webkit-scrollbar-thumb:hover {
+.styled-scrollbar::-webkit-scrollbar-thumb:hover,
+.post pre::-webkit-scrollbar-thumb:hover {
   background-color: #c2b596;
 }
 
 html.dark .post .scrollable,
-html.dark .styled-scrollbar {
+html.dark .styled-scrollbar,
+html.dark .post pre {
   scrollbar-color: #2c4a73 transparent;
 }
 
 html.dark .post .scrollable::-webkit-scrollbar-thumb,
-html.dark .styled-scrollbar::-webkit-scrollbar-thumb {
+html.dark .styled-scrollbar::-webkit-scrollbar-thumb,
+html.dark .post pre::-webkit-scrollbar-thumb {
   background-color: #2c4a73;
 }
 
 html.dark .post .scrollable:hover::-webkit-scrollbar-thumb,
 html.dark .styled-scrollbar:hover::-webkit-scrollbar-thumb,
+html.dark .post pre:hover::-webkit-scrollbar-thumb,
 html.dark .post .scrollable::-webkit-scrollbar-thumb:hover,
-html.dark .styled-scrollbar::-webkit-scrollbar-thumb:hover {
+html.dark .styled-scrollbar::-webkit-scrollbar-thumb:hover,
+html.dark .post pre::-webkit-scrollbar-thumb:hover {
   background-color: #3a5f8f;
 }
 
