@@ -154,9 +154,12 @@ html.dark .toc-list-item .toc-link::before {
   background: #3a5f8f;
 }
 
-/* h3 はテキストをさらに字下げし、丸もひとまわり小さくして階層を示す。 */
+/* h3 はテキストをさらに字下げし、丸もひとまわり小さくして階層を示す。
+   line-height は h2（既定の 1.5＝1.5rem）に揃える。text-sm は line-height を 1.25rem に
+   詰めてしまい、折り返し時に 1 行目の中心が丸（top:1rem）より上にずれるため、leading-6 で
+   h2 と同じ行高に戻して丸が 1 行目の横に来るようにする。 */
 .toc-level-3 .toc-link {
-  @apply pl-10 text-sm;
+  @apply pl-10 text-sm leading-6;
 }
 
 .toc-level-3 .toc-link::before {
