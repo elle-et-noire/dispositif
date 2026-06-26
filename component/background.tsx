@@ -1,9 +1,12 @@
-"use client";
-
-import { useEffect, useState, useRef } from "react";
+import { ThemeToggle } from "./theme-toggle";
 
 const patternSize = 750;
 const eyesCount = 40;
+
+// 背景模様の固定シード。これを基に決定論的に目玉の配置を生成するため、
+// サーバー・クライアントを問わず、また何度リロードしても常に同じ背景になる。
+// （以前は Math.random で毎ロード変化していた。）
+const SEED = 0x9e3779b9;
 
 const retroColors = ['#ece5d3', '#90332f', '#8b7a95', '#1f1b1c'];
 const retroBg = '#1f1b1c';
@@ -15,8 +18,20 @@ const darkBg = '#02050a';
 type EyeLayer = { size: number; offsetX: number; offsetY: number; colorIndex: number };
 type BaseEye = { x: number; y: number; size: number; baseLayers: EyeLayer[] };
 
-// 目玉の配置（設計図）をランダム生成する。テーマには依存しない幾何データのみ。
-function generateBaseEyes(): BaseEye[] {
+// 決定論的な擬似乱数生成器（mulberry32）。固定シードから常に同じ数列を返す。
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0;
+  return function () {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// 目玉の配置（設計図）を生成する。テーマには依存しない幾何データのみ。
+// 乱数源を引数で受け取るため、固定シードを渡せば結果は決定論的になる。
+function generateBaseEyes(rng: () => number): BaseEye[] {
   const baseEyes: BaseEye[] = [];
   const colorUsage = [0, 0, 0, 0];
 
@@ -27,20 +42,20 @@ function generateBaseEyes(): BaseEye[] {
       if (colorUsage[i] < minUsage) minUsage = colorUsage[i];
     });
     const candidateIndices = availableIndices.filter(i => colorUsage[i] === minUsage);
-    const selectedIndex = candidateIndices[Math.floor(Math.random() * candidateIndices.length)];
+    const selectedIndex = candidateIndices[Math.floor(rng() * candidateIndices.length)];
     colorUsage[selectedIndex] += currentSize * currentSize;
     return selectedIndex;
   }
 
   for (let i = 0; i < eyesCount; i++) {
-    const size = Math.random() * 50 + 200;
+    const size = rng() * 50 + 200;
     let x = 0, y = 0;
     let positionFound = false;
     let attempts = 0;
 
     while (!positionFound && attempts < 1000) {
-      x = Math.random() * patternSize;
-      y = Math.random() * patternSize;
+      x = rng() * patternSize;
+      y = rng() * patternSize;
       positionFound = true;
 
       for (const existingEye of baseEyes) {
@@ -58,18 +73,18 @@ function generateBaseEyes(): BaseEye[] {
       attempts++;
     }
 
-    const layersCount = Math.floor(Math.random() * 1) + 3;
+    const layersCount = Math.floor(rng() * 1) + 3;
     let currentSize = size;
     let totalOffsetX = 0;
     let totalOffsetY = 0;
     const baseLayers: EyeLayer[] = [];
-    const angle = Math.random() * Math.PI * 2;
+    const angle = rng() * Math.PI * 2;
     const usedIndices: number[] = [];
 
     for (let j = 0; j < layersCount; j++) {
       if (j > 0) {
         const prevSize = currentSize;
-        currentSize = prevSize * (Math.random() * 0.05 + 0.65);
+        currentSize = prevSize * (rng() * 0.05 + 0.65);
         const dist = 0.8 * ((prevSize - currentSize) / 2);
         totalOffsetX += Math.cos(angle) * dist;
         totalOffsetY += Math.sin(angle) * dist;
@@ -83,156 +98,85 @@ function generateBaseEyes(): BaseEye[] {
   return baseEyes;
 }
 
-export function BackgroundPattern() {
-  const [isDarkMode, setIsDarkMode] = useState(false);
-  const [bgStyle, setBgStyle] = useState({ backgroundColor: retroBg, backgroundImage: '' });
+// 目玉の配置データから、指定テーマの配色で背景タイル SVG を組み立て、
+// CSS background-image に使える data URL を返す。
+function buildBackgroundImage(baseEyes: BaseEye[], colors: string[], bg: string): string {
+  let patternContent = '';
 
-  // 目玉の配置データ（再レンダリングされても値を保持する）
-  const baseEyesRef = useRef<BaseEye[]>([]);
-  // クライアントでマウントされたかどうか
-  const [isMounted, setIsMounted] = useState(false);
-
-  useEffect(() => {
-    setIsMounted(true);
-
-    // 初期テーマは layout.tsx の inline script が <html> に付けたクラスを正とする
-    // （保存値 → OS 設定の順で決定済み）。ここで state をそれに同期させ、ちらつきと
-    // 「保存したのにリロードで戻る」不整合を防ぐ。
-    setIsDarkMode(document.documentElement.classList.contains("dark"));
-
-    // 目玉の配置（設計図）を一度だけ生成する。
-    // BackgroundPattern はルートレイアウトに置かれているため、記事を開く／閉じる
-    // 操作は（直接アクセスから閉じる場合も含め）すべて SPA 遷移で行われ、この
-    // コンポーネントはアンマウントされない。よって ref に保持した配置がそのまま
-    // 維持される＝開閉では模様は変わらない。一方、リロード・新しいタブ・直接
-    // アクセス（初回ロード）ではモジュールが再評価されてコンポーネントが作り直
-    // されるので、自然に新しい（ランダムな）模様が生成される。
-    if (baseEyesRef.current.length === 0) {
-      baseEyesRef.current = generateBaseEyes();
-    }
-  }, []);
-
-  // 2. テーマや配置データが変わるたびにSVGを再生成
-  useEffect(() => {
-    if (!isMounted || baseEyesRef.current.length === 0) return;
-
-    const activeColors = isDarkMode ? darkColors : retroColors;
-    const activeBg = isDarkMode ? darkBg : retroBg;
-    let patternContent = '';
-
-    function addEye(baseX: number, baseY: number, layers: EyeLayer[]) {
-      let eyeSVG = `<g transform="translate(${baseX}, ${baseY})">`;
-      layers.forEach((layer) => {
-        const color = activeColors[layer.colorIndex];
-        eyeSVG += `<circle cx="${layer.offsetX}" cy="${layer.offsetY}" r="${layer.size / 2}" fill="${color}" />`;
-      });
-      eyeSVG += `</g>`;
-      patternContent += eyeSVG;
-    }
-
-    baseEyesRef.current.forEach(eye => {
-      const { x, y, size, baseLayers } = eye;
-      const r = size / 2;
-
-      addEye(x, y, baseLayers);
-
-      // はみ出しコピー処理
-      const crossLeft = x - r < 0;
-      const crossRight = x + r > patternSize;
-      const crossTop = y - r < 0;
-      const crossBottom = y + r > patternSize;
-
-      if (crossLeft) addEye(x + patternSize, y, baseLayers);
-      if (crossRight) addEye(x - patternSize, y, baseLayers);
-      if (crossTop) addEye(x, y + patternSize, baseLayers);
-      if (crossBottom) addEye(x, y - patternSize, baseLayers);
-      if (crossLeft && crossTop) addEye(x + patternSize, y + patternSize, baseLayers);
-      if (crossLeft && crossBottom) addEye(x + patternSize, y - patternSize, baseLayers);
-      if (crossRight && crossTop) addEye(x - patternSize, y + patternSize, baseLayers);
-      if (crossRight && crossBottom) addEye(x - patternSize, y - patternSize, baseLayers);
+  function addEye(baseX: number, baseY: number, layers: EyeLayer[]) {
+    let eyeSVG = `<g transform="translate(${baseX}, ${baseY})">`;
+    layers.forEach((layer) => {
+      const color = colors[layer.colorIndex];
+      eyeSVG += `<circle cx="${layer.offsetX}" cy="${layer.offsetY}" r="${layer.size / 2}" fill="${color}" />`;
     });
+    eyeSVG += `</g>`;
+    patternContent += eyeSVG;
+  }
 
-    const svgHTML = `
+  baseEyes.forEach(eye => {
+    const { x, y, size, baseLayers } = eye;
+    const r = size / 2;
+
+    addEye(x, y, baseLayers);
+
+    // はみ出しコピー処理（タイルの継ぎ目で目玉が途切れないよう周囲に複製する）
+    const crossLeft = x - r < 0;
+    const crossRight = x + r > patternSize;
+    const crossTop = y - r < 0;
+    const crossBottom = y + r > patternSize;
+
+    if (crossLeft) addEye(x + patternSize, y, baseLayers);
+    if (crossRight) addEye(x - patternSize, y, baseLayers);
+    if (crossTop) addEye(x, y + patternSize, baseLayers);
+    if (crossBottom) addEye(x, y - patternSize, baseLayers);
+    if (crossLeft && crossTop) addEye(x + patternSize, y + patternSize, baseLayers);
+    if (crossLeft && crossBottom) addEye(x + patternSize, y - patternSize, baseLayers);
+    if (crossRight && crossTop) addEye(x - patternSize, y + patternSize, baseLayers);
+    if (crossRight && crossBottom) addEye(x - patternSize, y - patternSize, baseLayers);
+  });
+
+  const svgHTML = `
       <svg width="${patternSize}" height="${patternSize}" xmlns="http://www.w3.org/2000/svg">
-        <rect width="${patternSize}" height="${patternSize}" fill="${activeBg}" />
+        <rect width="${patternSize}" height="${patternSize}" fill="${bg}" />
         ${patternContent}
       </svg>
     `;
 
-    setBgStyle({
-      backgroundColor: activeBg,
-      backgroundImage: `url('data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgHTML)}')`
-    });
+  return `url('data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgHTML)}')`;
+}
 
-    // ページ本体（page.tsx / [slug]/page.tsx など）も追従させるため、
-    // <html> に dark / light クラスをトグルする。Tailwind の dark: variant と
-    // globals.css の html.dark / html.light ルールがこれに反応する。
-    const root = document.documentElement;
-    root.classList.toggle('dark', isDarkMode);
-    root.classList.toggle('light', !isDarkMode);
+// 固定シードから配置を一度だけ生成し、両テーマの背景画像を組み立てる。
+// モジュール評価時（サーバー）に確定するので、SSR の HTML に背景が焼き込まれ、
+// 何度リロードしても同じ背景が返る。
+const baseEyes = generateBaseEyes(mulberry32(SEED));
+const retroImage = buildBackgroundImage(baseEyes, retroColors, retroBg);
+const darkImage = buildBackgroundImage(baseEyes, darkColors, darkBg);
 
-  }, [isDarkMode, isMounted]);
-
-  // SSR時は何も描画しない（チラつき防止）
-  if (!isMounted) return null;
-
+export function BackgroundPattern() {
   return (
     <>
-      {/* テーマ切り替えボタン */}
-      <button
-        onClick={() =>
-          setIsDarkMode((prev) => {
-            const next = !prev;
-            // 選択を永続化（次回ロードで inline script が読む）。
-            try {
-              localStorage.setItem("theme", next ? "dark" : "light");
-            } catch { }
-            return next;
-          })
-        }
-        aria-label={isDarkMode ? 'ライトモードに切り替え' : 'ダークモードに切り替え'}
-        className="group fixed top-5 left-5 z-50 flex items-center justify-center size-12 bg-[#faf6ec]/90 text-gray-500 rounded-full shadow-md backdrop-blur-md transition-colors hover:text-[#90332f] dark:bg-slate-900/90 dark:text-cyan-400/60 dark:hover:text-cyan-400"
-      >
-        {isDarkMode ? (
-          // 太陽：円と光線（線のみ）
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={2}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            shapeRendering="geometricPrecision"
-            className="size-6"
-          >
-            <path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-          </svg>
-        ) : (
-          // 月：三日月（線のみ）
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={2}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            shapeRendering="geometricPrecision"
-            className="size-6"
-          >
-            <path d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-          </svg>
-        )}
-      </button>
+      {/* テーマ切り替えボタン（クライアント） */}
+      <ThemeToggle />
 
-      {/* 最背面の背景レイヤー */}
+      {/* 最背面の背景レイヤー。両テーマ分を SSR で出力し、<html> の dark クラスに応じて
+          Tailwind の dark: バリアントが display で出し分ける（light を既定表示、dark を
+          .dark 配下でのみ表示）。inline script が描画前にクラスを付けるため、ちらつかずに
+          正しいテーマで表示される。クラス未付与時（script 失敗）は既定の light が出る。 */}
       <div
         style={{
-          backgroundColor: bgStyle.backgroundColor,
-          backgroundImage: bgStyle.backgroundImage,
+          backgroundColor: retroBg,
+          backgroundImage: retroImage,
           backgroundRepeat: 'repeat',
-          transition: 'background-color 0.5s ease',
         }}
-        className="fixed inset-0 -z-50 w-full h-full"
+        className="fixed inset-0 -z-50 w-full h-full dark:hidden"
+      />
+      <div
+        style={{
+          backgroundColor: darkBg,
+          backgroundImage: darkImage,
+          backgroundRepeat: 'repeat',
+        }}
+        className="fixed inset-0 -z-50 w-full h-full hidden dark:block"
       />
     </>
   );
