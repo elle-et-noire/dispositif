@@ -14,6 +14,7 @@ import rehypePrettyCode from "rehype-pretty-code";
 // import { transformerLineNumbers } from "@rehype-pretty/transformers";
 import rehypeSlug from "rehype-slug";
 import { ShikiTransformer } from "shiki";
+import { codeThemes } from "@/lib/codeTheme";
 import _Link from "@/component/safelink";
 // import _Pre from "@/components/_pre";
 // import _Image from "@/components/_image";
@@ -155,11 +156,15 @@ ${content}
           });
         },
         [rehypePrettyCode, {
+          // 地色は globals.css の .post pre に任せ、トークン色だけ自作テーマで塗る。
+          // ライト／ダークの2テーマを CSS 変数（--shiki-light / --shiki-dark）として
+          // 出力し、globals.css 側で .dark クラスに応じて切り替える。
+          theme: codeThemes,
           keepBackground: false,
           transformers: [
             // transformerLineNumbers({ autoApply: true }),
           ],
-        }] as [typeof rehypePrettyCode, { keepBackground: boolean; transformers: ShikiTransformer[] }],
+        }] as [typeof rehypePrettyCode, { theme: typeof codeThemes; keepBackground: boolean; transformers: ShikiTransformer[] }],
         () => (tree: Root) => {
           visit(tree, (node) => {
             if (node?.type === "element" && node?.tagName === "figure") {

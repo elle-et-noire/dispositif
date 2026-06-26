@@ -460,12 +460,33 @@ html.dark .post li code {
   @apply pt-3 text-sm font-[400];
 }
 
+/* rehype-pretty-code の複数テーマ出力。各トークンは色とフォントスタイルを
+   --shiki-light / --shiki-dark に CSS 変数として持つので、.dark クラスに応じて
+   どちらを使うか切り替える（lib/codeTheme.ts のライト／ダークパレットに対応）。
+   font-style の変数が無いトークンでは var() が無効値になり normal にフォールバックする。 */
+.post pre code span {
+  color: var(--shiki-light);
+  font-style: var(--shiki-light-font-style);
+}
+
+html.dark .post pre code span {
+  color: var(--shiki-dark);
+  font-style: var(--shiki-dark-font-style);
+}
+
 .post h2 code {
   @apply text-2xl;
 }
 
+/* コードブロックの地色。各テーマの地（ライト=白 / ダーク=ほぼ黒）から一段
+   はっきり浮く色＋縁にして、本文の中でパネルとして目立たせる。ライトは濃いめの
+   羊皮紙、ダークは黒から持ち上げた藍。トークン色は上の --shiki-* で切り替わる。 */
 .post pre {
-  @apply bg-[#111430];
+  @apply bg-[#edf0f6] border border-[#dadfeb];
+}
+
+html.dark .post pre {
+  @apply bg-[#181d42] border-[#2c4a73];
 }
 
 .post figure {
