@@ -66,7 +66,7 @@ $$\sum_{j=1}^\infty j e_j t^{j-1} = \qty( \sum_{m=0}^\infty e_m t^m ) \qty( \sum
 Schur多項式は完全対称多項式の線形結合で表される:
 $$\begin{align}
 	s_\lambda &= \det_{1 \le i,j \le \mathrm{length}(\lambda)} (h_{\lambda_i - i + j}).
-	\label{eq:jacobi-trudi}\tag{Jacobi-Trudi​公式}
+	\label{eq:jacobi-trudi}\tag{Jacobi-Trudi公式}
 \end{align}$$
 このことは以下のようにして分かる。変数を$X=(x_1,\ldots,x_N)$とし、分割は（ゼロ埋めによって）一般性を失わずに$\lambda = (\lambda_1,\ldots,\lambda_N)$とおける。すると$N$次正方行列$H,E$を以下のように定義できる:
 - $H_{i,k} = h_{\lambda_i - i + k}(X)$

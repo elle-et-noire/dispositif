@@ -40,14 +40,17 @@ export default async function PostPage({ params }: PostPageProps) {
     return <PostList />;
   }
   const { content, data } = GetPostBySlug(slug);
-  const [mdx, mathCss] = await markdownToHtml(content || "");
+  const [mdx, mathCss, mathDefs] = await markdownToHtml(content || "");
   const headings = getHeadings(content || "");
 
   return (
     <>
-      {/* ビルド時に抽出した、この記事で使われたグリフぶんの CHTML スタイル。
+      {/* ビルド時に抽出した SVG 出力用の小さなスタイル（mjx-container の表示規則など）。
           MathJax の JS をクライアントで動かさずに数式を表示するために必要。 */}
       <style dangerouslySetInnerHTML={{ __html: mathCss }} />
+      {/* この記事の全数式が <use> で参照するグリフのパス定義（display:none）。
+          ページに一度だけ出力する。数式の無い記事では空。 */}
+      {mathDefs && <div hidden dangerouslySetInnerHTML={{ __html: mathDefs }} />}
       {/* グラスモーフィズム背景。透けて見える領域のクリックで記事を閉じる。 */}
       <CloseOverlay />
       <div // modal window like
