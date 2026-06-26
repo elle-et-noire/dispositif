@@ -3,6 +3,7 @@ import Toc from "@/component/toc";
 import { getHeadings } from "@/lib/toc";
 import DateInfo from "@/component/dateinfo";
 import { markdownToHtml } from "@/lib/convert";
+import { MATH_FONT_PRELOAD_HREF } from "@/lib/mathjax";
 import CloseButton from "@/component/closebutton";
 import CloseOverlay from "@/component/closeoverlay";
 import CloseSeal from "@/component/closeseal";
@@ -46,6 +47,18 @@ export default async function PostPage({ params }: PostPageProps) {
 
   return (
     <>
+      {/* 数式のある記事だけ、主フォント（mjx-tex-n.woff2）を先読みする。@font-face による
+          遅延発見を待たず転送を前倒しでき、初回表示が速い。React 19 が <head> へ巻き上げる。
+          crossorigin はフォントが CORS 取得のため必須（無いと二重フェッチになる）。 */}
+      {mathCss && (
+        <link
+          rel="preload"
+          as="font"
+          type="font/woff2"
+          href={MATH_FONT_PRELOAD_HREF}
+          crossOrigin="anonymous"
+        />
+      )}
       {/* ビルド時に抽出した、この記事で使われたグリフぶんの CHTML スタイル。
           MathJax の JS をクライアントで動かさずに数式を表示するために必要。 */}
       <style dangerouslySetInnerHTML={{ __html: mathCss }} />

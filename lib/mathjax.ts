@@ -36,6 +36,13 @@ const MATHJAX_ROOT = join(process.cwd(), "node_modules", "mathjax");
 // 補って各 woff2 を参照する（例: mjx-tex-n.woff2）。
 const FONT_URL = "https://cdn.jsdelivr.net/npm/@mathjax/mathjax-tex-font@4/chtml/woff2";
 
+// 数式ページで <head> から先読みする主フォント。mjx-tex-n.woff2 は全数式ページ共通で
+// フォント総量の約 9 割を占める最大ファイル（約 161KB）。これ 1 本を preload して、
+// 「CSS 解析 → グリフ描画段で初めてフォントを発見」という遅延発見を飛ばし、初回記事の
+// 転送開始を前倒しする（app/[slug]/page.tsx が数式のある記事でのみ出力する）。href は
+// @font-face と同じ FONT_URL から組み立て、フォントのバージョン更新で両者がズレるのを防ぐ。
+export const MATH_FONT_PRELOAD_HREF = `${FONT_URL}/mjx-tex-n.woff2`;
+
 // クライアント側だった component/mathenv.tsx と同一の TeX 設定を再現する。
 // 出力のみ SVG → CHTML（ビルド時）に置き換える。
 const config = {
