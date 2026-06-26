@@ -14,6 +14,7 @@ import rehypePrettyCode from "rehype-pretty-code";
 // import { transformerLineNumbers } from "@rehype-pretty/transformers";
 import rehypeSlug from "rehype-slug";
 import { ShikiTransformer } from "shiki";
+import { codeTheme } from "@/lib/codeTheme";
 import _Link from "@/component/safelink";
 // import _Pre from "@/components/_pre";
 // import _Image from "@/components/_image";
@@ -155,11 +156,14 @@ ${content}
           });
         },
         [rehypePrettyCode, {
+          // Zenn を模した単一のダークテーマ。地色は globals.css の .post pre（#1a2638）に
+          // 任せ、トークン色だけこのテーマで塗る。
+          theme: codeTheme,
           keepBackground: false,
           transformers: [
             // transformerLineNumbers({ autoApply: true }),
           ],
-        }] as [typeof rehypePrettyCode, { keepBackground: boolean; transformers: ShikiTransformer[] }],
+        }] as [typeof rehypePrettyCode, { theme: typeof codeTheme; keepBackground: boolean; transformers: ShikiTransformer[] }],
         () => (tree: Root) => {
           visit(tree, (node) => {
             if (node?.type === "element" && node?.tagName === "figure") {

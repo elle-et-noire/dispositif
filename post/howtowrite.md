@@ -131,7 +131,7 @@ e^{\hat{A}}\hat{B}e^{-\hat{A}}=\hat{B}+[\hat{A},\hat{B}]+\frac{1}{2}[\hat{A},[\h
 ```
 ````
 
-```js:fooBar.js
+```js
 const great = () => {
   console.log("Awesome");
 };

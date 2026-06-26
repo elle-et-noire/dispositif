@@ -154,9 +154,12 @@ html.dark .toc-list-item .toc-link::before {
   background: #3a5f8f;
 }
 
-/* h3 はテキストをさらに字下げし、丸もひとまわり小さくして階層を示す。 */
+/* h3 はテキストをさらに字下げし、丸もひとまわり小さくして階層を示す。
+   line-height は h2（既定の 1.5＝1.5rem）に揃える。text-sm は line-height を 1.25rem に
+   詰めてしまい、折り返し時に 1 行目の中心が丸（top:1rem）より上にずれるため、leading-6 で
+   h2 と同じ行高に戻して丸が 1 行目の横に来るようにする。 */
 .toc-level-3 .toc-link {
-  @apply pl-10 text-sm;
+  @apply pl-10 text-sm leading-6;
 }
 
 .toc-level-3 .toc-link::before {
@@ -240,12 +243,12 @@ html.dark .batsu::after {
    .batsu は閉じるボタンの <a> 内でのみ使うので a:hover でスコープできる。 */
 .batsu::before,
 .batsu::after {
-  transition: background 0.2s;
+  transition: background-color 0.2s;
 }
 
 a:hover .batsu::before,
 a:hover .batsu::after {
-  background: #c14a44;
+  background: #dc4e47;
 }
 
 html.dark a:hover .batsu::before,
@@ -261,21 +264,24 @@ svg {
   @apply block overflow-x-auto p-0 m-0 indent-0 whitespace-nowrap;
 }
 
-/* スクロールバーをサイトの世界観に合わせて作り込む。対象は2つ：
+/* スクロールバーをサイトの世界観に合わせて作り込む。対象は3つ：
    ・数式のはみ出し（.post .scrollable）
    ・目次（.styled-scrollbar な nav）
+   ・コードブロックの横はみ出し（.post pre）
    ページ全体（html/body）のメインスクロールバーはブラウザ既定のままにしておく。
    ライトは羊皮紙の縁と同じ薄茶（#d8cdb5）→ hover でひと段濃い砂色（#c2b596）、ダークは
    見出し罫と同じ紺（#2c4a73）→ hover で丸マーカーの青（#3a5f8f）。track は地色になじむ
    よう透明。Firefox 用に scrollbar-width/color も指定する。 */
 .post .scrollable,
-.styled-scrollbar {
+.styled-scrollbar,
+.post pre {
   scrollbar-width: thin;
   scrollbar-color: #d8cdb5 transparent;
 }
 
 .post .scrollable::-webkit-scrollbar,
-.styled-scrollbar::-webkit-scrollbar {
+.styled-scrollbar::-webkit-scrollbar,
+.post pre::-webkit-scrollbar {
   width: 8px;
   height: 8px;
   /* ガター（つまみの背後）も透明にして、地の羊皮紙／紺がそのまま透ける。 */
@@ -287,12 +293,16 @@ svg {
 .post .scrollable::-webkit-scrollbar-corner,
 .styled-scrollbar::-webkit-scrollbar-track,
 .styled-scrollbar::-webkit-scrollbar-track-piece,
-.styled-scrollbar::-webkit-scrollbar-corner {
+.styled-scrollbar::-webkit-scrollbar-corner,
+.post pre::-webkit-scrollbar-track,
+.post pre::-webkit-scrollbar-track-piece,
+.post pre::-webkit-scrollbar-corner {
   background: transparent;
 }
 
 .post .scrollable::-webkit-scrollbar-thumb,
-.styled-scrollbar::-webkit-scrollbar-thumb {
+.styled-scrollbar::-webkit-scrollbar-thumb,
+.post pre::-webkit-scrollbar-thumb {
   background-color: #d8cdb5;
   border-radius: 9999px;
   /* 縁を地色で抜いて track から少し浮いた細い丸棒に見せる。 */
@@ -302,25 +312,31 @@ svg {
 
 .post .scrollable:hover::-webkit-scrollbar-thumb,
 .styled-scrollbar:hover::-webkit-scrollbar-thumb,
+.post pre:hover::-webkit-scrollbar-thumb,
 .post .scrollable::-webkit-scrollbar-thumb:hover,
-.styled-scrollbar::-webkit-scrollbar-thumb:hover {
+.styled-scrollbar::-webkit-scrollbar-thumb:hover,
+.post pre::-webkit-scrollbar-thumb:hover {
   background-color: #c2b596;
 }
 
 html.dark .post .scrollable,
-html.dark .styled-scrollbar {
+html.dark .styled-scrollbar,
+html.dark .post pre {
   scrollbar-color: #2c4a73 transparent;
 }
 
 html.dark .post .scrollable::-webkit-scrollbar-thumb,
-html.dark .styled-scrollbar::-webkit-scrollbar-thumb {
+html.dark .styled-scrollbar::-webkit-scrollbar-thumb,
+html.dark .post pre::-webkit-scrollbar-thumb {
   background-color: #2c4a73;
 }
 
 html.dark .post .scrollable:hover::-webkit-scrollbar-thumb,
 html.dark .styled-scrollbar:hover::-webkit-scrollbar-thumb,
+html.dark .post pre:hover::-webkit-scrollbar-thumb,
 html.dark .post .scrollable::-webkit-scrollbar-thumb:hover,
-html.dark .styled-scrollbar::-webkit-scrollbar-thumb:hover {
+html.dark .styled-scrollbar::-webkit-scrollbar-thumb:hover,
+html.dark .post pre::-webkit-scrollbar-thumb:hover {
   background-color: #3a5f8f;
 }
 
@@ -355,7 +371,7 @@ html.dark .post {
 }
 
 .post a:hover {
-  @apply text-[#df534f];
+  @apply text-[#dc4e47];
 }
 
 html.dark .post a {
@@ -363,7 +379,7 @@ html.dark .post a {
 }
 
 html.dark .post a:hover {
-  @apply text-[#aedcff];
+  @apply text-[#bdf2ff];
 }
 
 /* \eqref のリンクを本文中のリンク（.post a）と揃える。MathJax は SVG リンクの色を
@@ -442,14 +458,108 @@ html.dark .post li code {
 
 .post pre code {
   @apply pt-3 text-sm font-[400];
+  /* Zenn 同様、トークン化されない素テキストは白。各トークン色は単一テーマの
+     インライン color で上書きされる（lib/codeTheme.ts）。 */
+  color: #fff;
 }
 
 .post h2 code {
   @apply text-2xl;
 }
 
+/* コードブロックの地色。Zenn を模してテーマ問わず常にダーク（#1a2638）。 */
 .post pre {
-  @apply bg-[#111430];
+  @apply bg-[#1a2638];
+  border-radius: 4px;
+}
+
+/* Zenn 風コードコピーボタン。コードブロック（figure）の右上隅に重ねる。
+   ボタン本体は component/codecopy.tsx がクライアントで注入する。 */
+.post figure[data-rehype-pretty-code-figure] {
+  position: relative;
+}
+
+.post .code-copy-button {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.85rem;
+  height: 1.85rem;
+  padding: 0;
+  border: none;
+  border-radius: 5px;
+  color: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.07);
+  cursor: pointer;
+  /* 既定では隠し、コードブロックにホバーした時だけ現す。コピー直後（data-copied）と
+     キーボードフォーカス時は、ホバーしていなくても表示する。 */
+  opacity: 0;
+  transition: color 0.15s ease, background-color 0.15s ease, opacity 0.15s ease;
+}
+
+.post figure[data-rehype-pretty-code-figure]:hover .code-copy-button,
+.post .code-copy-button:focus-visible,
+.post .code-copy-button[data-copied="true"] {
+  opacity: 1;
+}
+
+.post .code-copy-button:hover {
+  color: rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.post .code-copy-button:focus-visible {
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.post .code-copy-button svg {
+  width: 1rem;
+  height: 1rem;
+  display: block;
+}
+
+/* コピー済みの間はチェックアイコン＋ツールチップに切り替える。 */
+.post .code-copy-button .check-icon {
+  display: none;
+  color: #b4ff9b;
+}
+
+.post .code-copy-button[data-copied="true"] {
+  color: #b4ff9b;
+}
+
+.post .code-copy-button[data-copied="true"] .copy-icon {
+  display: none;
+}
+
+.post .code-copy-button[data-copied="true"] .check-icon {
+  display: block;
+}
+
+.post .code-copy-tooltip {
+  position: absolute;
+  top: 50%;
+  right: calc(100% + 8px);
+  transform: translateY(-50%);
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: #323e52;
+  color: #fff;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: nowrap;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.post .code-copy-button[data-copied="true"] .code-copy-tooltip {
+  opacity: 1;
 }
 
 .post figure {

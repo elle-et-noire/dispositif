@@ -7,6 +7,7 @@ import CloseButton from "@/component/closebutton";
 import CloseOverlay from "@/component/closeoverlay";
 import CloseSeal from "@/component/closeseal";
 import PostList from "@/component/postlist";
+import CodeCopy from "@/component/codecopy";
 
 interface PostPageProps {
   params: Promise<{
@@ -82,6 +83,8 @@ export default async function PostPage({ params }: PostPageProps) {
             <h1 className="mb-1 md:mb-3 text-lg sm:text-3xl md:text-4xl dark:text-[#cbd9ea]">{data.title}</h1>
             <DateInfo data={data} className="text-xs sm:text-base" />
             <div className="post">{mdx.content}</div>
+            {/* コードブロック右上に Zenn 風コピーボタンをクライアントで注入する。 */}
+            <CodeCopy />
           </div>
           <div //right column
             className="hidden md:block w-full md:w-[12rem] pl-4">
