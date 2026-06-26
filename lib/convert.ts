@@ -20,7 +20,7 @@ import _Link from "@/component/safelink";
 // import _Image from "@/components/_image";
 // import rehypeUnwrapImages from "rehype-unwrap-images";
 
-export const markdownToHtml = async (text: string): Promise<[CompileMDXResult<Record<string, unknown>>, string, string]> => {
+export const markdownToHtml = async (text: string): Promise<[CompileMDXResult<Record<string, unknown>>, string]> => {
   const spacer = "\\hspace{0.2em}";
   const rsmashers = ["。", "、", "）", "，", "．", " ", "　", "-", "：", "", "(", "（"];
   const lsmashers = ["（", "-", "", ")", "）"];
@@ -183,10 +183,9 @@ ${content}
     },
   };
 
-  // 収集した数式をビルド時に一括で SVG へ組版する。Imath/Dmath は組版済み
-  // HTML をそのまま埋め込む（クライアントで MathJax は動かない）。グリフのパス
-  // 定義（defs）はページに一度だけ出力する必要があるため呼び出し元へ返す。
-  const { html: mathHtml, css, defs } = await renderArticleMath(mathexprs);
+  // 収集した数式をビルド時に一括で CHTML へ組版する。Imath/Dmath は組版済み
+  // HTML をそのまま埋め込む（クライアントで MathJax は動かない）。
+  const { html: mathHtml, css } = await renderArticleMath(mathexprs);
   const Imath = ({ i }: { i: number }) =>
     createElement("span", { dangerouslySetInnerHTML: { __html: mathHtml[i] ?? "" } });
   const Dmath = ({ i }: { i: number }) =>
@@ -204,5 +203,5 @@ ${content}
     }
   });
 
-  return [mdx, css, defs];
+  return [mdx, css];
 };

@@ -340,18 +340,16 @@ html.dark .post pre::-webkit-scrollbar-thumb:hover {
   background-color: #3a5f8f;
 }
 
-/* MathJax フォントに無い文字（\tag やラベル内の全角 CJK など）は SVG 出力では
-   <text font-family="serif"> として描かれる。本文と同じ Zen Maru Gothic に上書きする
-   （font-family は presentation 属性なので通常の CSS 規則で上書きできる）。
-   スロット幅と字形幅のズレによる「タグ名と閉じ括弧の隙間」は lib/mathjax.ts 側で
-   <text> の font-size を補正して解消している。 */
-.post mjx-container[jax="SVG"] text {
-  font-family: var(--font-zen-maru-gothic-medium), sans-serif;
-  /* .post の text-autospace:normal は本文の和欧間スペースには有効だが、SVG の <text>
-     内で和欧が混在すると Chrome が CJK を巨大なオフセットで誤配置する（タグの「公式」が
-     消える／\eqref で大きく空く）。ビルド時の字幅実測（lib/mathjax.ts）も自動スペースを
-     含まないため、SVG 数式テキストでは自動スペースを無効化して実測幅と一致させる。 */
-  text-autospace: no-autospace;
+/* \text / \tag / \eqref など MathJax フォント外のテキスト（mjx-utext）は、ビルド時
+   レンダリング（liteAdaptor、DOM 無し）では実フォント幅を実測できず、メトリクス用の
+   フォールバックフォント（MJX-NCM-ZERO）で見積もった固定幅 (style="width:...em") が
+   付く。実際の本文フォント幅と合わないため、タグ末尾と閉じ括弧の間や \eqref と本文の
+   間に余白が生じる。固定幅を解除して内容幅に合わせる。
+   あわせて MathJax が出力する font-family（MJX-NCM-ZERO, inherit ＝ inherit がリスト内
+   では無効でフォールバックも効かない）を、本文と同じ Zen Maru Gothic で上書きする。 */
+.post mjx-utext {
+  width: auto !important;
+  font-family: var(--font-zen-maru-gothic-medium), sans-serif !important;
 }
 
 .post {
@@ -380,15 +378,6 @@ html.dark .post a {
 
 html.dark .post a:hover {
   @apply text-[#bdf2ff];
-}
-
-/* \eqref のリンクを本文中のリンク（.post a）と揃える。MathJax は SVG リンクの色を
-   既定で青（fill/stroke:blue）にするので、グリフの塗りを currentColor に合わせる。
-   こうすると色（通常＝本文リンクのアクセント色／ホバー＝強調色）が .post a / .post a:hover
-   からそのまま継承され、本文リンクと同じ配色・ホバー挙動になる。 */
-.post mjx-container[jax="SVG"] a {
-  fill: currentColor;
-  stroke: currentColor;
 }
 
 .post h2 {
