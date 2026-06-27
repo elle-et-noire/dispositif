@@ -38,9 +38,6 @@ export default function RootLayout({
        antialiased`}
     >
       <head>
-        {/* 数式はビルド時に CHTML へ組版済み。フォント (woff2) は @font-face 経由で
-            この CDN から読み込むため、接続を事前確立しておく（plan.md #4）。 */}
-        <link rel="preconnect" href="https://cdn.jsdelivr.net" crossOrigin="anonymous" />
         {/* テーマの初期適用（FOUC 防止）。body 描画前に同期実行し、保存値→OS 設定の順で
             <html> に dark/light クラスを付ける。background.tsx はマウント時にこのクラスへ
             state を同期する。next/script(beforeInteractive) は実行が hydration をブロック

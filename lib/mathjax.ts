@@ -32,9 +32,23 @@ const MATHJAX_ROOT = join(process.cwd(), "node_modules", "mathjax");
 // （@mathjax/%%FONT%%-font）経由でビルド時に @mathjax/mathjax-tex-font が require される
 // （next.config の serverExternalPackages で外部化）。
 //
-// CDN 上の同フォントパッケージ。@font-face の src がこのパスを指す。末尾に /chtml/woff2 を
-// 補って各 woff2 を参照する（例: mjx-tex-n.woff2）。
-const FONT_URL = "https://cdn.jsdelivr.net/npm/@mathjax/mathjax-tex-font@4/chtml/woff2";
+// フォントは同一オリジンで配信する。@mathjax/mathjax-tex-font の woff2 を
+// public/mathjax-tex-font/woff2/ に複製してあり（更新方法はそこの README 参照）、
+// @font-face の src と preload はこのローカルパスを指す。各 woff2 はこの末尾に
+// /<name>.woff2 を補って参照する（例: mjx-tex-n.woff2）。
+//
+// 第三者 CDN（jsdelivr）をやめて同一オリジン化する狙い:
+//  - クロスオリジンの接続確立（DNS 解決 + TLS ハンドシェイク）を 1 つ減らせる
+//    （これに伴い layout.tsx の preconnect も不要になる）。
+//  - 外部 CDN の可用性・バージョン消失に依存しなくなる。
+// フォント本体（CHTML 仕様）は変えず、配信元だけをローカルへ移す変更。
+//
+// GitHub Pages のプロジェクトページは basePath（/dispositif）配下に配信される
+// （CI の actions/configure-pages が next 設定へ注入）。public/ 配下の素のパスは
+// Next が自動で basePath を付けてくれないため、Next が公開する basePath を明示的に
+// 先頭へ付ける。dev では basePath 無し（空文字）。
+const BASE_PATH = process.env.__NEXT_ROUTER_BASEPATH ?? "";
+const FONT_URL = `${BASE_PATH}/mathjax-tex-font/woff2`;
 
 // 数式ページで <head> から先読みする主フォント。mjx-tex-n.woff2 は全数式ページ共通で
 // フォント総量の約 9 割を占める最大ファイル（約 161KB）。これ 1 本を preload して、
