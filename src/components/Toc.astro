@@ -14,12 +14,15 @@ const { headings } = Astro.props;
     <nav
       aria-label="目次"
       data-toc
-      class="sticky top-0 pt-8 font-system"
+      class="sticky top-4 flex max-h-[calc(100svh-2rem)] flex-col pt-4 font-system"
     >
-      <h2 class="w-full bg-[#324e73] py-0.5 text-center text-base font-[300] text-white">
+      <h2 class="w-full shrink-0 bg-[#324e73] py-0.5 text-center text-base font-[300] text-white">
         目次
       </h2>
-      <div class="toc w-full px-0 pb-8 text-base">
+      <div
+        class="toc toc-scrollable min-h-0 w-full overflow-y-auto pb-8 pl-0 pr-2 text-base"
+        data-toc-scroll
+      >
         <TocList headings={headings} />
       </div>
     </nav>
@@ -28,6 +31,7 @@ const { headings } = Astro.props;
 
 <script>
   const TOC_SCROLL_DURATION = 180;
+  const ACTIVE_HEADING_OFFSET = 64;
 
   // 最初に最も速く、目的地に近づくにつれて減速する。
   const easeOutCubic = (progress: number) =>
@@ -42,17 +46,45 @@ const { headings } = Astro.props;
       const items = Array.from(
         nav.querySelectorAll<HTMLLIElement>("[data-toc-id]"),
       );
+      const scrollContainer =
+        nav.querySelector<HTMLElement>("[data-toc-scroll]");
       let active = "";
 
       const activate = (id: string) => {
         if (!id || id === active) return;
+        let activeItem: HTMLLIElement | undefined;
         items.forEach((item) => {
-          item.classList.toggle(
-            "is-active-li",
-            item.dataset.tocId === id,
-          );
+          const isActive = item.dataset.tocId === id;
+          item.classList.toggle("is-active-li", isActive);
+          if (isActive) activeItem = item;
         });
         active = id;
+
+        // 本文に対応する項目が目次の表示範囲から外れた場合は、
+        // ページ全体ではなく目次だけを必要な分だけスクロールする。
+        if (activeItem && scrollContainer) {
+          const containerRect = scrollContainer.getBoundingClientRect();
+          const itemRect = activeItem.getBoundingClientRect();
+          const margin = 12;
+          let delta = 0;
+
+          if (itemRect.top < containerRect.top + margin) {
+            delta = itemRect.top - containerRect.top - margin;
+          } else if (itemRect.bottom > containerRect.bottom - margin) {
+            delta =
+              itemRect.bottom - containerRect.bottom + margin;
+          }
+
+          if (delta !== 0) {
+            const reduceMotion = matchMedia(
+              "(prefers-reduced-motion: reduce)",
+            ).matches;
+            scrollContainer.scrollBy({
+              top: delta,
+              behavior: reduceMotion ? "auto" : "smooth",
+            });
+          }
+        }
       };
 
       const headings = items
@@ -63,7 +95,11 @@ const { headings } = Astro.props;
         const current =
           [...headings]
             .reverse()
-            .find((heading) => heading.getBoundingClientRect().top <= 120) ??
+            .find(
+              (heading) =>
+                heading.getBoundingClientRect().top <=
+                ACTIVE_HEADING_OFFSET,
+            ) ??
           headings[0];
         if (current) activate(current.id);
       };
@@ -72,9 +108,17 @@ const { headings } = Astro.props;
 
       const observer = new IntersectionObserver(
         syncActiveToScrollPosition,
-        { rootMargin: "-80px 0px -70% 0px" },
+        {
+          rootMargin: `-${ACTIVE_HEADING_OFFSET}px 0px -70% 0px`,
+        },
       );
       headings.forEach((heading) => observer.observe(heading));
+
+      document.addEventListener(
+        "astro:before-swap",
+        () => observer.disconnect(),
+        { once: true },
+      );
 
       const scrollToHeading = (heading: HTMLElement) => {
         window.cancelAnimationFrame(scrollAnimationFrame);
