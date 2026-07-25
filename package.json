@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@mathjax/mathjax-tex-font": "^4.1.2",
+    "@rehype-pretty/transformers": "npm:@jsr/rehype-pretty__transformers@^0.13.4",
     "@tailwindcss/typography": "^0.5.20",
     "@tailwindcss/vite": "^4.3.1",
     "astro": "^7.1.3",

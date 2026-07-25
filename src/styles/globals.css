@@ -201,7 +201,6 @@ body {
 .post pre code {
   display: grid;
   min-width: max-content;
-  padding-block: 0.8rem;
   color: #fff;
   font-family: var(--font-mono);
   font-size: 0.875rem;
@@ -210,10 +209,11 @@ body {
 
 .post pre[data-language]::before {
   position: absolute;
-  top: -1.15rem;
-  left: 0;
+  top: 0.45rem;
+  left: 0.5rem;
   z-index: 1;
-  border-radius: 6px 0 0;
+  border-radius: 5px;
+  opacity: 0;
   background: #334155;
   padding: 0.05rem 0.5rem;
   color: white;
@@ -222,11 +222,13 @@ body {
   font-size: 0.7rem;
   font-weight: 500;
   line-height: 1.45;
+  pointer-events: none;
   text-transform: uppercase;
+  transition: opacity 150ms;
 }
 
-.post [data-line] {
-  padding-inline: 1rem;
+.post figure:hover pre[data-language]::before {
+  opacity: 1;
 }
 
 .post [data-highlighted-line] {
@@ -441,6 +443,7 @@ body {
     font-size: 0.78rem;
   }
 
+  .post pre[data-language]::before,
   .post .code-copy-button {
     opacity: 1;
   }

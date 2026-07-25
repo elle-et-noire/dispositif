@@ -5,13 +5,14 @@ import remarkRehype from "remark-rehype";
 import rehypeRaw from "rehype-raw";
 import rehypeSlug from "rehype-slug";
 import rehypePrettyCode from "rehype-pretty-code";
+import { transformerLineNumbers } from "@rehype-pretty/transformers";
 import rehypeStringify from "rehype-stringify";
 import { visit } from "unist-util-visit";
+import type { ShikiTransformer } from "shiki";
 import type { Root, Element } from "hast";
 
 import { preprocessMarkdown } from "./preprocess";
 import { renderArticleMath } from "./mathjax";
-import { codeTheme } from "./codeTheme";
 import { withBase } from "./base";
 
 // 本文リンクの安全化。Next 版の component/safelink.tsx と同じ方針：
@@ -113,10 +114,12 @@ export const markdownToHtml = async (text: string): Promise<Converted> => {
     .use(remarkGfm)
     .use(remarkRehype, { allowDangerousHtml: true })
     .use(rehypePrettyCode, {
-      // Zenn を模した単一のダークテーマ。地色は globals.css の .post pre（#1a2638）に
-      // 任せ、トークン色だけこのテーマで塗る。
-      theme: codeTheme,
+      // weekly-rundemo と同じ既定テーマ（github-dark-dimmed）と行番号表示。
+      // 地色は globals.css の .post pre に任せ、トークン色だけテーマから使う。
       keepBackground: false,
+      transformers: [
+        transformerLineNumbers({ autoApply: true }) as ShikiTransformer,
+      ],
     })
     .use(rehypeRaw)
     .use(rehypeSlug)
