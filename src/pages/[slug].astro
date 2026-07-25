@@ -45,12 +45,38 @@ const headings = getHeadings(content);
   ></a>
 
   <article class="prose relative z-20 mx-auto mt-8 flex w-[calc(100%-1rem)] max-w-[68rem] flex-col rounded-lg bg-[#f8f8f8] px-4 pb-16 shadow-[0_0_3px_0_rgba(128,128,128,0.5)] md:pl-16 md:pr-4">
-    <div class="invisible sticky top-0 z-30 flex justify-end pt-4">
+    <div class="invisible sticky top-0 z-30 flex justify-end gap-2 pt-4">
+      {
+        headings.length > 0 && (
+          <details class="group visible static md:hidden">
+            <summary
+              aria-label="目次を開閉"
+              class="flex h-8 w-[30px] cursor-pointer list-none items-center justify-center text-[#324e73] [&::-webkit-details-marker]:hidden"
+            >
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 30 30"
+                class="h-[30px] w-[30px] transition-transform group-open:rotate-180 motion-reduce:transition-none"
+              >
+                <path
+                  d="m5 10 10 10 10-10"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                />
+              </svg>
+            </summary>
+            <Toc headings={headings} variant="mobile" />
+          </details>
+        )
+      }
       <a
         href={withBase()}
         data-astro-prefetch="hover"
         aria-label="記事を閉じて一覧へ戻る"
-        class="visible h-8"
+        class="visible h-8 shrink-0"
       >
         <span class="batsu" aria-hidden="true"></span>
       </a>

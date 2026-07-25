@@ -74,6 +74,10 @@ body {
   @apply my-0 w-full px-0;
 }
 
+.toc {
+  text-autospace: normal;
+}
+
 .toc-list-item {
   @apply my-0 w-full list-none py-0;
 }

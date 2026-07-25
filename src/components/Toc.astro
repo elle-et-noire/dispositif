@@ -4,9 +4,14 @@ import TocList from "./TocList.astro";
 
 interface Props {
   headings: Heading[];
+  variant?: "desktop" | "mobile";
 }
 
-const { headings } = Astro.props;
+const { headings, variant = "desktop" } = Astro.props;
+const navClass =
+  variant === "mobile"
+    ? "absolute right-0 top-[calc(100%+0.5rem)] flex max-h-[calc(100svh-6rem)] w-[min(13rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-md bg-[#f8f8f8] font-system shadow-[0_2px_8px_rgba(0,0,0,0.25)]"
+    : "sticky top-4 flex max-h-[calc(100svh-2rem)] flex-col pt-4 font-system";
 ---
 
 {
@@ -14,9 +19,10 @@ const { headings } = Astro.props;
     <nav
       aria-label="目次"
       data-toc
-      class="sticky top-4 flex max-h-[calc(100svh-2rem)] flex-col pt-4 font-system"
+      data-toc-variant={variant}
+      class={`${navClass} not-prose`}
     >
-      <h2 class="w-full shrink-0 bg-[#324e73] py-0.5 text-center text-base font-[300] text-white">
+      <h2 class="m-0 w-full shrink-0 bg-[#324e73] py-0.5 text-center text-base font-[300] text-white">
         目次
       </h2>
       <div
@@ -126,53 +132,71 @@ const { headings } = Astro.props;
         if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
           heading.scrollIntoView({ behavior: "auto", block: "start" });
           syncActiveToScrollPosition();
-          return;
+          return Promise.resolve();
         }
 
-        const startY = window.scrollY;
-        const scrollMarginTop =
-          Number.parseFloat(getComputedStyle(heading).scrollMarginTop) || 0;
-        const maximumY =
-          document.documentElement.scrollHeight - window.innerHeight;
-        const targetY = Math.min(
-          Math.max(
-            0,
-            startY + heading.getBoundingClientRect().top - scrollMarginTop,
-          ),
-          maximumY,
-        );
-        const distance = targetY - startY;
-        const startTime = performance.now();
-
-        const scroll = (time: number) => {
-          const progress = Math.min(
-            (time - startTime) / TOC_SCROLL_DURATION,
-            1,
+        return new Promise<void>((resolve) => {
+          const startY = window.scrollY;
+          const scrollMarginTop =
+            Number.parseFloat(getComputedStyle(heading).scrollMarginTop) || 0;
+          const maximumY =
+            document.documentElement.scrollHeight - window.innerHeight;
+          const targetY = Math.min(
+            Math.max(
+              0,
+              startY + heading.getBoundingClientRect().top - scrollMarginTop,
+            ),
+            maximumY,
           );
-          window.scrollTo({
-            top: startY + distance * easeOutCubic(progress),
-            behavior: "auto",
-          });
-          // 高速スクロールでは IntersectionObserver の判定帯を見出しが
-          // 飛び越えることがあるため、各フレームの現在位置から同期する。
-          syncActiveToScrollPosition();
-          if (progress < 1) {
-            scrollAnimationFrame = window.requestAnimationFrame(scroll);
-          }
-        };
+          const distance = targetY - startY;
+          const startTime = performance.now();
 
-        scrollAnimationFrame = window.requestAnimationFrame(scroll);
+          const scroll = (time: number) => {
+            const progress = Math.min(
+              (time - startTime) / TOC_SCROLL_DURATION,
+              1,
+            );
+            window.scrollTo({
+              top: startY + distance * easeOutCubic(progress),
+              behavior: "auto",
+            });
+            // 高速スクロールでは IntersectionObserver の判定帯を見出しが
+            // 飛び越えることがあるため、各フレームの現在位置から同期する。
+            syncActiveToScrollPosition();
+            if (progress < 1) {
+              scrollAnimationFrame = window.requestAnimationFrame(scroll);
+            } else {
+              resolve();
+            }
+          };
+
+          scrollAnimationFrame = window.requestAnimationFrame(scroll);
+        });
+      };
+
+      const focusHeading = (heading: HTMLElement) => {
+        const hadTabIndex = heading.hasAttribute("tabindex");
+        if (!hadTabIndex) heading.tabIndex = -1;
+        heading.focus({ preventScroll: true });
+        if (!hadTabIndex) {
+          heading.addEventListener(
+            "blur",
+            () => heading.removeAttribute("tabindex"),
+            { once: true },
+          );
+        }
       };
 
       nav.querySelectorAll<HTMLAnchorElement>("a.toc-link").forEach((link) => {
-        link.addEventListener("click", (event) => {
+        link.addEventListener("click", async (event) => {
           const id = decodeURIComponent(link.hash.slice(1));
           const heading = document.getElementById(id);
           if (!heading) return;
           event.preventDefault();
-          scrollToHeading(heading);
+          await scrollToHeading(heading);
           history.replaceState(null, "", `#${encodeURIComponent(id)}`);
-          if (event.detail > 0) link.blur();
+          focusHeading(heading);
+          link.closest("details")?.removeAttribute("open");
         });
       });
     });
