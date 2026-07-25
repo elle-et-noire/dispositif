@@ -83,7 +83,7 @@ body {
 }
 
 .toc-list-item .toc-link {
-  @apply inline-block w-full border-l-4 py-1.5 pl-2 text-gray-400 no-underline;
+  @apply inline-block w-full border-l-4 py-1.5 pl-2 font-medium text-gray-400 no-underline;
 }
 
 .toc-level-3 .toc-link {
