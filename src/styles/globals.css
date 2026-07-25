@@ -2,7 +2,8 @@
 @plugin "@tailwindcss/typography";
 
 @theme {
-  --font-system: "Nunito", "Kosugi Maru", ui-rounded, system-ui, sans-serif;
+  --font-system: "Nunito Variable", "Kosugi Maru", ui-rounded, system-ui,
+    sans-serif;
   --font-noto-sans: "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Yu Gothic",
     system-ui, sans-serif;
   --font-sans: var(--font-noto-sans);
