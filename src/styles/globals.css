@@ -50,7 +50,24 @@ body {
 }
 
 .date-info {
-  @apply flex justify-start font-kosugi-maru font-normal italic text-gray-400;
+  @apply m-0 flex flex-wrap items-baseline justify-start gap-x-2 gap-y-0 font-kosugi-maru font-normal italic text-[#52606d];
+}
+
+.date-info-item {
+  @apply inline-flex items-baseline whitespace-nowrap;
+}
+
+.date-info-item dt {
+  @apply m-0 mr-1;
+}
+
+.date-info-item dd {
+  @apply m-0 p-0;
+}
+
+.date-info-item + .date-info-item::before {
+  margin-right: 0.25rem;
+  content: "»";
 }
 
 .toc-list {
@@ -105,7 +122,9 @@ body {
 }
 
 .post {
+  min-width: 0;
   color: #101828;
+  overflow-wrap: anywhere;
   text-autospace: normal;
 }
 
@@ -160,7 +179,17 @@ body {
 }
 
 .post img {
+  max-width: 100%;
   height: auto;
+}
+
+.post table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-color: #94a3b8 transparent;
+  scrollbar-width: thin;
+  white-space: nowrap;
 }
 
 .post img:has(+ .img-caption) {
@@ -192,6 +221,7 @@ body {
 }
 
 .post pre {
+  max-width: 100%;
   overflow: auto;
   border-radius: 6px;
   background: #111430;
@@ -368,6 +398,7 @@ body {
 }
 
 .post .scrollable {
+  max-width: 100%;
   display: block;
   overflow-x: auto;
   margin: 0;

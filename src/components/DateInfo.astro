@@ -9,11 +9,17 @@ interface Props {
 const { data, class: className = "" } = Astro.props;
 ---
 
-<div class:list={["date-info", className]}>
-  <span class="pr-1">投稿日</span>{data.publish}
+<dl class:list={["date-info", "not-prose", className]}>
+  <div class="date-info-item">
+    <dt>投稿日</dt>
+    <dd><time datetime={data.publish}>{data.publish}</time></dd>
+  </div>
   {
     data.lastUpdate && (
-      <><span class="pl-2 pr-1">» 最終更新日</span>{data.lastUpdate}</>
+      <div class="date-info-item">
+        <dt>最終更新日</dt>
+        <dd><time datetime={data.lastUpdate}>{data.lastUpdate}</time></dd>
+      </div>
     )
   }
-</div>
+</dl>
