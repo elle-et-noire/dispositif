@@ -38,7 +38,7 @@ const MATHJAX_ROOT = join(process.cwd(), "node_modules", "mathjax");
 // 数式フォントは自前ホスト（同一オリジン）で配信する。scripts/copy-math-fonts.mjs が
 // @mathjax/mathjax-tex-font の woff2 を public/fonts/mjx/ へコピーし（predev/prebuild）、
 // @font-face の src がこのパスを指す。各 woff2 はこの直下に置かれる（例: mjx-tex-n.woff2）。
-// base（astro.config.mjs の '/bestand'）込みの絶対パスにするため BASE_URL を前置する。
+// base（astro.config.mjs の '/dispositif'）込みの絶対パスにするため BASE_URL を前置する。
 // 以前は第三者 CDN（jsdelivr）を指していたが、本文・コードフォントと同じく同一オリジンに
 // 寄せて DNS+TLS+コネクション確立のラウンドトリップを無くす。
 const FONT_URL = withBase("fonts/mjx");

@@ -12,9 +12,11 @@ import type { Root, Element } from "hast";
 import { preprocessMarkdown } from "./preprocess";
 import { renderArticleMath } from "./mathjax";
 import { codeTheme } from "./codeTheme";
+import { withBase } from "./base";
 
 // 本文リンクの安全化。Next 版の component/safelink.tsx と同じ方針：
-// 外部リンク（/ や # で始まらない）は新規タブで開き rel を付ける。空 href は / に向ける。
+// 外部リンク（/ や # で始まらない）は新規タブで開き rel を付ける。
+// 空 href はサイトのベースURLへ向ける。
 function rehypeSafeLinks() {
   return (tree: Root) => {
     visit(tree, "element", (node: Element) => {
@@ -22,13 +24,41 @@ function rehypeSafeLinks() {
       let href = node.properties?.href;
       if (typeof href !== "string") return;
       if (href === "") {
-        href = "/";
-        node.properties.href = "/";
+        href = withBase();
+        node.properties.href = href;
       }
       if (!href.startsWith("/") && !href.startsWith("#")) {
         node.properties.target = "_blank";
         node.properties.rel = ["noopener", "noreferrer"];
       }
+    });
+  };
+}
+
+// Markdown から生成されたルート相対 URL に Astro の base を付ける。
+// .astro 内のリンクと異なり、Markdown 本文の /foo はビルド時に自動変換されないため、
+// GitHub Pages のプロジェクトサイトでは /dispositif/foo に補正する必要がある。
+function rehypeBasePaths() {
+  const base = withBase();
+  const baseWithoutTrailingSlash = base.replace(/\/$/, "");
+
+  return (tree: Root) => {
+    visit(tree, "element", (node: Element) => {
+      const property = node.tagName === "a" ? "href" : node.tagName === "img" ? "src" : null;
+      if (!property) return;
+
+      const value = node.properties?.[property];
+      if (
+        typeof value !== "string"
+        || !value.startsWith("/")
+        || value.startsWith("//")
+        || base === "/"
+        || value === baseWithoutTrailingSlash
+        || value.startsWith(`${baseWithoutTrailingSlash}/`)
+      ) {
+        return;
+      }
+      node.properties[property] = withBase(value);
     });
   };
 }
@@ -92,6 +122,7 @@ export const markdownToHtml = async (text: string): Promise<Converted> => {
     .use(rehypeSlug)
     .use(rehypeSafeLinks)
     .use(rehypeArticleImages)
+    .use(rehypeBasePaths)
     .use(rehypeStringify, { allowDangerousHtml: true })
     .process(processible);
 
