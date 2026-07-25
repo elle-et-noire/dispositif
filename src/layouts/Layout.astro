@@ -8,11 +8,12 @@ interface Props {
   description?: string;
 }
 
+const siteTitle = "Dispositif";
 const {
-  title = "Weekly Run Demo",
+  title = siteTitle,
   description = "Description of something with working codes",
 } = Astro.props;
-const pageTitle = title === "Weekly Run Demo" ? title : `${title} | Weekly Run Demo`;
+const pageTitle = title === siteTitle ? title : `${title} | ${siteTitle}`;
 ---
 
 <!doctype html>

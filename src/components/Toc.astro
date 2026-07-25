@@ -14,12 +14,14 @@ const { headings } = Astro.props;
     <nav
       aria-label="目次"
       data-toc
-      class="sticky top-0 max-h-svh overflow-y-auto pb-8 pt-8 font-system"
+      class="sticky top-0 pt-8 font-system"
     >
-      <h2 class="mb-0 w-full bg-[#324e73] py-0.5 text-center text-base font-normal text-white">
+      <h2 class="w-full bg-[#324e73] py-0.5 text-center text-base font-[300] text-white">
         目次
       </h2>
-      <TocList headings={headings} />
+      <div class="toc w-full px-0 pb-8 text-base">
+        <TocList headings={headings} />
+      </div>
     </nav>
   )
 }

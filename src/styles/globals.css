@@ -3,15 +3,16 @@
 
 @theme {
   --font-system: "Nunito", "Kosugi Maru", ui-rounded, system-ui, sans-serif;
-  --font-sans: "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Yu Gothic",
+  --font-noto-sans: "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Yu Gothic",
     system-ui, sans-serif;
+  --font-sans: var(--font-noto-sans);
   --font-mono: Consolas, "Fira Mono", ui-monospace, monospace;
+  --font-kosugi-maru: "Kosugi Maru", sans-serif;
 }
 
 :root {
   color: #171717;
   font-family: var(--font-sans);
-  font-synthesis: none;
 }
 
 html,
@@ -48,11 +49,7 @@ body {
 }
 
 .date-info {
-  @apply flex flex-wrap justify-start gap-x-2 gap-y-1 font-system font-normal italic text-gray-400;
-}
-
-.date-info > span {
-  @apply inline-flex whitespace-nowrap;
+  @apply flex justify-start font-kosugi-maru font-normal italic text-gray-400;
 }
 
 .toc-list {
@@ -64,7 +61,7 @@ body {
 }
 
 .toc-list-item .toc-link {
-  @apply inline-block w-full border-l-4 border-l-transparent py-1.5 pl-2 text-gray-400 no-underline transition-colors duration-200;
+  @apply inline-block w-full border-l-4 py-1.5 pl-2 text-gray-400 no-underline transition-colors duration-200;
 }
 
 .toc-level-3 .toc-link {
@@ -96,7 +93,6 @@ body {
   border-radius: 2.5px;
   background: #324e73;
   content: "";
-  transition: background-color 150ms;
 }
 
 .batsu::before {
@@ -105,11 +101,6 @@ body {
 
 .batsu::after {
   transform: translate(-50%, -50%) rotate(-45deg);
-}
-
-a:hover .batsu::before,
-a:hover .batsu::after {
-  background: #2e8cfe;
 }
 
 .post {

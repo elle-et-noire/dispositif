@@ -1,4 +1,4 @@
-# Weekly Run Demo
+# Dispositif
 
 Next.js版のブログをAstroへ移植した静的サイトです。記事はビルド時にMarkdownからHTMLへ変換し、数式はMathJax v4のCHTMLとして出力します。ブラウザ側ではMathJaxを実行せず、数式フォントも同一オリジンから配信します。
 
