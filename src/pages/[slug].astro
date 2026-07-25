@@ -1,0 +1,74 @@
+---
+import Layout from "@layouts/Layout.astro";
+import DateInfo from "@components/DateInfo.astro";
+import Toc from "@components/Toc.astro";
+import ArticleInteractions from "@components/ArticleInteractions.astro";
+import { markdownToHtml } from "@lib/convert";
+import { MATH_FONT_PRELOAD_HREF } from "@lib/mathjax";
+import { getAllSlugs, getPostBySlug } from "@lib/post";
+import { getHeadings } from "@lib/toc";
+import { withBase } from "@lib/base";
+
+export function getStaticPaths() {
+  return getAllSlugs().map((slug) => ({
+    params: { slug },
+    props: getPostBySlug(slug),
+  }));
+}
+
+const { content, data } = Astro.props;
+const { html, css } = await markdownToHtml(content);
+const headings = getHeadings(content);
+---
+
+<Layout title={data.title}>
+  {
+    css && (
+      <Fragment slot="head">
+        <link
+          rel="preload"
+          as="font"
+          type="font/woff2"
+          href={MATH_FONT_PRELOAD_HREF}
+          crossorigin="anonymous"
+        />
+        <style is:inline set:html={css} />
+      </Fragment>
+    )
+  }
+
+  <a
+    href={withBase()}
+    data-astro-prefetch="hover"
+    aria-label="記事を閉じて一覧へ戻る"
+    class="fixed inset-0 z-10 block cursor-pointer bg-[#76ddfc]/15 backdrop-blur-[3px]"
+  ></a>
+
+  <article class="relative z-20 mx-auto mt-8 flex w-[calc(100%-1rem)] max-w-[68rem] flex-col rounded-lg bg-[#f8f8f8] px-4 pb-16 shadow-[0_0_3px_0_rgba(128,128,128,0.5)] md:pl-16 md:pr-4">
+    <div class="invisible sticky top-0 z-30 flex justify-end pt-4">
+      <a
+        href={withBase()}
+        data-astro-prefetch="hover"
+        aria-label="記事を閉じて一覧へ戻る"
+        class="visible flex size-10 items-center justify-center"
+      >
+        <span class="batsu" aria-hidden="true"></span>
+      </a>
+    </div>
+
+    <div class="grid min-w-0 grid-cols-1 md:grid-cols-[minmax(0,48rem)_12rem] md:justify-between">
+      <div class="min-w-0 overflow-x-visible font-sans">
+        <h1 class="mb-1 text-lg font-semibold text-[#101828] sm:text-3xl md:mb-3 md:text-4xl">
+          {data.title}
+        </h1>
+        <DateInfo data={data} class="text-xs sm:text-base" />
+        <div class="post prose prose-sm mt-8 max-w-none md:prose-base" set:html={html} />
+      </div>
+      <aside class="hidden w-full pl-4 md:block">
+        <Toc headings={headings} />
+      </aside>
+    </div>
+  </article>
+
+  <ArticleInteractions />
+</Layout>

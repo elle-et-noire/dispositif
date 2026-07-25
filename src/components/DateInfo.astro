@@ -1,0 +1,19 @@
+---
+import type { PostFrontmatter } from "@lib/post";
+
+interface Props {
+  data: PostFrontmatter;
+  class?: string;
+}
+
+const { data, class: className = "" } = Astro.props;
+---
+
+<div class:list={["date-info", className]}>
+  <span><span class="pr-1">投稿日</span>{data.publish}</span>
+  {
+    data.lastUpdate && (
+      <span><span class="pr-1">» 最終更新日</span>{data.lastUpdate}</span>
+    )
+  }
+</div>

@@ -1,0 +1,87 @@
+---
+import type { Heading } from "@lib/toc";
+import TocList from "./TocList.astro";
+
+interface Props {
+  headings: Heading[];
+}
+
+const { headings } = Astro.props;
+---
+
+{
+  headings.length > 0 && (
+    <nav
+      aria-label="目次"
+      data-toc
+      class="sticky top-0 max-h-svh overflow-y-auto pb-8 pt-8 font-system"
+    >
+      <h2 class="mb-0 w-full bg-[#324e73] py-0.5 text-center text-base font-normal text-white">
+        目次
+      </h2>
+      <TocList headings={headings} />
+    </nav>
+  )
+}
+
+<script>
+  const initializeToc = () => {
+    document.querySelectorAll<HTMLElement>("[data-toc]").forEach((nav) => {
+      if (nav.dataset.ready === "true") return;
+      nav.dataset.ready = "true";
+
+      const items = Array.from(
+        nav.querySelectorAll<HTMLLIElement>("[data-toc-id]"),
+      );
+      const itemById = new Map(
+        items.map((item) => [item.dataset.tocId ?? "", item]),
+      );
+      let active = "";
+
+      const activate = (id: string) => {
+        if (!id || id === active) return;
+        itemById.get(active)?.classList.remove("is-active-li");
+        itemById.get(id)?.classList.add("is-active-li");
+        active = id;
+      };
+
+      const headings = items
+        .map((item) => document.getElementById(item.dataset.tocId ?? ""))
+        .filter((heading): heading is HTMLElement => heading !== null);
+
+      if (headings[0]) activate(headings[0].id);
+
+      const observer = new IntersectionObserver(
+        () => {
+          const current =
+            [...headings]
+              .reverse()
+              .find((heading) => heading.getBoundingClientRect().top <= 120) ??
+            headings[0];
+          if (current) activate(current.id);
+        },
+        { rootMargin: "-80px 0px -70% 0px" },
+      );
+      headings.forEach((heading) => observer.observe(heading));
+
+      nav.querySelectorAll<HTMLAnchorElement>("a.toc-link").forEach((link) => {
+        link.addEventListener("click", (event) => {
+          const id = decodeURIComponent(link.hash.slice(1));
+          const heading = document.getElementById(id);
+          if (!heading) return;
+          event.preventDefault();
+          heading.scrollIntoView({
+            behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
+              ? "auto"
+              : "smooth",
+            block: "start",
+          });
+          history.replaceState(null, "", `#${encodeURIComponent(id)}`);
+          activate(id);
+        });
+      });
+    });
+  };
+
+  document.addEventListener("astro:page-load", initializeToc);
+</script>

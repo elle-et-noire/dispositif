@@ -1,0 +1,123 @@
+---
+// 記事本文に対するクライアント側の拡張を一か所に集約する。
+// 本文そのものはビルド時 HTML のままなので、クライアントランタイムは不要。
+---
+
+<script>
+  const COPY_ICON =
+    '<svg class="copy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
+  const CHECK_ICON =
+    '<svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+  const timers = new WeakMap<Element, number>();
+
+  const prefersReducedMotion = () =>
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  const extractCode = (figure: Element): string => {
+    const lines = figure.querySelectorAll("pre code [data-line]");
+    if (lines.length > 0) {
+      return Array.from(lines, (line) => line.textContent ?? "").join("\n");
+    }
+    return figure.querySelector<HTMLElement>("pre")?.innerText ?? "";
+  };
+
+  const markCopied = (button: HTMLButtonElement) => {
+    button.dataset.copied = "true";
+    const previous = timers.get(button);
+    if (previous) window.clearTimeout(previous);
+    timers.set(
+      button,
+      window.setTimeout(() => delete button.dataset.copied, 2000),
+    );
+  };
+
+  const copyText = async (text: string): Promise<boolean> => {
+    if (navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(text);
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.style.cssText = "position:fixed;opacity:0";
+    document.body.appendChild(textarea);
+    textarea.select();
+    try {
+      const execCommand = (
+        document as unknown as { execCommand(commandId: string): boolean }
+      ).execCommand.bind(document);
+      return execCommand("copy");
+    } catch {
+      return false;
+    } finally {
+      textarea.remove();
+    }
+  };
+
+  const enhanceArticle = () => {
+    document
+      .querySelectorAll(".post figure[data-rehype-pretty-code-figure]")
+      .forEach((figure) => {
+        if (figure.querySelector(".code-copy-button")) return;
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "code-copy-button";
+        button.setAttribute("aria-label", "コードをコピー");
+        button.innerHTML = `${COPY_ICON}${CHECK_ICON}<span class="code-copy-tooltip" role="status">Copied!</span>`;
+        figure.appendChild(button);
+      });
+
+    // ClientRouter の遷移では本文リンクが新しい DOM に差し替わるため、数式参照の
+    // クリック処理は astro:page-load ごとに現在のリンクへ登録する。
+    document
+      .querySelectorAll<HTMLAnchorElement>('.post a[href^="#mjx-eqn"]')
+      .forEach((link) => {
+        if (link.dataset.mathrefBound) return;
+        link.dataset.mathrefBound = "true";
+        link.addEventListener("click", (event) => {
+          if (
+            event.button !== 0 ||
+            event.metaKey ||
+            event.ctrlKey ||
+            event.shiftKey ||
+            event.altKey
+          ) return;
+
+          const id = decodeURIComponent(link.hash.slice(1));
+          const equation = document.getElementById(id);
+          if (!equation) return;
+
+          event.preventDefault();
+          equation.scrollIntoView({
+            behavior: prefersReducedMotion() ? "auto" : "smooth",
+            block: "start",
+          });
+          history.replaceState(null, "", link.hash);
+          if (event.detail > 0) link.blur();
+        });
+      });
+  };
+
+  document.addEventListener("astro:page-load", enhanceArticle);
+
+  document.addEventListener("click", async (event) => {
+    const target = event.target as Element | null;
+    const copyButton = target?.closest<HTMLButtonElement>(".code-copy-button");
+    if (copyButton) {
+      const figure = copyButton.closest("figure");
+      if (!figure) return;
+      if (event.detail !== 0) copyButton.blur();
+      if (await copyText(extractCode(figure))) markCopied(copyButton);
+      return;
+    }
+  });
+
+  document.addEventListener("pointerup", (event) => {
+    const pre = (event.target as Element | null)?.closest<HTMLElement>(".post pre");
+    if (pre && document.activeElement === pre) pre.blur();
+  });
+</script>

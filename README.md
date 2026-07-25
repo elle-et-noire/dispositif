@@ -1,46 +1,39 @@
-# Astro Starter Kit: Basics
+# Weekly Run Demo
 
-```sh
-npm create astro@latest -- --template basics
-```
+Next.js版のブログをAstroへ移植した静的サイトです。記事はビルド時にMarkdownからHTMLへ変換し、数式はMathJax v4のCHTMLとして出力します。ブラウザ側ではMathJaxを実行せず、数式フォントも同一オリジンから配信します。
 
-> 🧑‍🚀 **Seasoned astronaut?** Delete this file. Have fun!
-
-## 🚀 Project Structure
-
-Inside of your Astro project, you'll see the following folders and files:
+## 構成
 
 ```text
 /
+├── lib/                    # 記事取得、Markdown前処理、MathJax変換
+├── post/                   # Markdown記事
 ├── public/
-│   └── favicon.svg
-├── src
-│   ├── assets
-│   │   └── astro.svg
-│   ├── components
-│   │   └── Welcome.astro
-│   ├── layouts
-│   │   └── Layout.astro
-│   └── pages
-│       └── index.astro
-└── package.json
+│   └── fonts/mjx/          # predev / prebuildで生成
+├── scripts/
+│   └── copy-math-fonts.mjs
+└── src/
+    ├── components/
+    ├── layouts/
+    ├── pages/
+    │   ├── index.astro
+    │   └── [slug].astro
+    └── styles/globals.css
 ```
 
-To learn more about the folder structure of an Astro project, refer to [our guide on project structure](https://docs.astro.build/en/basics/project-structure/).
+## コマンド
 
-## 🧞 Commands
+```sh
+npm install
+npx astro dev --background
+npm run build
+npm run astro -- check
+```
 
-All commands are run from the root of the project, from a terminal:
+バックグラウンドの開発サーバーは次のコマンドで管理できます。
 
-| Command                   | Action                                           |
-| :------------------------ | :----------------------------------------------- |
-| `npm install`             | Installs dependencies                            |
-| `npm run dev`             | Starts local dev server at `localhost:4321`      |
-| `npm run build`           | Build your production site to `./dist/`          |
-| `npm run preview`         | Preview your build locally, before deploying     |
-| `npm run astro ...`       | Run CLI commands like `astro add`, `astro check` |
-| `npm run astro -- --help` | Get help using the Astro CLI                     |
-
-## 👀 Want to learn more?
-
-Feel free to check [our documentation](https://docs.astro.build) or jump into our [Discord server](https://astro.build/chat).
+```sh
+npx astro dev status
+npx astro dev logs
+npx astro dev stop
+```

@@ -1,11 +1,14 @@
 ---
-import Welcome from '../components/Welcome.astro';
-import Layout from '../layouts/Layout.astro';
+import Layout from "@layouts/Layout.astro";
+import PostCard from "@components/PostCard.astro";
+import { getAllPosts } from "@lib/post";
 
-// Welcome to Astro! Wondering what to do next? Check out the Astro documentation at https://docs.astro.build
-// Don't want to use any of this? Delete everything in this file, the `assets`, `components`, and `layouts` directories, and start fresh.
+const posts = getAllPosts();
 ---
 
 <Layout>
-	<Welcome />
+  <h1 class="sr-only">記事一覧</h1>
+  <div class="mx-auto flex w-full flex-col items-center gap-3 px-2 pb-16 pt-20 md:w-[48rem]">
+    {posts.map((post) => <PostCard slug={post.slug} data={post.data} />)}
+  </div>
 </Layout>

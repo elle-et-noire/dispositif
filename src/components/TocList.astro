@@ -1,0 +1,22 @@
+---
+import type { Heading } from "@lib/toc";
+
+interface Props {
+  headings: Heading[];
+}
+
+const { headings } = Astro.props;
+---
+
+<ul class="toc-list">
+  {
+    headings.map((heading) => (
+      <li
+        class={`toc-list-item toc-level-${heading.level}`}
+        data-toc-id={heading.id}
+      >
+        <a href={`#${heading.id}`} class="toc-link">{heading.text}</a>
+      </li>
+    ))
+  }
+</ul>

@@ -1,0 +1,456 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@theme {
+  --font-system: "Nunito", "Kosugi Maru", ui-rounded, system-ui, sans-serif;
+  --font-sans: "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Yu Gothic",
+    system-ui, sans-serif;
+  --font-mono: Consolas, "Fira Mono", ui-monospace, monospace;
+}
+
+:root {
+  color: #171717;
+  font-family: var(--font-sans);
+  font-synthesis: none;
+}
+
+html,
+body {
+  margin: 0;
+  min-width: 320px;
+}
+
+body {
+  min-height: 100svh;
+}
+
+*,
+::before,
+::after {
+  box-sizing: border-box;
+  border-color: var(--color-gray-200, currentcolor);
+}
+
+:focus-visible {
+  outline: 2px solid #2e8cfe;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+.date-info {
+  @apply flex flex-wrap justify-start gap-x-2 gap-y-1 font-system font-normal italic text-gray-400;
+}
+
+.date-info > span {
+  @apply inline-flex whitespace-nowrap;
+}
+
+.toc-list {
+  @apply my-0 w-full px-0;
+}
+
+.toc-list-item {
+  @apply my-0 w-full list-none py-0;
+}
+
+.toc-list-item .toc-link {
+  @apply inline-block w-full border-l-4 border-l-transparent py-1.5 pl-2 text-gray-400 no-underline transition-colors duration-200;
+}
+
+.toc-level-3 .toc-link {
+  @apply pl-4 text-sm;
+}
+
+.toc-list-item .toc-link:hover {
+  @apply text-[#324e73];
+}
+
+.is-active-li .toc-link {
+  @apply border-l-[#324e73] text-[#324e73];
+}
+
+.batsu {
+  position: relative;
+  display: block;
+  width: 30px;
+  height: 30px;
+}
+
+.batsu::before,
+.batsu::after {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 2px;
+  height: 30px;
+  border-radius: 2.5px;
+  background: #324e73;
+  content: "";
+  transition: background-color 150ms;
+}
+
+.batsu::before {
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.batsu::after {
+  transform: translate(-50%, -50%) rotate(-45deg);
+}
+
+a:hover .batsu::before,
+a:hover .batsu::after {
+  background: #2e8cfe;
+}
+
+.post {
+  color: #101828;
+  text-autospace: normal;
+}
+
+.post :is(h2, h3),
+.post [id^="mjx-eqn:"] {
+  scroll-margin-top: 1.5rem;
+}
+
+.post a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+}
+
+.post a:hover {
+  color: #324e73;
+  text-decoration: none;
+}
+
+.post h2 {
+  @apply border-l-4 border-l-[#324e73] py-0.5 pl-2 text-base font-bold text-[#324e73] sm:py-1 sm:pl-4 sm:text-2xl;
+}
+
+.post h3 {
+  @apply text-base font-bold text-[#324e73] sm:text-xl;
+}
+
+.post p {
+  @apply whitespace-pre-wrap font-medium;
+}
+
+.post li {
+  @apply font-medium;
+}
+
+.post p + p {
+  @apply mt-5;
+}
+
+.post p:has(+ .scrollable) {
+  @apply mb-0;
+}
+
+.post .scrollable + p {
+  @apply mt-0;
+}
+
+.post img,
+.post table {
+  @apply mx-auto;
+}
+
+.post img {
+  height: auto;
+}
+
+.post img:has(+ .img-caption) {
+  @apply mb-0;
+}
+
+.post .img-caption {
+  @apply mt-2 text-center;
+}
+
+.post p code,
+.post li code,
+.post td code {
+  @apply mx-0.5 rounded-md bg-[#d9dce1] px-1 py-0.5 text-base;
+}
+
+.post code::before,
+.post code::after {
+  content: none;
+}
+
+.post h2 code {
+  @apply text-2xl;
+}
+
+.post figure[data-rehype-pretty-code-figure] {
+  position: relative;
+  margin-block: 1.25rem;
+}
+
+.post pre {
+  overflow: auto;
+  border-radius: 6px;
+  background: #111430;
+  scrollbar-color: #64748b transparent;
+  scrollbar-width: thin;
+}
+
+.post pre code {
+  display: grid;
+  min-width: max-content;
+  padding-block: 0.8rem;
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  font-weight: 400;
+}
+
+.post pre[data-language]::before {
+  position: absolute;
+  top: -1.15rem;
+  left: 0;
+  z-index: 1;
+  border-radius: 6px 0 0;
+  background: #334155;
+  padding: 0.05rem 0.5rem;
+  color: white;
+  content: attr(data-language);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 500;
+  line-height: 1.45;
+  text-transform: uppercase;
+}
+
+.post [data-line] {
+  padding-inline: 1rem;
+}
+
+.post [data-highlighted-line] {
+  border-left: 2px solid #60a5fa;
+  background: rgb(96 165 250 / 0.12);
+}
+
+.post [data-rehype-pretty-code-title] {
+  border-radius: 6px 6px 0 0;
+  background: #334155;
+  padding: 0.3rem 0.75rem;
+  color: white;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}
+
+.post [data-rehype-pretty-code-title] + pre {
+  margin-top: 0;
+  border-radius: 0 0 6px 6px;
+}
+
+.post .code-copy-button {
+  position: absolute;
+  top: 0.45rem;
+  right: 0.5rem;
+  z-index: 2;
+  display: inline-flex;
+  width: 1.85rem;
+  height: 1.85rem;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 5px;
+  background: rgb(255 255 255 / 0.07);
+  color: rgb(255 255 255 / 0.55);
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    color 150ms,
+    background-color 150ms,
+    opacity 150ms;
+}
+
+.post figure:hover .code-copy-button,
+.post .code-copy-button:focus-visible,
+.post .code-copy-button[data-copied="true"] {
+  opacity: 1;
+}
+
+.post .code-copy-button:hover {
+  background: rgb(255 255 255 / 0.16);
+  color: white;
+}
+
+.post .code-copy-button svg {
+  display: block;
+  width: 1rem;
+  height: 1rem;
+}
+
+.post .code-copy-button .check-icon {
+  display: none;
+  color: #b4ff9b;
+}
+
+.post .code-copy-button[data-copied="true"] .copy-icon {
+  display: none;
+}
+
+.post .code-copy-button[data-copied="true"] .check-icon {
+  display: block;
+}
+
+.post .code-copy-tooltip {
+  position: absolute;
+  top: 50%;
+  right: calc(100% + 8px);
+  padding: 2px 8px;
+  transform: translateY(-50%);
+  border-radius: 4px;
+  opacity: 0;
+  background: #323e52;
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.5;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.post .code-copy-button[data-copied="true"] .code-copy-tooltip {
+  opacity: 1;
+}
+
+.post details {
+  @apply mx-0 mb-4 mt-2;
+}
+
+.post summary {
+  position: relative;
+  z-index: 0;
+  display: inline-block;
+  width: 100%;
+  padding: 6px 16px;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.post details summary::before {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border: 1px solid #97c8d8;
+  border-radius: 3px;
+  background-color: #fff;
+  box-shadow: 0 1px 1px 0 #4ba4cc;
+  content: "";
+  transform: skewX(-10deg);
+}
+
+.post details[open] summary::before {
+  box-shadow: inset 0 1px 1px 0 #4ba4cc;
+}
+
+.post details summary::after {
+  float: right;
+  width: 1rem;
+  color: #324e73;
+  content: "+";
+  font-weight: 600;
+  text-align: center;
+}
+
+.post details[open] summary::after {
+  content: "−";
+}
+
+.post .scrollable {
+  display: block;
+  overflow-x: auto;
+  margin: 0;
+  padding: 0;
+  text-indent: 0;
+  white-space: nowrap;
+  scrollbar-color: #94a3b8 transparent;
+  scrollbar-width: thin;
+}
+
+.post mjx-container {
+  color: #101828;
+}
+
+.post mjx-utext {
+  width: auto !important;
+  font-family: var(--font-sans) !important;
+}
+
+.post .box {
+  margin-block: 1.25rem;
+  border: 1px solid #97c8d8;
+  border-radius: 5px;
+  background: #fff;
+}
+
+.post .title-container {
+  padding: 0.35rem 0.75rem;
+  background: #e8f4f8;
+  color: #324e73;
+  font-weight: 700;
+}
+
+.post .box-content {
+  padding: 0.5rem 0.9rem;
+}
+
+.post .has-tooltip {
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+
+.post .tooltip {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 0.4rem);
+  z-index: 5;
+  visibility: hidden;
+  width: max-content;
+  max-width: min(20rem, 80vw);
+  border-radius: 4px;
+  opacity: 0;
+  background: #324e73;
+  padding: 0.35rem 0.6rem;
+  color: white;
+  font-size: 0.75rem;
+  transition: opacity 150ms;
+}
+
+.post .has-tooltip:hover .tooltip,
+.post .has-tooltip:focus-within .tooltip {
+  visibility: visible;
+  opacity: 1;
+}
+
+.post hr {
+  height: 3px;
+  border: 0;
+  box-shadow: 0 3px 3px -3px #324e73 inset;
+}
+
+@media (max-width: 639px) {
+  .post pre code {
+    font-size: 0.78rem;
+  }
+
+  .post .code-copy-button {
+    opacity: 1;
+  }
+}

@@ -22,3 +22,6 @@ pnpm-debug.log*
 
 # jetbrains setting folder
 .idea/
+
+# MathJax CHTML fonts copied from node_modules by predev/prebuild
+public/fonts/mjx/
