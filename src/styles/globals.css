@@ -61,7 +61,7 @@ body {
 }
 
 .toc-list-item .toc-link {
-  @apply inline-block w-full border-l-4 py-1.5 pl-2 text-gray-400 no-underline transition-colors duration-200;
+  @apply inline-block w-full border-l-4 py-1.5 pl-2 text-gray-400 no-underline;
 }
 
 .toc-level-3 .toc-link {
@@ -72,7 +72,7 @@ body {
   @apply text-[#324e73];
 }
 
-.is-active-li .toc-link {
+.is-active-li > .toc-link {
   @apply border-l-[#324e73] text-[#324e73];
 }
 

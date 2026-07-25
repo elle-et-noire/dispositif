@@ -27,23 +27,31 @@ const { headings } = Astro.props;
 }
 
 <script>
+  const TOC_SCROLL_DURATION = 180;
+
+  // 最初に最も速く、目的地に近づくにつれて減速する。
+  const easeOutCubic = (progress: number) =>
+    1 - Math.pow(1 - progress, 3);
+
   const initializeToc = () => {
     document.querySelectorAll<HTMLElement>("[data-toc]").forEach((nav) => {
       if (nav.dataset.ready === "true") return;
       nav.dataset.ready = "true";
+      let scrollAnimationFrame = 0;
 
       const items = Array.from(
         nav.querySelectorAll<HTMLLIElement>("[data-toc-id]"),
-      );
-      const itemById = new Map(
-        items.map((item) => [item.dataset.tocId ?? "", item]),
       );
       let active = "";
 
       const activate = (id: string) => {
         if (!id || id === active) return;
-        itemById.get(active)?.classList.remove("is-active-li");
-        itemById.get(id)?.classList.add("is-active-li");
+        items.forEach((item) => {
+          item.classList.toggle(
+            "is-active-li",
+            item.dataset.tocId === id,
+          );
+        });
         active = id;
       };
 
@@ -51,20 +59,66 @@ const { headings } = Astro.props;
         .map((item) => document.getElementById(item.dataset.tocId ?? ""))
         .filter((heading): heading is HTMLElement => heading !== null);
 
-      if (headings[0]) activate(headings[0].id);
+      const syncActiveToScrollPosition = () => {
+        const current =
+          [...headings]
+            .reverse()
+            .find((heading) => heading.getBoundingClientRect().top <= 120) ??
+          headings[0];
+        if (current) activate(current.id);
+      };
+
+      syncActiveToScrollPosition();
 
       const observer = new IntersectionObserver(
-        () => {
-          const current =
-            [...headings]
-              .reverse()
-              .find((heading) => heading.getBoundingClientRect().top <= 120) ??
-            headings[0];
-          if (current) activate(current.id);
-        },
+        syncActiveToScrollPosition,
         { rootMargin: "-80px 0px -70% 0px" },
       );
       headings.forEach((heading) => observer.observe(heading));
+
+      const scrollToHeading = (heading: HTMLElement) => {
+        window.cancelAnimationFrame(scrollAnimationFrame);
+
+        if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
+          heading.scrollIntoView({ behavior: "auto", block: "start" });
+          syncActiveToScrollPosition();
+          return;
+        }
+
+        const startY = window.scrollY;
+        const scrollMarginTop =
+          Number.parseFloat(getComputedStyle(heading).scrollMarginTop) || 0;
+        const maximumY =
+          document.documentElement.scrollHeight - window.innerHeight;
+        const targetY = Math.min(
+          Math.max(
+            0,
+            startY + heading.getBoundingClientRect().top - scrollMarginTop,
+          ),
+          maximumY,
+        );
+        const distance = targetY - startY;
+        const startTime = performance.now();
+
+        const scroll = (time: number) => {
+          const progress = Math.min(
+            (time - startTime) / TOC_SCROLL_DURATION,
+            1,
+          );
+          window.scrollTo({
+            top: startY + distance * easeOutCubic(progress),
+            behavior: "auto",
+          });
+          // 高速スクロールでは IntersectionObserver の判定帯を見出しが
+          // 飛び越えることがあるため、各フレームの現在位置から同期する。
+          syncActiveToScrollPosition();
+          if (progress < 1) {
+            scrollAnimationFrame = window.requestAnimationFrame(scroll);
+          }
+        };
+
+        scrollAnimationFrame = window.requestAnimationFrame(scroll);
+      };
 
       nav.querySelectorAll<HTMLAnchorElement>("a.toc-link").forEach((link) => {
         link.addEventListener("click", (event) => {
@@ -72,14 +126,9 @@ const { headings } = Astro.props;
           const heading = document.getElementById(id);
           if (!heading) return;
           event.preventDefault();
-          heading.scrollIntoView({
-            behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
-              ? "auto"
-              : "smooth",
-            block: "start",
-          });
+          scrollToHeading(heading);
           history.replaceState(null, "", `#${encodeURIComponent(id)}`);
-          activate(id);
+          if (event.detail > 0) link.blur();
         });
       });
     });
