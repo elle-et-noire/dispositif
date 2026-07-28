@@ -360,41 +360,45 @@ body {
 
 .post details {
   @apply mx-0 mb-4 mt-2;
+  border-radius: 3px;
+  background: #deedf2;
+  box-shadow: 0 1px 1px 1px rgb(0 0 0 / 20%);
+}
+
+.post details[open] {
+  padding: 0 0.75rem 0.25rem;
 }
 
 .post summary {
   position: relative;
-  z-index: 0;
-  display: inline-block;
+  display: block;
   width: 100%;
-  padding: 6px 16px;
+  border-radius: 2px;
+  background: #deedf2;
+  padding: 0.5rem 2.25rem 0.5rem 0.75rem;
+  color: #324e73;
   cursor: pointer;
+  font-weight: 600;
   text-decoration: none;
 }
 
-.post details summary::before {
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  border: 1px solid #97c8d8;
-  border-radius: 3px;
-  background-color: #fff;
-  box-shadow: 0 1px 1px 0 #4ba4cc;
-  content: "";
-  transform: skewX(-10deg);
-}
-
-.post details[open] summary::before {
-  box-shadow: inset 0 1px 1px 0 #4ba4cc;
+.post details[open] summary {
+  width: calc(100% + 1.5rem);
+  margin-right: -0.75rem;
+  margin-bottom: 0.5rem;
+  margin-left: -0.75rem;
 }
 
 .post details summary::after {
-  float: right;
+  position: absolute;
+  top: 50%;
+  right: 0.75rem;
   width: 1rem;
   color: #324e73;
   content: "+";
   font-weight: 600;
   text-align: center;
+  transform: translateY(-50%);
 }
 
 .post details[open] summary::after {
