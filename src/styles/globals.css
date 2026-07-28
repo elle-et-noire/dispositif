@@ -366,11 +366,13 @@ body {
 }
 
 .post details[open] {
-  padding: 0 0.75rem 0.25rem;
+  position: relative;
+  padding: 0 1rem 1.25rem;
 }
 
 .post summary {
   position: relative;
+  z-index: 2;
   display: block;
   width: 100%;
   border-radius: 2px;
@@ -383,10 +385,10 @@ body {
 }
 
 .post details[open] summary {
-  width: calc(100% + 1.5rem);
-  margin-right: -0.75rem;
+  width: calc(100% + 2rem);
+  margin-right: -1rem;
   margin-bottom: 0.5rem;
-  margin-left: -0.75rem;
+  margin-left: -1rem;
 }
 
 .post details summary::after {
@@ -403,6 +405,85 @@ body {
 
 .post details[open] summary::after {
   content: "−";
+}
+
+.post .details-close-button {
+  position: absolute;
+  z-index: 1;
+  display: none;
+  margin: 0;
+  border: 0;
+  background-color: transparent;
+  padding: 0;
+  color: #52738a;
+  cursor: pointer;
+}
+
+.post details[open] > .details-close-button {
+  display: block;
+}
+
+.post .details-close-button--left,
+.post .details-close-button--right {
+  top: 0;
+  bottom: 0;
+  width: 1rem;
+}
+
+.post .details-close-button--left {
+  left: 0;
+}
+
+.post .details-close-button--right {
+  right: 0;
+}
+
+.post .details-close-button--bottom {
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 1.25rem;
+}
+
+.post .details-close-button::before {
+  position: absolute;
+  border-radius: 999px;
+  background: currentcolor;
+  content: "";
+  opacity: 0.45;
+  transition:
+    opacity 150ms,
+    transform 150ms;
+}
+
+.post .details-close-button--left::before,
+.post .details-close-button--right::before {
+  top: 0.5rem;
+  bottom: 0.5rem;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-50%) scaleY(0.25);
+}
+
+.post .details-close-button--bottom::before {
+  top: 50%;
+  left: 50%;
+  width: 2.5rem;
+  height: 2px;
+  transform: translate(-50%, -50%);
+}
+
+.post .details-close-button:focus-visible::before {
+  opacity: 1;
+}
+
+.post .details-close-button--left:focus-visible::before,
+.post .details-close-button--right:focus-visible::before {
+  transform: translateX(-50%) scaleY(1);
+}
+
+.post .details-close-button:focus-visible {
+  z-index: 3;
 }
 
 .post .scrollable {

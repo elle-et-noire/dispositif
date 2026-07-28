@@ -8,6 +8,7 @@
     '<svg class="copy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
   const CHECK_ICON =
     '<svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+  const DETAILS_CLOSE_SIDES = ["left", "right", "bottom"] as const;
   const timers = new WeakMap<Element, number>();
 
   const prefersReducedMotion = () =>
@@ -59,6 +60,21 @@
   };
 
   const enhanceArticle = () => {
+    document.querySelectorAll<HTMLDetailsElement>(".post details").forEach((details) => {
+      if (details.querySelector(":scope > .details-close-button")) return;
+
+      DETAILS_CLOSE_SIDES.forEach((side) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = `details-close-button details-close-button--${side}`;
+        button.dataset.detailsClose = "";
+        button.setAttribute("aria-label", "詳細を閉じる");
+        button.title = "詳細を閉じる";
+        if (side !== "bottom") button.tabIndex = -1;
+        details.appendChild(button);
+      });
+    });
+
     document
       .querySelectorAll(".post figure[data-rehype-pretty-code-figure]")
       .forEach((figure) => {
@@ -106,6 +122,22 @@
 
   document.addEventListener("click", async (event) => {
     const target = event.target as Element | null;
+    const detailsCloseButton =
+      target?.closest<HTMLButtonElement>("[data-details-close]");
+    if (detailsCloseButton) {
+      const details = detailsCloseButton.closest<HTMLDetailsElement>("details");
+      const summary = details?.querySelector<HTMLElement>(":scope > summary");
+      if (!details || !summary) return;
+
+      details.open = false;
+      summary.focus({ preventScroll: true });
+      summary.scrollIntoView({
+        behavior: prefersReducedMotion() ? "auto" : "smooth",
+        block: "start",
+      });
+      return;
+    }
+
     const copyButton = target?.closest<HTMLButtonElement>(".code-copy-button");
     if (copyButton) {
       const figure = copyButton.closest("figure");
