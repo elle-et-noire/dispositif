@@ -129,12 +129,18 @@
       const summary = details?.querySelector<HTMLElement>(":scope > summary");
       if (!details || !summary) return;
 
+      const summaryRect = summary.getBoundingClientRect();
+      const summaryIsVisible =
+        summaryRect.bottom > 0 && summaryRect.top < window.innerHeight;
+
       details.open = false;
       summary.focus({ preventScroll: true });
-      summary.scrollIntoView({
-        behavior: prefersReducedMotion() ? "auto" : "smooth",
-        block: "start",
-      });
+      if (!summaryIsVisible) {
+        summary.scrollIntoView({
+          behavior: "instant",
+          block: "start",
+        });
+      }
       return;
     }
 
