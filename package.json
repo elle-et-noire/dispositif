@@ -12,6 +12,7 @@
     "prebuild": "node scripts/copy-math-fonts.mjs",
     "build": "astro build",
     "preview": "astro preview",
+    "test": "node --test lib/*.test.ts",
     "astro": "astro"
   },
   "dependencies": {
