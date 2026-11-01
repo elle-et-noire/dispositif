@@ -98,6 +98,7 @@ const navClass =
         .filter((heading): heading is HTMLElement => heading !== null);
 
       const syncActiveToScrollPosition = () => {
+        if (document.documentElement.classList.contains("rm-active")) return;
         const current =
           [...headings]
             .reverse()
@@ -120,9 +121,20 @@ const navClass =
       );
       headings.forEach((heading) => observer.observe(heading));
 
+      const readingHeading = (event: Event) => {
+        activate((event as CustomEvent<{ id: string }>).detail.id);
+      };
+      document.addEventListener("rm:heading", readingHeading);
+      document.addEventListener("rm:off", syncActiveToScrollPosition);
+
       document.addEventListener(
         "astro:before-swap",
-        () => observer.disconnect(),
+        () => {
+          observer.disconnect();
+          window.cancelAnimationFrame(scrollAnimationFrame);
+          document.removeEventListener("rm:heading", readingHeading);
+          document.removeEventListener("rm:off", syncActiveToScrollPosition);
+        },
         { once: true },
       );
 
@@ -189,6 +201,7 @@ const navClass =
 
       nav.querySelectorAll<HTMLAnchorElement>("a.toc-link").forEach((link) => {
         link.addEventListener("click", async (event) => {
+          if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
           const id = decodeURIComponent(link.hash.slice(1));
           const heading = document.getElementById(id);
           if (!heading) return;

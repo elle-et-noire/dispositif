@@ -1,0 +1,20 @@
+---
+import "@styles/reading-mode.css";
+---
+
+<div class="rm-reader" hidden>
+  <div
+    class="rm-viewport"
+    tabindex="0"
+    role="region"
+    aria-label="n段の読書領域。左右キーで段移動、PageDown・Spaceで先へ、Home・Endで先頭・末尾へ"
+  >
+    <div class="rm-plane"></div>
+  </div>
+</div>
+<div class="rm-ruler" aria-hidden="true"><div></div></div>
+
+<script>
+  import { initializeReadingMode } from "../scripts/reading-mode";
+  document.addEventListener("astro:page-load", initializeReadingMode);
+</script>

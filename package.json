@@ -12,7 +12,8 @@
     "prebuild": "node scripts/copy-math-fonts.mjs",
     "build": "astro build",
     "preview": "astro preview",
-    "test": "node --test lib/*.test.ts",
+    "test": "node --experimental-strip-types --test lib/*.test.ts",
+    "test:browser": "node --test tests/*.browser.test.mjs",
     "astro": "astro"
   },
   "dependencies": {
@@ -40,6 +41,7 @@
   "devDependencies": {
     "@astrojs/check": "^0.9.9",
     "@types/node": "^26.1.1",
+    "playwright-core": "^1.64.1",
     "typescript": "^6.0.3"
   }
 }

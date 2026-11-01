@@ -1,0 +1,195 @@
+:root {
+  --rm-column-width: min(38em, calc(100vw - 2rem));
+  --rm-gap: 2rem;
+  --rm-context-overlap: 0.75lh;
+  --rm-surface: #f8f8f8;
+  --rm-ink: #324e73;
+}
+
+.rm-toggle {
+  display: none;
+  visibility: visible;
+  align-self: center;
+  border: 1px solid var(--rm-ink);
+  border-radius: 0.35rem;
+  padding: 0.2rem 0.65rem;
+  color: var(--rm-ink);
+  background: var(--rm-surface);
+  font: 500 0.85rem/1.5 var(--font-system);
+  cursor: pointer;
+}
+
+.rm-ready .rm-toggle { display: inline-block; }
+.rm-toggle[aria-pressed="true"] { box-shadow: inset 0 0 0 1px var(--rm-ink); }
+
+/* Resolve em/min()/calc() and the gap in CSS, including while the reader is off. */
+.rm-ruler {
+  position: fixed;
+  width: var(--rm-column-width);
+  margin-right: var(--rm-gap);
+  height: var(--rm-gap);
+  padding-top: var(--rm-context-overlap);
+  overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.rm-ruler > div { width: calc(100% + 10px); height: 1px; }
+
+.rm-reader[hidden] { display: none; }
+
+@media screen {
+  html.rm-active,
+  .rm-active body { overflow: hidden; }
+
+  .rm-active [data-site-header] { z-index: 40; }
+  .rm-active .rm-backdrop { display: none; }
+
+  .rm-active .rm-article {
+    position: fixed;
+    inset: var(--rm-header-height, 3rem) 0 0;
+    display: flex;
+    width: 100%;
+    max-width: none;
+    height: calc(100dvh - var(--rm-header-height, 3rem));
+    margin: 0;
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .rm-active .rm-toolbar {
+    position: relative;
+    flex: none;
+    padding: 0.4rem 1rem;
+    background: var(--rm-surface);
+  }
+
+  .rm-active .rm-layout {
+    flex: 1;
+    min-height: 0;
+    grid-template-rows: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Keep the original accessible and laid out at exactly W for measurement.
+     Do not use display:none, visibility:hidden, or aria-hidden here. */
+  .rm-active .rm-source {
+    position: fixed;
+    top: 0;
+    left: 0;
+    display: flow-root;
+    max-width: none;
+    margin: 0;
+    clip-path: inset(50%);
+    pointer-events: none;
+  }
+
+  .rm-reader {
+    position: relative;
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
+    min-height: 0;
+    margin-inline: 1rem;
+  }
+
+  .rm-viewport {
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    overscroll-behavior: contain;
+    scroll-snap-type: none;
+    overflow-anchor: none;
+    scrollbar-color: #94a3b8 transparent;
+  }
+
+  .rm-plane {
+    position: relative;
+    isolation: isolate;
+    /* Make this scrolling plane the containing block for .rm-content's fixed
+       positioning. The text scrolls natively with the plane, independently of
+       the sticky window. No scroll-event translation is needed. */
+    transform: translate(0);
+  }
+
+  .rm-track {
+    position: absolute;
+    top: 0;
+    left: calc(var(--k) * var(--rm-p));
+    width: var(--rm-w);
+    height: max(var(--rm-l), var(--rm-h));
+    /* Clip on the rail, which moves with the native scroll plane. A clip on
+       the sticky window can retain its old paint bounds and discard incoming
+       text even though the text's bounding rectangle has moved correctly. */
+    clip-path: inset(0);
+  }
+
+  .rm-slot {
+    position: sticky;
+    top: 0;
+    width: var(--rm-w);
+    height: var(--rm-h);
+    background: var(--rm-surface);
+    /* The shared viewport clips all windows vertically to exactly H. Keep this
+       sticky box unclipped so the plane-relative text can keep painting. */
+  }
+
+  .rm-content {
+    position: fixed;
+    top: 0;
+    left: calc(var(--k) * var(--rm-p));
+    display: flow-root;
+    width: var(--rm-w);
+    translate: 0 calc(-1 * var(--k) * var(--rm-step));
+    font-family: var(--font-noto-sans);
+  }
+
+  .rm-slot::before,
+  .rm-slot::after {
+    position: absolute;
+    right: 0;
+    left: 0;
+    z-index: 2;
+    height: var(--rm-overlap);
+    content: "";
+    pointer-events: none;
+  }
+
+  .rm-slot::before {
+    top: 0;
+    background: linear-gradient(color-mix(in srgb, var(--rm-surface) 45%, transparent), transparent);
+  }
+
+  .rm-slot::after {
+    bottom: 0;
+    background: linear-gradient(transparent, color-mix(in srgb, var(--rm-surface) 45%, transparent));
+  }
+
+  .rm-slot[data-rm-k="0"]::before { display: none; }
+
+  .rm-active .rm-toc {
+    grid-column: 2;
+    grid-row: 1;
+    min-height: 0;
+    padding-right: 1rem;
+    background: var(--rm-surface);
+  }
+
+  .rm-active [data-toc-variant="desktop"] {
+    position: static;
+    max-height: 100%;
+    padding-top: 0;
+  }
+}
+
+@media screen and (min-width: 768px) {
+  .rm-active .rm-layout { grid-template-columns: minmax(0, 1fr) 13rem; }
+}
+
+@media print {
+  .rm-source { width: 100% !important; }
+  .rm-reader,
+  .rm-toggle,
+  .rm-ruler { display: none !important; }
+}

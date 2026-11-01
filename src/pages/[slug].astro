@@ -3,6 +3,7 @@ import Layout from "@layouts/Layout.astro";
 import DateInfo from "@components/DateInfo.astro";
 import Toc from "@components/Toc.astro";
 import ArticleInteractions from "@components/ArticleInteractions.astro";
+import ReadingMode from "@components/ReadingMode.astro";
 import { markdownToHtml } from "@lib/convert";
 import { MATH_FONT_PRELOAD_HREF } from "@lib/mathjax";
 import { getAllSlugs, getPostBySlug } from "@lib/post";
@@ -41,11 +42,12 @@ const headings = getHeadings(content);
     href={withBase()}
     data-astro-prefetch="hover"
     aria-label="記事を閉じて一覧へ戻る"
-    class="fixed inset-0 z-10 block cursor-pointer bg-[#76ddfc]/15 backdrop-blur-[3px]"
+    class="rm-backdrop fixed inset-0 z-10 block cursor-pointer bg-[#76ddfc]/15 backdrop-blur-[3px]"
   ></a>
 
-  <article class="prose relative z-20 mx-auto mt-8 flex w-[calc(100%-1rem)] max-w-[68rem] flex-col rounded-lg bg-[#f8f8f8] px-4 pb-16 shadow-[0_0_3px_0_rgba(128,128,128,0.5)] md:pl-16 md:pr-4">
-    <div class="invisible sticky top-0 z-30 flex justify-end gap-2 pt-4">
+  <article class="rm-article prose relative z-20 mx-auto mt-8 flex w-[calc(100%-1rem)] max-w-[68rem] flex-col rounded-lg bg-[#f8f8f8] px-4 pb-16 shadow-[0_0_3px_0_rgba(128,128,128,0.5)] md:pl-16 md:pr-4">
+    <div class="rm-toolbar invisible sticky top-0 z-30 flex justify-end gap-2 pt-4">
+      <button class="rm-toggle not-prose" type="button" aria-pressed="false" aria-label="n段の読書モード">1段 / n段</button>
       {
         headings.length > 0 && (
           <details class="group visible static md:hidden">
@@ -82,15 +84,16 @@ const headings = getHeadings(content);
       </a>
     </div>
 
-    <div class="grid min-w-0 grid-cols-1 md:grid-cols-[minmax(0,48rem)_13rem]">
-      <div class="min-w-0 w-full font-noto-sans">
+    <div class="rm-layout grid min-w-0 grid-cols-1 md:grid-cols-[minmax(0,48rem)_13rem]">
+      <div class="rm-source min-w-0 w-full font-noto-sans">
         <h1 class="mb-1 text-lg font-semibold text-[#101828] sm:text-3xl md:mb-3 md:text-4xl">
           {data.title}
         </h1>
         <DateInfo data={data} class="text-xs sm:text-base" />
         <div class="post" set:html={html} />
       </div>
-      <aside class="hidden min-w-0 w-full pl-4 md:block">
+      <ReadingMode />
+      <aside class="rm-toc hidden min-w-0 w-full pl-4 md:block">
         <Toc headings={headings} />
       </aside>
     </div>
