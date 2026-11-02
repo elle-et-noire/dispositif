@@ -1,6 +1,8 @@
 :root {
   --rm-column-width: min(38em, calc(100vw - 2rem));
   --rm-gap: 2rem;
+  --rm-column-padding: clamp(1rem, 2vw, 1.5rem);
+  --rm-reader-space: clamp(0.5rem, 1.25dvh, 0.75rem);
   --rm-context-overlap: 0.75lh;
   --rm-surface: #f8f8f8;
   --rm-ink: #324e73;
@@ -22,6 +24,28 @@
 .rm-ready .rm-toggle { display: inline-block; }
 .rm-toggle[aria-pressed="true"] { box-shadow: inset 0 0 0 1px var(--rm-ink); }
 
+.rm-overlap-control {
+  display: none;
+  visibility: visible;
+  align-items: center;
+  gap: 0.375rem;
+  color: var(--rm-ink);
+  font: 500 0.8125rem/1.5 var(--font-system);
+  white-space: nowrap;
+}
+
+.rm-overlap-input {
+  width: 3.75rem;
+  height: 2rem;
+  border: 1px solid var(--rm-ink);
+  border-radius: 0.25rem;
+  padding: 0 0.25rem;
+  color: inherit;
+  background: var(--rm-surface);
+  font: inherit;
+  font-size: 1rem;
+}
+
 /* Resolve em/min()/calc() and the gap in CSS, including while the reader is off. */
 .rm-ruler {
   position: fixed;
@@ -39,6 +63,8 @@
 .rm-reader[hidden] { display: none; }
 
 @media screen {
+  .rm-active .rm-overlap-control { display: inline-flex; }
+
   html.rm-active,
   .rm-active body { overflow: hidden; }
 
@@ -60,7 +86,9 @@
 
   .rm-active .rm-toolbar {
     position: relative;
+    top: 0;
     flex: none;
+    flex-wrap: wrap;
     padding: 0.4rem 1rem;
     background: var(--rm-surface);
   }
@@ -70,6 +98,17 @@
     min-height: 0;
     grid-template-rows: minmax(0, 1fr);
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Measure and display the same padded box, including MathJax's available
+     line width. Keep vertical space outside the shared scrolling window so
+     no lines are covered at the transition between adjacent columns. */
+  .rm-active :is(.rm-source, .rm-content) {
+    padding-inline: var(--rm-column-padding);
+  }
+
+  .rm-active :is(.rm-source, .rm-content) > h1 {
+    margin-top: var(--rm-column-padding);
   }
 
   /* Keep the original accessible and laid out at exactly W for measurement.
@@ -92,6 +131,7 @@
     min-width: 0;
     min-height: 0;
     margin-inline: 1rem;
+    margin-block: var(--rm-reader-space);
   }
 
   .rm-viewport {
@@ -107,6 +147,7 @@
   .rm-plane {
     position: relative;
     isolation: isolate;
+    overflow: clip;
     /* Make this scrolling plane the containing block for .rm-content's fixed
        positioning. The text scrolls natively with the plane, independently of
        the sticky window. No scroll-event translation is needed. */
@@ -116,9 +157,10 @@
   .rm-track {
     position: absolute;
     top: 0;
-    left: calc(var(--k) * var(--rm-p));
+    /* left is set only when recycling a slot or rebasing the native plane. */
+    left: 0;
     width: var(--rm-w);
-    height: max(var(--rm-l), var(--rm-h));
+    height: 100%;
     /* Clip on the rail, which moves with the native scroll plane. A clip on
        the sticky window can retain its old paint bounds and discard incoming
        text even though the text's bounding rectangle has moved correctly. */
@@ -131,6 +173,7 @@
     width: var(--rm-w);
     height: var(--rm-h);
     background: var(--rm-surface);
+    border-radius: 0.25rem;
     /* The shared viewport clips all windows vertically to exactly H. Keep this
        sticky box unclipped so the plane-relative text can keep painting. */
   }
@@ -138,10 +181,11 @@
   .rm-content {
     position: fixed;
     top: 0;
-    left: calc(var(--k) * var(--rm-p));
+    left: 0;
     display: flow-root;
     width: var(--rm-w);
-    translate: 0 calc(-1 * var(--k) * var(--rm-step));
+    /* JS sets non-inherited offsets; native scrolling moves the whole plane. */
+    translate: 0;
     font-family: var(--font-noto-sans);
   }
 
@@ -168,28 +212,15 @@
 
   .rm-slot[data-rm-k="0"]::before { display: none; }
 
-  .rm-active .rm-toc {
-    grid-column: 2;
-    grid-row: 1;
-    min-height: 0;
-    padding-right: 1rem;
-    background: var(--rm-surface);
-  }
-
-  .rm-active [data-toc-variant="desktop"] {
-    position: static;
-    max-height: 100%;
-    padding-top: 0;
-  }
-}
-
-@media screen and (min-width: 768px) {
-  .rm-active .rm-layout { grid-template-columns: minmax(0, 1fr) 13rem; }
 }
 
 @media print {
+  .site-header--toc { display: none; }
+  .rm-article { margin-top: 0; }
   .rm-source { width: 100% !important; }
   .rm-reader,
+  .rm-toc,
   .rm-toggle,
+  .rm-overlap-control,
   .rm-ruler { display: none !important; }
 }

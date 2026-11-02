@@ -1,9 +1,11 @@
 import {
-  clamp, columnStep, columnWidth, nearestPosition, positionAt, restoredPosition, slotRange,
+  clamp, columnStep, columnWidth, nearestPosition, positionAt, readingPlane,
+  rebasedPosition, restoredPosition, slotRange,
   type ReadingGeometry,
 } from "./reading-geometry";
 
 const STORAGE_KEY = "dispositif:reading-mode";
+const OVERLAP_STORAGE_KEY = "dispositif:reading-overlap-px";
 let dispose: (() => void) | undefined;
 
 export function initializeReadingMode() {
@@ -15,23 +17,37 @@ export function initializeReadingMode() {
   const plane = document.querySelector<HTMLElement>(".rm-plane");
   const ruler = document.querySelector<HTMLElement>(".rm-ruler");
   const toggle = document.querySelector<HTMLButtonElement>(".rm-toggle");
+  const overlapInput = document.querySelector<HTMLInputElement>("[data-rm-overlap]");
   const header = document.querySelector<HTMLElement>("[data-site-header]");
   const toolbar = document.querySelector<HTMLElement>(".rm-toolbar");
-  if (!source || !viewport || !reader || !plane || !ruler || !toggle) return;
+  if (!source || !viewport || !reader || !plane || !ruler || !toggle || !overlapInput) return;
 
   const controller = new AbortController();
   const { signal } = controller;
   const printing = window.matchMedia("print");
   let preference: string | null = null;
+  let overlapPreference: number | null = null;
   try { preference = localStorage.getItem(STORAGE_KEY); } catch { /* storage is optional */ }
+  try {
+    const saved = localStorage.getItem(OVERLAP_STORAGE_KEY);
+    if (saved !== null && saved.trim() !== "") {
+      const value = Number(saved);
+      if (Number.isFinite(value) && value >= 0) overlapPreference = Math.round(value);
+    }
+  } catch { /* storage is optional */ }
   let enabled = false;
   let geometry: ReadingGeometry | undefined;
   let position = 0;
   let measuring = 0;
   let scrolling = 0;
-  let rangeStart = -1;
+  let rangeStart = NaN;
+  let velocity = 0;
+  let lastScroll: { x: number; at: number } | undefined;
+  let placedOrigin = "";
+  const placements = new WeakMap<HTMLElement, { left: number; top: number }>();
   let dirty = true;
   let activeHeading = "";
+  let navigationHeading: { id: string; position: number } | undefined;
   let slots: HTMLElement[] = [];
   let headings: { id: string; t: number }[] = [];
 
@@ -39,65 +55,128 @@ export function initializeReadingMode() {
     element.getBoundingClientRect().top - source.getBoundingClientRect().top;
 
   const announceHeading = () => {
-    const id = [...headings].reverse().find((heading) => heading.t <= position + 64)?.id
+    if (navigationHeading && Math.abs(navigationHeading.position - position) >= 1) navigationHeading = undefined;
+    const id = navigationHeading?.id ?? [...headings].reverse().find((heading) => heading.t <= position + 64)?.id
       ?? headings[0]?.id ?? "";
     if (id === activeHeading) return;
     activeHeading = id;
     document.dispatchEvent(new CustomEvent("rm:heading", { detail: { id } }));
   };
 
+  const cloneContent = () => {
+    const content = source.cloneNode(true) as HTMLElement;
+    content.classList.remove("rm-source");
+    content.classList.add("rm-content");
+    content.removeAttribute("style");
+    content.removeAttribute("id");
+    content.querySelectorAll("[id]").forEach((element) => element.removeAttribute("id"));
+    content.querySelectorAll<HTMLElement>(
+      "a, button, input, select, textarea, summary, [tabindex], [contenteditable], audio, video",
+    ).forEach((element) => {
+      element.tabIndex = -1;
+      element.removeAttribute("autofocus");
+      element.removeAttribute("contenteditable");
+    });
+    // CHTML is already rendered at build time. No MathJax runtime to rerun.
+    // Existing copy buttons use document-level event delegation.
+    content.querySelectorAll("script").forEach((script) => script.remove());
+    return content;
+  };
+
   const updateSlots = () => {
     if (!geometry) return;
-    const { start, count } = slotRange(viewport.scrollLeft, viewport.clientWidth, geometry);
-    if (start === rangeStart && slots.length === count && !dirty) return;
-    if (dirty || slots.length !== count) {
-      slots.forEach((slot) => slot.parentElement?.remove());
-      slots = Array.from({ length: count }, () => {
-        const track = document.createElement("div");
-        track.className = "rm-track";
-        const slot = document.createElement("div");
-        slot.className = "rm-slot";
-        slot.setAttribute("aria-hidden", "true");
-        const content = source.cloneNode(true) as HTMLElement;
-        content.classList.remove("rm-source");
-        content.classList.add("rm-content");
-        content.removeAttribute("style");
-        content.removeAttribute("id");
-        content.querySelectorAll("[id]").forEach((element) => element.removeAttribute("id"));
-        content.querySelectorAll<HTMLElement>(
-          "a, button, input, select, textarea, summary, [tabindex], [contenteditable], audio, video",
-        ).forEach((element) => {
-          element.tabIndex = -1;
-          element.removeAttribute("autofocus");
-          element.removeAttribute("contenteditable");
-        });
-        // CHTML is already rendered at build time. No MathJax runtime to rerun.
-        // Existing copy buttons use document-level event delegation.
-        content.querySelectorAll("script").forEach((script) => script.remove());
-        slot.appendChild(content);
-        track.appendChild(slot);
-        plane.appendChild(track);
-        return slot;
-      });
-      dirty = false;
-      rangeStart = -1;
-    }
+    const range = slotRange(viewport.scrollLeft, geometry.viewportWidth, geometry, velocity);
+    const start = range.start + geometry.originColumn;
+    const { count } = range;
+    const origin = `${geometry.originColumn}:${geometry.originY}:${geometry.p}:${geometry.step}`;
+    if (start === rangeStart && slots.length === count && !dirty && origin === placedOrigin) return;
     const wanted = new Set(Array.from({ length: count }, (_, i) => start + i));
+    // Retain existing frames/rasterized content when the pool changes size.
+    // Removing the whole pool discards even the pages currently on screen.
+    let excess = slots.length - count;
+    slots = slots.filter((slot) => {
+      if (excess > 0 && !wanted.has(Number(slot.dataset.rmK))) {
+        slot.parentElement?.remove();
+        excess--;
+        return false;
+      }
+      return true;
+    });
+    if (dirty) {
+      const replacements = slots.map(() => cloneContent());
+      slots.forEach((slot, i) => {
+        slot.replaceChildren(replacements[i]);
+        placements.delete(slot);
+      });
+    }
+    while (slots.length < count) {
+      const content = cloneContent();
+      const track = document.createElement("div");
+      track.className = "rm-track";
+      const slot = document.createElement("div");
+      slot.className = "rm-slot";
+      slot.setAttribute("aria-hidden", "true");
+      slot.appendChild(content);
+      track.appendChild(slot);
+      plane.appendChild(track);
+      slots.push(slot);
+    }
+    dirty = false;
     const retained = new Set(slots.map((slot) => Number(slot.dataset.rmK)));
     const missing = [...wanted].filter((k) => !retained.has(k));
     for (const slot of slots) {
       const old = slot.dataset.rmK;
-      if (old !== undefined && wanted.has(Number(old))) continue;
-      const k = missing.shift();
+      const k = old !== undefined && wanted.has(Number(old)) ? Number(old) : missing.shift();
       if (k === undefined) continue;
-      slot.dataset.rmK = String(k);
-      slot.parentElement!.style.setProperty("--k", String(k));
+      if (old !== String(k)) slot.dataset.rmK = String(k);
+      const left = (k - geometry.originColumn) * geometry.p;
+      const top = -(k * geometry.step + geometry.originY);
+      const previous = placements.get(slot);
+      const content = slot.firstElementChild as HTMLElement;
+      // Pixel offsets belong only to the two positioning boxes. Inherited CSS
+      // variables here used to invalidate every MathJax descendant on recycling.
+      if (previous?.left !== left) {
+        slot.parentElement!.style.left = `${left}px`;
+        content.style.left = `${left}px`;
+      }
+      if (previous?.top !== top) content.style.translate = `0 ${top}px`;
+      placements.set(slot, { left, top });
     }
     rangeStart = start;
+    placedOrigin = origin;
+  };
+
+  const rebase = (left: number, top: number) => {
+    if (!geometry) return { left, top };
+    const next = rebasedPosition(left, top, geometry);
+    if (next.originColumn !== geometry.originColumn || next.originY !== geometry.originY
+      || next.n !== geometry.n || next.maxY !== geometry.maxY) {
+      const { left: _left, top: _top, ...bounds } = next;
+      Object.assign(geometry, bounds);
+      plane.dataset.rmOriginColumn = String(next.originColumn);
+      plane.dataset.rmOriginY = String(next.originY);
+      plane.style.width = `${(geometry.n - 1) * geometry.p + geometry.w}px`;
+      plane.style.height = `${geometry.maxY + geometry.h}px`;
+    }
+    return next;
   };
 
   const syncPosition = () => {
-    if (!enabled || !geometry) return;
+    if (!enabled || !geometry || printing.matches) return;
+    const now = performance.now();
+    const logicalX = viewport.scrollLeft + geometry.originColumn * geometry.p;
+    const elapsed = lastScroll ? now - lastScroll.at : Infinity;
+    velocity = lastScroll && elapsed > 0 && elapsed < 160
+      ? (logicalX - lastScroll.x) / elapsed : 0;
+    lastScroll = { x: logicalX, at: now };
+    const next = rebase(viewport.scrollLeft, viewport.scrollTop);
+    if (next.left !== viewport.scrollLeft || next.top !== viewport.scrollTop) {
+      // This is an occasional change of origin, not per-scroll synchronization.
+      // The shared CSS origin and native offset change together before paint.
+      // Preserve native movement on the other axis when extending one edge.
+      if (next.left !== viewport.scrollLeft) viewport.scrollLeft = next.left;
+      if (next.top !== viewport.scrollTop) viewport.scrollTop = next.top;
+    }
     position = positionAt(viewport.scrollLeft, viewport.scrollTop, geometry);
     updateSlots();
     announceHeading();
@@ -105,7 +184,8 @@ export function initializeReadingMode() {
 
   // One scroll owner. Never synchronize scrollTop between different elements.
   const scrollTo = (left: number, top: number) => {
-    viewport.scrollTo({ left, top, behavior: "instant" });
+    const next = rebase(left, top);
+    viewport.scrollTo({ left: next.left, top: next.top, behavior: "instant" });
     syncPosition();
   };
 
@@ -128,32 +208,45 @@ export function initializeReadingMode() {
     );
     source.style.width = `${w}px`;
     const h = Math.max(1, viewport.clientHeight);
-    const step = columnStep(h, parseFloat(getComputedStyle(ruler).paddingTop) || 0);
+    const maximumOverlap = Math.floor(Math.min(h / 4, h - 1));
+    const requestedOverlap = overlapPreference
+      ?? Math.round(parseFloat(getComputedStyle(ruler).paddingTop) || 0);
+    const overlap = clamp(requestedOverlap, 0, maximumOverlap);
+    const step = columnStep(h, overlap);
+    overlapInput.max = String(maximumOverlap);
+    if (document.activeElement !== overlapInput || overlapInput.value !== "") {
+      const value = String(overlap);
+      if (overlapInput.value !== value) overlapInput.value = value;
+    }
     const l = Math.max(1, Math.ceil(source.getBoundingClientRect().height));
-    const n = Math.ceil(Math.max(0, l - h) / step) + 1;
     const p = w + gap;
     headings = Array.from(source.querySelectorAll<HTMLElement>("h2[id], h3[id]"),
       (heading) => ({ id: heading.id, t: offsetOf(heading) }));
     // ResizeObserver may report the same layout again after our own writes.
     // Do not canonicalize a deliberate heading jump or rebuild unchanged slots.
     if (geometry && geometry.w === w && geometry.p === p && geometry.h === h
-      && geometry.step === step && geometry.l === l
-      && Math.abs(geometry.maxX - Math.max(0, n * p - gap - viewport.clientWidth)) < 0.02) {
+      && geometry.step === step && geometry.l === l && geometry.unit === scrollStep
+      && geometry.viewportWidth === viewport.clientWidth) {
       updateSlots();
       announceHeading();
       return;
     }
     if (geometry?.w !== w) dirty = true;
+    navigationHeading = undefined;
     plane.style.setProperty("--rm-w", `${w}px`);
     plane.style.setProperty("--rm-p", `${p}px`);
     plane.style.setProperty("--rm-h", `${h}px`);
     plane.style.setProperty("--rm-step", `${step}px`);
     plane.style.setProperty("--rm-overlap", `${h - step}px`);
     plane.style.setProperty("--rm-l", `${l}px`);
-    plane.style.width = `${n * p - gap}px`;
-    plane.style.height = `${l}px`;
-    geometry = { w, p, h, step, l, n, maxX: Math.max(0, plane.getBoundingClientRect().width - viewport.clientWidth), maxY: Math.max(0, l - h) };
-    rangeStart = -1;
+    geometry = readingPlane(w, p, h, step, l, viewport.clientWidth, scrollStep, anchor);
+    velocity = 0;
+    lastScroll = undefined;
+    plane.style.width = `${geometry.n * p - gap}px`;
+    plane.style.height = `${geometry.maxY + h}px`;
+    plane.dataset.rmOriginColumn = String(geometry.originColumn);
+    plane.dataset.rmOriginY = String(geometry.originY);
+    rangeStart = NaN;
     const restored = restoredPosition(anchor, geometry);
     scrollTo(restored.left, restored.top);
   };
@@ -172,9 +265,9 @@ export function initializeReadingMode() {
   };
 
   const navigate = (target: HTMLElement) => {
-    if (!enabled) return;
-    const fromX = viewport.scrollLeft;
-    const fromY = viewport.scrollTop;
+    if (!enabled || !geometry) return;
+    const fromColumn = viewport.scrollLeft / geometry.p + geometry.originColumn;
+    const fromY = viewport.scrollTop + geometry.originY;
     let parent = target.parentElement;
     while (parent && parent !== source) {
       if (parent instanceof HTMLDetailsElement) parent.open = true;
@@ -185,8 +278,15 @@ export function initializeReadingMode() {
     cancelAnimationFrame(measuring);
     measure();
     if (!geometry) return;
-    const destination = nearestPosition(offsetOf(target), fromX, fromY, geometry);
+    const destination = nearestPosition(offsetOf(target),
+      (fromColumn - geometry.originColumn) * geometry.p, fromY - geometry.originY, geometry);
     scrollTo(destination.left, destination.top);
+    if (target.matches("h2[id], h3[id]")) {
+      // At the trailing edge a heading can land in a column to the right.
+      // Keep the selected TOC entry until the reader moves again.
+      navigationHeading = { id: target.id, position };
+      announceHeading();
+    }
   };
 
   const hashTarget = (hash: string) => {
@@ -204,7 +304,9 @@ export function initializeReadingMode() {
 
   const setEnabled = (next: boolean) => {
     if (next === enabled) return;
-    if (next) position = Math.max(0, -source.getBoundingClientRect().top);
+    const readingInset = (header?.getBoundingClientRect().bottom ?? 0)
+      + (parseFloat(getComputedStyle(root).fontSize) || 16);
+    if (next) position = Math.max(0, readingInset - source.getBoundingClientRect().top);
     enabled = next;
     root.classList.toggle("rm-active", enabled);
     reader.hidden = !enabled;
@@ -223,8 +325,8 @@ export function initializeReadingMode() {
       plane.replaceChildren();
       slots = [];
       geometry = undefined;
-      rangeStart = -1;
-      window.scrollTo({ top: window.scrollY + source.getBoundingClientRect().top + position, behavior: "instant" });
+      rangeStart = NaN;
+      window.scrollTo({ top: window.scrollY + source.getBoundingClientRect().top + position - readingInset, behavior: "instant" });
       document.dispatchEvent(new CustomEvent("rm:off"));
     }
   };
@@ -238,6 +340,26 @@ export function initializeReadingMode() {
     preference = enabled ? "single" : "multi";
     try { localStorage.setItem(STORAGE_KEY, preference); } catch { /* storage is optional */ }
     setEnabled(!enabled);
+  }, { signal });
+
+  const updateOverlap = () => {
+    const requested = overlapInput.valueAsNumber;
+    if (!Number.isFinite(requested)) return;
+    // Capture the latest native position even if its scroll rAF is pending.
+    if (enabled && geometry) position = positionAt(viewport.scrollLeft, viewport.scrollTop, geometry);
+    overlapPreference = clamp(Math.round(requested), 0, Number(overlapInput.max) || 0);
+    const value = String(overlapPreference);
+    if (overlapInput.value !== value) overlapInput.value = value;
+    try { localStorage.setItem(OVERLAP_STORAGE_KEY, String(overlapPreference)); } catch { /* storage is optional */ }
+    scheduleMeasure();
+  };
+  overlapInput.addEventListener("input", updateOverlap, { signal });
+  overlapInput.addEventListener("change", () => {
+    if (!Number.isFinite(overlapInput.valueAsNumber)) {
+      overlapInput.value = String(geometry ? geometry.h - geometry.step : 0);
+      return;
+    }
+    updateOverlap();
   }, { signal });
 
   viewport.addEventListener("scroll", () => {
@@ -273,10 +395,10 @@ export function initializeReadingMode() {
     const target = hashTarget(url.hash);
     if (!target) return;
     event.preventDefault();
-    event.stopPropagation();
+    // The header's handler still needs the click to close its disclosure.
+    if (!link.closest("[data-toc]")) event.stopPropagation();
     navigate(target);
     history.replaceState(history.state, "", url.hash);
-    link.closest(".rm-toolbar details")?.removeAttribute("open");
     if (event.detail === 0) {
       if (!target.hasAttribute("tabindex")) {
         target.tabIndex = -1;
@@ -302,7 +424,7 @@ export function initializeReadingMode() {
     if (scrollable && (scrollable.scrollWidth > scrollable.clientWidth || scrollable.scrollHeight > scrollable.clientHeight)) return;
     let x = viewport.scrollLeft;
     let y = viewport.scrollTop;
-    const { p, step, maxX, maxY } = geometry;
+    const { p, step } = geometry;
     if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
       x += event.key === "ArrowLeft" ? -p : p;
     } else if (["PageDown", "PageUp", " "].includes(event.key)) {
@@ -310,14 +432,17 @@ export function initializeReadingMode() {
       const first = Math.floor(x / p);
       const last = Math.min(geometry.n - 1, Math.floor((x + viewport.clientWidth - 1) / p));
       const delta = direction * (last - first + 1) * step;
-      const nextY = clamp(y + delta, 0, maxY);
-      if (Math.abs(nextY - y) > 0.5) y = nextY;
-      else x += direction * (last - first + 1) * p;
-    } else if (event.key === "Home") { x = 0; y = 0; }
-    else if (event.key === "End") { x = 0; y = maxY; }
+      const column = first + geometry.originColumn;
+      y = clamp(y + delta, -column * step - geometry.originY,
+        Math.max(0, geometry.l - Math.max(1, geometry.unit)) - column * step - geometry.originY);
+    } else if (event.key === "Home" || event.key === "End") {
+      const target = restoredPosition(event.key === "Home" ? 0 : Math.max(0, geometry.l - geometry.h), geometry);
+      x = target.left;
+      y = target.top;
+    }
     else return;
     event.preventDefault();
-    scrollTo(clamp(x, 0, maxX), clamp(y, 0, maxY));
+    scrollTo(x, y);
   }, { signal });
 
   window.addEventListener("hashchange", followHash, { signal });

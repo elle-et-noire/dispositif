@@ -1,9 +1,9 @@
 ---
 import Layout from "@layouts/Layout.astro";
 import DateInfo from "@components/DateInfo.astro";
-import Toc from "@components/Toc.astro";
 import ArticleInteractions from "@components/ArticleInteractions.astro";
 import ReadingMode from "@components/ReadingMode.astro";
+import Toc from "@components/Toc.astro";
 import { markdownToHtml } from "@lib/convert";
 import { MATH_FONT_PRELOAD_HREF } from "@lib/mathjax";
 import { getAllSlugs, getPostBySlug } from "@lib/post";
@@ -22,7 +22,7 @@ const { html, css } = await markdownToHtml(content);
 const headings = getHeadings(content);
 ---
 
-<Layout title={data.title}>
+<Layout title={data.title} headings={headings}>
   {
     css && (
       <Fragment slot="head">
@@ -45,35 +45,24 @@ const headings = getHeadings(content);
     class="rm-backdrop fixed inset-0 z-10 block cursor-pointer bg-[#76ddfc]/15 backdrop-blur-[3px]"
   ></a>
 
-  <article class="rm-article prose relative z-20 mx-auto mt-8 flex w-[calc(100%-1rem)] max-w-[68rem] flex-col rounded-lg bg-[#f8f8f8] px-4 pb-16 shadow-[0_0_3px_0_rgba(128,128,128,0.5)] md:pl-16 md:pr-4">
-    <div class="rm-toolbar invisible sticky top-0 z-30 flex justify-end gap-2 pt-4">
+  <article class:list={["rm-article prose relative z-20 mx-auto mt-16 flex w-[calc(100%-1rem)] max-w-[56rem] flex-col rounded-lg bg-[#f8f8f8] px-4 pb-16 shadow-[0_0_3px_0_rgba(128,128,128,0.5)] md:px-16", { "article-with-toc": headings.length > 0 }]}>
+    <div class="rm-toolbar invisible sticky top-14 z-30 flex justify-end gap-2 pt-4">
+      <label class="rm-overlap-control not-prose" for="rm-overlap">
+        <span>重なり</span>
+        <input
+          id="rm-overlap"
+          class="rm-overlap-input"
+          data-rm-overlap
+          type="number"
+          inputmode="numeric"
+          min="0"
+          step="1"
+          value="0"
+          aria-label="段間の本文の重なり（px）"
+        />
+        <span aria-hidden="true">px</span>
+      </label>
       <button class="rm-toggle not-prose" type="button" aria-pressed="false" aria-label="n段の読書モード">1段 / n段</button>
-      {
-        headings.length > 0 && (
-          <details class="group visible static md:hidden">
-            <summary
-              aria-label="目次を開閉"
-              class="flex h-8 w-[30px] cursor-pointer list-none items-center justify-center text-[#324e73] [&::-webkit-details-marker]:hidden"
-            >
-              <svg
-                aria-hidden="true"
-                viewBox="0 0 30 30"
-                class="h-[30px] w-[30px] transition-transform group-open:rotate-180 motion-reduce:transition-none"
-              >
-                <path
-                  d="m5 10 10 10 10-10"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                />
-              </svg>
-            </summary>
-            <Toc headings={headings} variant="mobile" />
-          </details>
-        )
-      }
       <a
         href={withBase()}
         data-astro-prefetch="hover"
@@ -84,7 +73,7 @@ const headings = getHeadings(content);
       </a>
     </div>
 
-    <div class="rm-layout grid min-w-0 grid-cols-1 md:grid-cols-[minmax(0,48rem)_13rem]">
+    <div class="rm-layout grid min-w-0 grid-cols-1">
       <div class="rm-source min-w-0 w-full font-noto-sans">
         <h1 class="mb-1 text-lg font-semibold text-[#101828] sm:text-3xl md:mb-3 md:text-4xl">
           {data.title}
@@ -93,9 +82,11 @@ const headings = getHeadings(content);
         <div class="post" set:html={html} />
       </div>
       <ReadingMode />
-      <aside class="rm-toc hidden min-w-0 w-full pl-4 md:block">
-        <Toc headings={headings} />
-      </aside>
+      {headings.length > 0 && (
+        <aside class="rm-toc">
+          <Toc headings={headings} variant="sidebar" />
+        </aside>
+      )}
     </div>
   </article>
 

@@ -1,0 +1,271 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { chromium } from "playwright-core";
+
+const BASE_URL = process.env.RM_BASE_URL ?? "http://localhost:4321/dispositif/";
+const ARTICLE_URL = new URL("symmetric-polynomial/", BASE_URL).href;
+
+async function waitForActiveItem(page) {
+  await page.waitForFunction(() => {
+    const container = [...document.querySelectorAll("[data-toc-scroll]")].find((node) => node.clientHeight > 0);
+    const active = container?.querySelector('[aria-current="location"]');
+    if (!active) return false;
+    const a = active.getBoundingClientRect();
+    const c = container.getBoundingClientRect();
+    return a.left >= c.left - 1 && a.right <= c.right + 1
+      && a.top >= c.top - 1 && a.bottom <= c.bottom + 1;
+  });
+}
+
+async function openToc(page) {
+  if (await page.locator(".toc-toggle").isVisible()
+    && !await page.locator("[data-toc-variant=header]").evaluate((toc) => toc.open)) {
+    await page.locator(".toc-toggle").click();
+  }
+  await waitForActiveItem(page);
+}
+
+async function readingState(page) {
+  return page.evaluate(() => {
+    const viewport = document.querySelector(".rm-viewport");
+    const plane = document.querySelector(".rm-plane");
+    const source = document.querySelector(".rm-source");
+    const p = parseFloat(plane.style.getPropertyValue("--rm-p"));
+    const step = parseFloat(plane.style.getPropertyValue("--rm-step"));
+    const origin = Number(document.querySelector(".rm-plane").dataset.rmOriginColumn);
+    const originY = parseFloat(document.querySelector(".rm-plane").dataset.rmOriginY);
+    const t = (Math.floor((viewport.scrollLeft + 0.01) / p) + origin) * step + viewport.scrollTop + originY;
+    const top = source.getBoundingClientRect().top;
+    const headings = [...source.querySelectorAll("h2[id], h3[id]")];
+    const current = [...headings].reverse().find((heading) =>
+      heading.getBoundingClientRect().top - top <= t + 64) ?? headings[0];
+    return { t, id: current.id };
+  });
+}
+
+test("1段のサイドバー目次とn段の上部目次を切り替えて使える", { timeout: 90_000 }, async (t) => {
+  const browser = await chromium.launch({ executablePath: process.env.RM_BROWSER_PATH || undefined });
+  try {
+    for (const width of [1600, 390]) {
+      await t.test(`${width}px の上部目次`, async () => {
+        const page = await browser.newPage({ viewport: { width, height: 900 } });
+        try {
+          await page.addInitScript(() => localStorage.setItem("dispositif:reading-mode", "multi"));
+          await page.goto(ARTICLE_URL, { waitUntil: "domcontentloaded" });
+          await page.evaluate(() => document.fonts.ready);
+          await page.waitForSelector('html.rm-active [data-toc-variant=header][data-ready="true"]');
+          assert.equal(await page.locator("[data-toc-variant=header]").evaluate((toc) => toc.open), false);
+          assert.equal(await page.locator("[data-toc-variant=header] [data-toc-scroll]").isVisible(), false);
+          const beforeOpening = await readingState(page);
+          const viewportBefore = await page.locator(".rm-viewport").boundingBox();
+          await openToc(page);
+          assert.deepEqual(await readingState(page), beforeOpening);
+          assert.deepEqual(await page.locator(".rm-viewport").boundingBox(), viewportBefore);
+          assert.equal(await page.locator("[data-toc-variant=header]").count(), 1);
+          assert.equal(await page.locator("[data-site-header] [data-toc-variant=header]").count(), 1);
+          assert.equal(await page.locator("article [data-toc-variant=header], .rm-toolbar details").count(), 0);
+          assert.equal(await page.locator("[data-toc-variant=sidebar]").isVisible(), false);
+
+          const dimensions = await page.locator("[data-toc-variant=header] [data-toc-scroll]").evaluate((container) => ({
+            top: container.getBoundingClientRect().top,
+            width: container.clientWidth,
+            scrollWidth: container.scrollWidth,
+            height: container.clientHeight,
+            scrollHeight: container.scrollHeight,
+            overflowX: getComputedStyle(container).overflowX,
+            scrollbar: getComputedStyle(container).scrollbarWidth,
+            headings: [...container.querySelectorAll("a")].map((link) => ({
+              mode: getComputedStyle(link).writingMode,
+              height: link.getBoundingClientRect().height,
+            })),
+            centers: [...container.querySelectorAll("li")].map((item) => {
+              const rect = item.getBoundingClientRect();
+              return rect.top + rect.height / 2;
+            }),
+          }));
+          assert.equal(dimensions.top, 56);
+          if (width < 700) assert.ok(dimensions.scrollWidth > dimensions.width);
+          assert.equal(dimensions.overflowX, "auto");
+          assert.notEqual(dimensions.scrollbar, "none");
+          assert.ok(dimensions.headings.every((heading) => heading.mode === "vertical-rl" && heading.height <= 192));
+          assert.ok(dimensions.scrollHeight <= dimensions.height + 1);
+          assert.ok(Math.max(...dimensions.centers) - Math.min(...dimensions.centers) < 1);
+          assert.ok(await page.locator(".rm-viewport").evaluate((viewport, width) =>
+            viewport.clientWidth >= width - 56, width));
+
+          // Browsing the header must not move the article's scroll plane.
+          await page.mouse.move(100, 100);
+          await page.mouse.wheel(0, 240);
+          if (width < 700) {
+            await page.waitForFunction(() => document.querySelector("[data-toc-scroll]").scrollLeft > 100);
+          }
+          assert.deepEqual(await readingState(page), beforeOpening);
+
+          const lastLink = page.locator("[data-toc-variant=header] .toc-link").last();
+          const lastId = await lastLink.evaluate((link) => decodeURIComponent(link.hash.slice(1)));
+          await lastLink.click();
+          assert.equal(await page.locator("[data-toc-variant=header]").evaluate((toc) => toc.open), false);
+          await page.waitForFunction((id) => {
+            const viewport = document.querySelector(".rm-viewport");
+            const plane = document.querySelector(".rm-plane");
+            const source = document.querySelector(".rm-source");
+            const step = parseFloat(plane.style.getPropertyValue("--rm-step"));
+            const originY = parseFloat(document.querySelector(".rm-plane").dataset.rmOriginY);
+            const target = document.getElementById(id).getBoundingClientRect().top - source.getBoundingClientRect().top;
+            const vr = viewport.getBoundingClientRect();
+            return [...document.querySelectorAll(".rm-slot")].some((slot) => {
+              const rect = slot.getBoundingClientRect();
+              const py = target - Number(slot.dataset.rmK) * step - viewport.scrollTop - originY;
+              return rect.left >= vr.left - 1 && rect.right <= vr.right + 1 && py >= -1 && py < viewport.clientHeight;
+            });
+          }, lastId);
+          const atHeading = await readingState(page);
+          await openToc(page);
+          assert.deepEqual(await readingState(page), atHeading);
+          assert.equal(await lastLink.getAttribute("aria-current"), "location");
+
+          const beforeResize = await readingState(page);
+          await page.setViewportSize({ width: width === 1600 ? 900 : 350, height: 780 });
+          await page.waitForFunction(() =>
+            parseFloat(document.querySelector(".rm-plane").style.getPropertyValue("--rm-h"))
+              === document.querySelector(".rm-viewport").clientHeight);
+          await waitForActiveItem(page);
+          const afterResize = await readingState(page);
+          assert.ok(Math.abs(beforeResize.t - afterResize.t) < 1);
+          assert.equal(await page.locator('[data-toc-variant=header] [aria-current="location"]').evaluate((link) =>
+            decodeURIComponent(link.hash.slice(1))), afterResize.id);
+          await page.locator(".rm-viewport").focus();
+          await page.keyboard.press("Home");
+          await page.waitForFunction(() =>
+            document.querySelector("[data-toc-variant=header] .toc-link").getAttribute("aria-current") === "location");
+          await openToc(page);
+          // Escape returns focus to the disclosure; Enter reopens it.
+          await page.keyboard.press("Escape");
+          assert.equal(await page.locator("[data-toc-variant=header]").evaluate((toc) => toc.open), false);
+          assert.equal(await page.locator(".toc-toggle").evaluate((summary) => document.activeElement === summary), true);
+          await page.keyboard.press("Enter");
+          await waitForActiveItem(page);
+          await page.locator(".rm-viewport").click({ position: { x: 20, y: 400 } });
+          assert.equal(await page.locator("[data-toc-variant=header]").evaluate((toc) => toc.open), false);
+
+          // Single-column reading uses a persistent sidebar on wide screens.
+          await page.locator(".rm-toggle").click();
+          await openToc(page);
+          const singleToc = page.locator(width >= 768 ? "[data-toc-variant=sidebar]" : "[data-toc-variant=header]");
+          const singleLayout = await singleToc.locator("[data-toc-scroll]").evaluate((container) => ({
+            height: container.clientHeight,
+            scrollWidth: container.scrollWidth,
+            width: container.clientWidth,
+            headings: [...container.querySelectorAll("a")].map((link) => ({
+              mode: getComputedStyle(link).writingMode,
+              top: link.getBoundingClientRect().top,
+            })),
+          }));
+          assert.ok(singleLayout.scrollWidth <= singleLayout.width + 1, "縦並び目次が横にはみ出している");
+          assert.ok(singleLayout.headings.every((heading) => heading.mode === "horizontal-tb"));
+          const tops = singleLayout.headings.map((heading) => heading.top);
+          assert.ok(tops.every((top, i) => i === 0 || top > tops[i - 1]), "目次が縦に並んでいない");
+          if (width >= 768) {
+            assert.equal(await page.locator(".toc-toggle").isVisible(), false);
+            assert.equal(await page.locator(".site-article-index").isVisible(), true);
+            const side = await singleToc.boundingBox();
+            const source = await page.locator(".rm-source").boundingBox();
+            assert.ok(side.x >= source.x + source.width + 16, "目次が本文の横にない");
+          } else {
+            assert.equal(await page.locator("[data-toc-variant=sidebar]").isVisible(), false);
+          }
+          const firstLink = singleToc.locator(".toc-link").first();
+          const firstId = await firstLink.evaluate((link) => decodeURIComponent(link.hash.slice(1)));
+          await firstLink.click();
+          assert.equal(await page.locator("[data-toc-variant=header]").evaluate((toc) => toc.open), false);
+          await page.waitForFunction((id) => {
+            const heading = document.getElementById(id).getBoundingClientRect();
+            const header = document.querySelector("[data-site-header]").getBoundingClientRect();
+            // Position enters this tolerance before the animation finishes.
+            // Wait for its focus handoff before opening the drawer again.
+            return document.activeElement === document.getElementById(id)
+              && heading.top >= header.bottom && heading.top <= header.bottom + 25;
+          }, firstId);
+          assert.equal(await firstLink.getAttribute("aria-current"), "location");
+          await openToc(page);
+          const top = await firstLink.evaluate((link) => {
+            const rect = link.getBoundingClientRect();
+            return Boolean(document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2)?.closest("[data-toc]"));
+          });
+          assert.ok(top, "目次が他の要素に覆われている");
+
+          await page.emulateMedia({ media: "print" });
+          assert.equal(await page.locator("[data-site-header]").evaluate((header) =>
+            getComputedStyle(header).display), "none");
+          assert.equal(await page.locator(".rm-source").evaluate((source) =>
+            getComputedStyle(source).position), "static");
+          assert.equal(await page.locator(".rm-toc").isVisible(), false);
+          await page.emulateMedia({ media: "screen" });
+          await page.keyboard.press("Escape");
+
+          await page.locator(".rm-toolbar > a").click();
+          await page.waitForURL(BASE_URL);
+          assert.equal(await page.locator("[data-toc-variant=header]").count(), 0);
+          assert.equal(await page.locator("[data-site-header] a").innerText(), "記事一覧");
+          await page.locator('a[href*="/tips-julia"]').first().click();
+          await page.waitForSelector('[data-site-header] [data-toc-variant=header][data-ready="true"]', { state: "attached" });
+          assert.equal(await page.locator("[data-toc-variant=header]").count(), 1);
+          assert.equal(await page.locator("[data-toc-variant=header]").evaluate((toc) => toc.open), false);
+          assert.equal(await page.locator("[data-toc-variant=sidebar]").isVisible(), width >= 768);
+        } finally {
+          await page.close();
+        }
+      });
+    }
+
+    await t.test("長い見出しは高さ上限で折り返し、低い画面でも収まる", async () => {
+      const page = await browser.newPage({ viewport: { width: 390, height: 500 } });
+      try {
+        await page.addInitScript(() => localStorage.setItem("dispositif:reading-mode", "multi"));
+        await page.goto(new URL("tips-typst/", BASE_URL).href);
+        await page.waitForSelector("html.rm-active");
+        await page.evaluate(() => document.fonts.ready);
+        await page.locator(".toc-toggle").click();
+        const dimensions = await page.locator("[data-toc-variant=header] .toc-link").evaluateAll((links) => links.map((link) => {
+          const range = document.createRange();
+          range.selectNodeContents(link);
+          const rect = link.getBoundingClientRect();
+          return { text: link.textContent, height: rect.height, width: rect.width,
+            // Text fragments must stay within the link, without clipping.
+            fits: [...range.getClientRects()].every((r) => r.top >= rect.top - 1 && r.bottom <= rect.bottom + 1),
+          };
+        }));
+        assert.ok(dimensions.every((d) => d.height <= 175 && d.fits));
+        const short = dimensions.find((d) => d.text === "可換図式");
+        const long = dimensions.find((d) => d.text === "和文と欧文を別フォントにする");
+        assert.ok(long.width > short.width + 10, "長い見出しが複数行に折り返されていない");
+        const panel = await page.locator("[data-toc-variant=header] [data-toc-scroll]").boundingBox();
+        assert.ok(panel.y + panel.height < 500);
+      } finally { await page.close(); }
+    });
+
+    await t.test("JavaScript 無効でも目次の開閉と見出しリンクを使える", async () => {
+      const page = await browser.newPage({ javaScriptEnabled: false, viewport: { width: 390, height: 844 } });
+      try {
+        await page.goto(ARTICLE_URL, { waitUntil: "domcontentloaded" });
+        assert.equal(await page.locator("[data-toc-variant=header] [data-toc-scroll]").isVisible(), false);
+        await page.locator(".toc-toggle").click();
+        const link = page.locator("[data-site-header] .toc-link").nth(1);
+        const id = await link.evaluate((link) => decodeURIComponent(link.hash.slice(1)));
+        await link.click();
+        // Native details remains open without JS; the summary still closes it.
+        await page.locator(".toc-toggle").click();
+        const position = await page.evaluate((id) => ({
+          heading: document.getElementById(id).getBoundingClientRect().top,
+          header: document.querySelector("[data-site-header]").getBoundingClientRect().bottom,
+        }), id);
+        assert.ok(position.heading >= position.header);
+        assert.equal(await page.locator(".rm-slot").count(), 0);
+      } finally {
+        await page.close();
+      }
+    });
+  } finally {
+    await browser.close();
+  }
+});

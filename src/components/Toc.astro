@@ -4,40 +4,46 @@ import TocList from "./TocList.astro";
 
 interface Props {
   headings: Heading[];
-  variant?: "desktop" | "mobile";
+  variant?: "header" | "sidebar";
 }
 
-const { headings, variant = "desktop" } = Astro.props;
-const navClass =
-  variant === "mobile"
-    ? "absolute right-0 top-[calc(100%+0.5rem)] flex max-h-[calc(100svh-6rem)] w-[min(13rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-md bg-[#f8f8f8] font-system shadow-[0_2px_8px_rgba(0,0,0,0.25)]"
-    : "sticky top-4 flex max-h-[calc(100svh-2rem)] flex-col pt-4 font-system";
+const { headings, variant = "header" } = Astro.props;
 ---
 
 {
-  headings.length > 0 && (
-    <nav
-      aria-label="目次"
-      data-toc
-      data-toc-variant={variant}
-      class={`${navClass} not-prose`}
-    >
-      <h2 class="mx-0 mt-0 mb-2 w-full shrink-0 bg-[#324e73] py-0.5 text-center text-base font-[300] text-white">
-        目次
-      </h2>
-      <div
-        class="toc toc-scrollable min-h-0 w-full overflow-y-auto pb-8 pl-0 pr-2 text-base"
-        data-toc-scroll
-      >
+  headings.length > 0 && (variant === "sidebar" ? (
+    <nav aria-label="目次" data-toc data-toc-variant="sidebar" class="toc-sidebar not-prose">
+      <h2 class="toc-sidebar-title">目次</h2>
+      <div class="toc toc-scrollable toc-sidebar-scroll" data-toc-scroll tabindex="0" role="group" aria-label="目次の縦スクロール">
         <TocList headings={headings} />
       </div>
     </nav>
-  )
+  ) : (
+    <details
+      data-toc
+      data-toc-variant="header"
+      class="toc-header not-prose"
+    >
+      <summary class="toc-toggle">
+        <span>目次</span>
+        <svg class="toc-chevron" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" />
+        </svg>
+      </summary>
+      <nav
+        aria-label="目次"
+        class="toc toc-scrollable toc-header-scroll"
+        data-toc-scroll
+        tabindex="0"
+      >
+        <TocList headings={headings} />
+      </nav>
+    </details>
+  ))
 }
 
 <script>
   const TOC_SCROLL_DURATION = 180;
-  const ACTIVE_HEADING_OFFSET = 64;
 
   // 最初に最も速く、目的地に近づくにつれて減速する。
   const easeOutCubic = (progress: number) =>
@@ -48,6 +54,13 @@ const navClass =
       if (nav.dataset.ready === "true") return;
       nav.dataset.ready = "true";
       let scrollAnimationFrame = 0;
+      const controller = new AbortController();
+      const { signal } = controller;
+      const summary = nav.querySelector<HTMLElement>("summary");
+      const disclosure = nav instanceof HTMLDetailsElement ? nav : null;
+      const isHorizontal = () => nav.dataset.tocVariant === "header"
+        && document.documentElement.classList.contains("rm-active");
+      const close = () => { if (disclosure) disclosure.open = false; };
 
       const items = Array.from(
         nav.querySelectorAll<HTMLLIElement>("[data-toc-id]"),
@@ -55,57 +68,67 @@ const navClass =
       const scrollContainer =
         nav.querySelector<HTMLElement>("[data-toc-scroll]");
       let active = "";
+      let activeItem: HTMLLIElement | undefined;
+
+      const revealActive = () => {
+        if ((disclosure && !disclosure.open) || !activeItem || !scrollContainer?.clientHeight) return;
+        const horizontal = isHorizontal();
+        const containerRect = scrollContainer.getBoundingClientRect();
+        const itemRect = activeItem.getBoundingClientRect();
+        const margin = 12;
+        const start = horizontal ? "left" : "top";
+        const end = horizontal ? "right" : "bottom";
+        const size = horizontal ? "width" : "height";
+        const extent = horizontal ? scrollContainer.clientWidth : scrollContainer.clientHeight;
+        let delta = 0;
+        if (itemRect[start] < containerRect[start] + margin
+          || itemRect[size] > extent - 2 * margin) {
+          delta = itemRect[start] - containerRect[start] - margin;
+        } else if (itemRect[end] > containerRect[end] - margin) {
+          delta = itemRect[end] - containerRect[end] + margin;
+        }
+        if (Math.abs(delta) > 1) {
+          scrollContainer.scrollBy({
+            [start]: delta,
+            behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+          });
+        }
+      };
 
       const activate = (id: string) => {
         if (!id || id === active) return;
-        let activeItem: HTMLLIElement | undefined;
+        activeItem = undefined;
         items.forEach((item) => {
           const isActive = item.dataset.tocId === id;
           item.classList.toggle("is-active-li", isActive);
+          const link = item.querySelector("a");
+          if (isActive) link?.setAttribute("aria-current", "location");
+          else link?.removeAttribute("aria-current");
           if (isActive) activeItem = item;
         });
         active = id;
 
-        // 本文に対応する項目が目次の表示範囲から外れた場合は、
-        // ページ全体ではなく目次だけを必要な分だけスクロールする。
-        if (activeItem && scrollContainer) {
-          const containerRect = scrollContainer.getBoundingClientRect();
-          const itemRect = activeItem.getBoundingClientRect();
-          const margin = 12;
-          let delta = 0;
-
-          if (itemRect.top < containerRect.top + margin) {
-            delta = itemRect.top - containerRect.top - margin;
-          } else if (itemRect.bottom > containerRect.bottom - margin) {
-            delta =
-              itemRect.bottom - containerRect.bottom + margin;
-          }
-
-          if (delta !== 0) {
-            const reduceMotion = matchMedia(
-              "(prefers-reduced-motion: reduce)",
-            ).matches;
-            scrollContainer.scrollBy({
-              top: delta,
-              behavior: reduceMotion ? "auto" : "smooth",
-            });
-          }
-        }
+        revealActive();
       };
 
       const headings = items
         .map((item) => document.getElementById(item.dataset.tocId ?? ""))
         .filter((heading): heading is HTMLElement => heading !== null);
 
+      const activeOffset = () => headings[0]
+        ? (Number.parseFloat(getComputedStyle(headings[0]).scrollMarginTop) || 64) + 1
+        : 64;
+
       const syncActiveToScrollPosition = () => {
         if (document.documentElement.classList.contains("rm-active")) return;
+        const offset = activeOffset();
         const current =
           [...headings]
             .reverse()
             .find(
               (heading) =>
                 heading.getBoundingClientRect().top <=
-                ACTIVE_HEADING_OFFSET,
+                offset,
             ) ??
           headings[0];
         if (current) activate(current.id);
@@ -116,10 +139,51 @@ const navClass =
       const observer = new IntersectionObserver(
         syncActiveToScrollPosition,
         {
-          rootMargin: `-${ACTIVE_HEADING_OFFSET}px 0px -70% 0px`,
+          rootMargin: `-${activeOffset()}px 0px -70% 0px`,
         },
       );
       headings.forEach((heading) => observer.observe(heading));
+
+      const resizeObserver = new ResizeObserver(revealActive);
+      if (scrollContainer) resizeObserver.observe(scrollContainer);
+      const list = nav.querySelector(".toc-list");
+      if (list) resizeObserver.observe(list);
+
+      nav.addEventListener("toggle", () => {
+        if (disclosure?.open) revealActive();
+      }, { signal });
+      document.addEventListener("click", (event) => {
+        if (disclosure?.open && event.target instanceof Node && !nav.contains(event.target)) {
+          close();
+        }
+      }, { capture: true, signal });
+      document.addEventListener("keydown", (event) => {
+        if (event.key !== "Escape" || !disclosure?.open) return;
+        event.preventDefault();
+        close();
+        summary?.focus({ preventScroll: true });
+      }, { signal });
+      nav.addEventListener("focusout", (event) => {
+        // activeElement can temporarily be body between focusout and focusin.
+        // Use the destination so a click from the summary to a link stays open.
+        if (event.relatedTarget instanceof Node && !nav.contains(event.relatedTarget)) {
+          close();
+        }
+      }, { signal });
+
+      // Pure vertical wheel input can browse the horizontal row too. Preserve
+      // native horizontal gestures, Shift+wheel, and browser zoom gestures.
+      scrollContainer?.addEventListener("wheel", (event) => {
+        if (!isHorizontal()) return;
+        if (event.deltaX !== 0 || event.ctrlKey || event.metaKey || event.shiftKey) return;
+        const scale = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? scrollContainer.clientWidth : 1;
+        const delta = event.deltaY * scale;
+        const canMove = delta < 0 ? scrollContainer.scrollLeft > 0
+          : scrollContainer.scrollLeft + scrollContainer.clientWidth < scrollContainer.scrollWidth - 1;
+        if (!delta || !canMove) return;
+        event.preventDefault();
+        scrollContainer.scrollBy({ left: delta, behavior: "instant" });
+      }, { passive: false });
 
       const readingHeading = (event: Event) => {
         activate((event as CustomEvent<{ id: string }>).detail.id);
@@ -131,6 +195,8 @@ const navClass =
         "astro:before-swap",
         () => {
           observer.disconnect();
+          resizeObserver.disconnect();
+          controller.abort();
           window.cancelAnimationFrame(scrollAnimationFrame);
           document.removeEventListener("rm:heading", readingHeading);
           document.removeEventListener("rm:off", syncActiveToScrollPosition);
@@ -206,10 +272,14 @@ const navClass =
           const heading = document.getElementById(id);
           if (!heading) return;
           event.preventDefault();
+          close();
+          // Reading mode handles the native scroll plane during capture. Let
+          // this handler close the drawer without scrolling the document too.
+          if (document.documentElement.classList.contains("rm-active")) return;
           await scrollToHeading(heading);
-          history.replaceState(null, "", `#${encodeURIComponent(id)}`);
+          history.replaceState(history.state, "", `#${encodeURIComponent(id)}`);
+          activate(id);
           focusHeading(heading);
-          link.closest("details")?.removeAttribute("open");
         });
       });
     });

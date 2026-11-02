@@ -70,6 +70,49 @@ body {
   content: "»";
 }
 
+.site-header--toc {
+  z-index: 40;
+  padding: 0;
+  text-align: left;
+  text-decoration: none;
+}
+
+.toc-header {
+  width: 100%;
+  min-width: 0;
+}
+
+.toc-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 3.5rem;
+  padding: 0.75rem 1rem;
+  list-style: none;
+  color: #324e73;
+  font-size: 0.9375rem;
+  cursor: pointer;
+}
+
+.toc-toggle::-webkit-details-marker { display: none; }
+.toc-header[open] .toc-chevron { transform: rotate(180deg); }
+
+.toc-header-scroll {
+  --toc-heading-height: min(12rem, 35dvh);
+  position: absolute;
+  top: 100%;
+  left: 0;
+  display: block;
+  width: 100%;
+  max-height: min(60dvh, 28rem);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-x: contain;
+  padding: 0.75rem;
+  background: #f8f8f8;
+  box-shadow: 0 3px 4px rgb(0 0 0 / 20%);
+}
+
 .toc-list {
   @apply my-0 w-full px-0;
 }
@@ -79,15 +122,125 @@ body {
 }
 
 .toc-list-item {
+  flex: none;
   @apply my-0 w-full list-none py-0;
 }
 
 .toc-list-item .toc-link {
-  @apply inline-block w-full border-l-4 py-1.5 pl-2 font-medium text-gray-400 no-underline;
+  @apply inline-block w-full font-medium text-gray-400 no-underline;
+  border-inline-start: 4px solid var(--color-gray-200, #e5e7eb);
+  padding-inline: 0.5rem 0;
+  padding-block: 0.375rem;
+  writing-mode: horizontal-tb;
+  text-orientation: mixed;
+  height: auto;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.toc-header-scroll {
+  font-family: var(--font-system);
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.rm-toc,
+.site-article-index { display: none; }
+
+.toc-sidebar {
+  position: sticky;
+  top: 5rem;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - 6rem);
+  padding-top: 1rem;
+  font-family: var(--font-system);
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.toc-sidebar-title {
+  flex: none;
+  margin: 0 0 0.5rem;
+  padding: 0.125rem 0;
+  color: white;
+  background: #324e73;
+  font-size: 1rem;
+  font-weight: 300;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.toc-sidebar-scroll {
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior-y: contain;
+  padding: 0 0.5rem 2rem 0;
 }
 
 .toc-level-3 .toc-link {
-  @apply pl-4 text-sm;
+  @apply text-sm;
+  padding-inline-start: 1rem;
+}
+
+@media screen and (min-width: 768px) {
+  html:not(.rm-active) .article-with-toc {
+    max-width: 68rem;
+    padding-inline: 4rem 1rem;
+  }
+
+  html:not(.rm-active) .article-with-toc .rm-layout {
+    grid-template-columns: minmax(0, 48rem) 13rem;
+    gap: 0;
+  }
+
+  html:not(.rm-active) .rm-toc { display: block; padding-left: 1rem; }
+  html:not(.rm-active) .site-header--toc .toc-header { display: none; }
+  html:not(.rm-active) .site-article-index {
+    display: block;
+    height: 3.5rem;
+    color: inherit;
+    font-size: 1.25rem;
+    line-height: 3.5rem;
+    text-align: center;
+    text-decoration: underline;
+    text-decoration-color: #fde047;
+    text-decoration-thickness: 4px;
+    text-underline-offset: 0.5rem;
+  }
+}
+
+@media screen {
+  .rm-active .toc-header-scroll {
+    display: flex;
+    align-items: flex-start;
+    max-height: none;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .rm-active .toc-list {
+    flex: none;
+    display: flex;
+    align-items: stretch;
+    gap: 0.25rem;
+    width: max-content;
+    min-width: 100%;
+  }
+
+  .rm-active .toc-list-item { width: auto; }
+
+  .rm-active .toc-list-item .toc-link {
+    display: block;
+    writing-mode: vertical-rl;
+    height: var(--toc-heading-height);
+    width: max-content;
+    border-inline-start: 0;
+    border-inline-end: 4px solid var(--color-gray-200, #e5e7eb);
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
 }
 
 .toc-list-item .toc-link:hover {
@@ -95,7 +248,12 @@ body {
 }
 
 .is-active-li > .toc-link {
-  @apply border-l-[#324e73] text-[#324e73];
+  @apply text-[#324e73];
+  border-inline-start-color: #324e73;
+}
+
+.rm-active .is-active-li > .toc-link {
+  border-inline-end-color: #324e73;
 }
 
 .batsu {
@@ -134,7 +292,7 @@ body {
 
 .post :is(h2, h3),
 .post [id^="mjx-eqn:"] {
-  scroll-margin-top: 1.5rem;
+  scroll-margin-top: calc(3.5rem + 1rem);
 }
 
 .post a {
@@ -500,7 +658,7 @@ body {
 
 .toc-scrollable {
   scrollbar-color: #94a3b8 transparent;
-  scrollbar-width: thin;
+  scrollbar-width: auto;
 }
 
 .post mjx-container {

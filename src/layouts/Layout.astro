@@ -3,15 +3,19 @@ import { ClientRouter } from "astro:transitions";
 import "@fontsource-variable/nunito";
 import "@styles/globals.css";
 import { withBase } from "@lib/base";
+import Toc from "@components/Toc.astro";
+import type { Heading } from "@lib/toc";
 
 interface Props {
   title?: string;
   description?: string;
+  headings?: Heading[];
 }
 
 const {
   title = "記事一覧",
   description = "Description of something with working codes",
+  headings = [],
 } = Astro.props;
 ---
 
@@ -29,8 +33,13 @@ const {
   </head>
   <body>
     <main class="min-h-svh bg-[#a0bac8] pb-12">
-      <header data-site-header class="fixed inset-x-0 top-0 z-0 w-full bg-[#f8f8f8] pb-2 pt-4 text-center font-system text-lg text-[#112b45] underline decoration-yellow-300 decoration-4 underline-offset-[12px] shadow-[0_1px_1px_1px_rgba(0,0,0,0.3)] md:text-2xl">
-        <a href={withBase()} class="text-inherit decoration-inherit">記事一覧</a>
+      <header data-site-header class:list={["fixed inset-x-0 top-0 z-0 w-full bg-[#f8f8f8] pb-2 pt-4 text-center font-system text-lg text-[#112b45] underline decoration-yellow-300 decoration-4 underline-offset-[12px] shadow-[0_1px_1px_1px_rgba(0,0,0,0.3)] md:text-2xl", { "site-header--toc": headings.length > 0 }]}>
+        {headings.length > 0
+          ? <>
+              <a href={withBase()} class="site-article-index">記事一覧</a>
+              <Toc headings={headings} />
+            </>
+          : <a href={withBase()} class="text-inherit decoration-inherit">記事一覧</a>}
       </header>
       <slot />
     </main>
