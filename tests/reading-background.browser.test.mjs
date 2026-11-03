@@ -9,6 +9,79 @@ const settle = (page) => page.evaluate(async () => {
   for (let i = 0; i < 3; i++) await new Promise(requestAnimationFrame);
 });
 
+test("一覧へ戻るとき、ポインターでは復元直後の枠を抑え、キーボードでは表示する", { timeout: 45_000 }, async () => {
+  const browser = await chromium.launch({ executablePath: process.env.RM_BROWSER_PATH || undefined });
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  try {
+    await page.addInitScript(() => localStorage.setItem("dispositif:reading-mode", "multi"));
+    await page.goto(BASE_URL);
+    const card = page.locator("[data-article-index] a").first();
+    const href = await card.getAttribute("href");
+    const openArticle = async () => {
+      await card.click();
+      await page.waitForSelector("html.rm-active .rm-slot");
+    };
+    const restored = async () => {
+      await page.waitForSelector('html[data-page-kind="index"]');
+      await settle(page);
+      assert.equal(await card.evaluate((el) => document.activeElement === el), true);
+      assert.equal(new URL(await card.getAttribute("href"), BASE_URL).pathname, new URL(href, BASE_URL).pathname);
+    };
+    await openArticle();
+    await page.locator(".rm-viewport").click({ position: { x: 100, y: 200 } });
+    await page.keyboard.press("ArrowRight");
+    await page.locator("[data-site-header] .rm-close").click();
+    await restored();
+    assert.equal(await card.evaluate((el) => getComputedStyle(el).outlineStyle), "none");
+    await page.keyboard.press("ArrowDown");
+    assert.equal(await card.evaluate((el) => getComputedStyle(el).outlineStyle), "solid");
+    await page.keyboard.press("Tab");
+    assert.equal(await card.evaluate((el) => el.classList.contains("index-restored-keyboard-focus")), false);
+    await openArticle();
+    await page.locator("[data-site-header] .rm-close").focus();
+    await page.keyboard.press("Enter");
+    await restored();
+    assert.equal(await card.evaluate((el) => getComputedStyle(el).outlineStyle), "solid");
+  } finally { await browser.close(); }
+});
+
+test("一覧はヘッダーの下の標準バーとホイール・キーでスクロールする", { timeout: 45_000 }, async () => {
+  const browser = await chromium.launch({ executablePath: process.env.RM_BROWSER_PATH || undefined,
+    ignoreDefaultArgs: ["--hide-scrollbars"] });
+  try {
+    for (const width of [390, 1280]) {
+      const page = await browser.newPage({ viewport: { width, height: 600 } });
+      try {
+        await page.goto(BASE_URL);
+        await page.evaluate(() => document.fonts.ready);
+        const scrollport = page.locator(".article-index-shell");
+        const geometry = await scrollport.evaluate((el) => ({
+          top: el.getBoundingClientRect().top,
+          headerBottom: document.querySelector("[data-site-header]").getBoundingClientRect().bottom,
+          scrollbarWidth: el.offsetWidth - el.clientWidth,
+        }));
+        assert.equal(geometry.top, geometry.headerBottom);
+        assert.equal(geometry.scrollbarWidth, 8);
+        await page.mouse.move(20, 300);
+        await page.mouse.wheel(0, 60);
+        await page.waitForFunction(() => document.querySelector(".article-index-shell").scrollTop > 20);
+        const before = await scrollport.evaluate((el) => el.scrollTop);
+        await page.mouse.click(width - 4, 592);
+        await page.waitForFunction((before) => document.querySelector(".article-index-shell").scrollTop > before, before);
+        await scrollport.focus();
+        await page.keyboard.press("End");
+        await page.waitForFunction(() => {
+          const el = document.querySelector(".article-index-shell");
+          return Math.abs(el.scrollTop + el.clientHeight - el.scrollHeight) < 2;
+        });
+        await page.keyboard.press("Home");
+        await page.waitForFunction(() => document.querySelector(".article-index-shell").scrollTop === 0);
+        assert.equal(await page.evaluate(() => window.scrollY), 0);
+      } finally { await page.close(); }
+    }
+  } finally { await browser.close(); }
+});
+
 test("一覧のDOMと位置を両モードの背景へ引き継ぎ、閉じる・履歴移動で復元する", { timeout: 90_000 }, async () => {
   const browser = await chromium.launch({ executablePath: process.env.RM_BROWSER_PATH || undefined });
   try {
@@ -20,13 +93,13 @@ test("一覧のDOMと位置を両モードの背景へ引き継ぎ、閉じる�
         await page.evaluate(() => document.fonts.ready);
         await page.evaluate(() => {
           window.__indexNode = document.querySelector("[data-article-index]");
-          window.scrollTo(0, 240);
+          document.querySelector(".article-index-shell").scrollTo(0, 240);
         });
         await settle(page);
         const before = await page.evaluate(() => {
           const links = [...document.querySelectorAll("[data-article-index] a")];
           const i = links.findIndex((a) => { const r = a.getBoundingClientRect(); return r.top >= 80 && r.bottom < innerHeight; });
-          return { i, y: window.scrollY, href: links[i].href, top: links[i].getBoundingClientRect().top };
+          return { i, y: document.querySelector(".article-index-shell").scrollTop, href: links[i].href, top: links[i].getBoundingClientRect().top };
         });
         assert.ok(before.y > 0);
         await page.locator("[data-article-index] a").nth(before.i).click();
@@ -48,7 +121,7 @@ test("一覧のDOMと位置を両モードの背景へ引き継ぎ、閉じる�
         await page.waitForSelector('html[data-page-kind="index"]');
         await settle(page);
         const restored = () => page.evaluate(() => ({ same: document.querySelector("[data-article-index]") === window.__indexNode,
-          y: window.scrollY, inert: document.querySelector(".article-index-shell").inert,
+          y: document.querySelector(".article-index-shell").scrollTop, inert: document.querySelector(".article-index-shell").inert,
           focus: document.activeElement?.getAttribute("href") }));
         const result = await restored();
         assert.equal(result.same, true);

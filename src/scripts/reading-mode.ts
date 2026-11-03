@@ -1,4 +1,4 @@
-import { clamp, type ReadingGeometry } from "./reading-geometry";
+import type { ReadingGeometry } from "./reading-geometry";
 import { createLayout, fromCss, toCss, ticks, zero, paperWindow, slotColumns, visibleColumnCount,
   ReadingState, endPoint } from "./reading-coordinates";
 import { ReadingViewport } from "./reading-viewport";
@@ -6,30 +6,23 @@ import { ReadingFragments } from "./reading-fragments";
 import { ReadingMotion } from "./reading-motion";
 
 const STORAGE_KEY = "dispositif:reading-mode";
-const OVERLAP_STORAGE_KEY = "dispositif:reading-overlap-px";
 let dispose: (() => void) | undefined;
 
 export function initializeReadingMode() {
   dispose?.();
   const root = document.documentElement;
   const source = document.querySelector<HTMLElement>(".rm-source");
+  const articleScrollport = document.querySelector<HTMLElement>(".rm-article-scrollport");
   const viewport = document.querySelector<HTMLElement>(".rm-viewport");
   const reader = document.querySelector<HTMLElement>(".rm-reader");
   const plane = document.querySelector<HTMLElement>(".rm-plane");
-  const scrollbar = document.querySelector<HTMLElement>(".rm-scrollbar");
-  const scrollbarPlane = document.querySelector<HTMLElement>(".rm-scrollbar-plane");
   const ruler = document.querySelector<HTMLElement>(".rm-ruler");
   const toggle = document.querySelector<HTMLButtonElement>(".rm-toggle");
-  const overlapInput = document.querySelector<HTMLInputElement>("[data-rm-overlap]");
   const header = document.querySelector<HTMLElement>("[data-site-header]");
   const toolbar = document.querySelector<HTMLElement>(".rm-toolbar");
-  const settings = toolbar?.querySelector<HTMLDetailsElement>(".rm-settings");
-  const settingsPanel = settings?.querySelector<HTMLElement>(".rm-settings-panel");
   const toolbarParent = toolbar?.parentNode;
   const toolbarNextSibling = toolbar?.nextSibling ?? null;
-  if (!source || !viewport || !reader || !plane || !scrollbar || !scrollbarPlane || !ruler || !toggle || !overlapInput) return;
-  const toggleParent = toggle.parentNode!;
-  const toggleNextSibling = toggle.nextSibling;
+  if (!source || !articleScrollport || !viewport || !reader || !plane || !ruler || !toggle) return;
 
   const sourceParent = source.parentNode!;
   const sourceNextSibling = source.nextSibling;
@@ -37,19 +30,8 @@ export function initializeReadingMode() {
   const { signal } = controller;
   const printing = window.matchMedia("print");
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
-  const useScrollbarProxy = !CSS.supports("selector(::-webkit-scrollbar)");
-  root.classList.toggle("rm-scrollbar-proxy", useScrollbarProxy);
-  scrollbar.hidden = !useScrollbarProxy;
   let preference: string | null = null;
-  let overlapPreference: number | null = null;
   try { preference = localStorage.getItem(STORAGE_KEY); } catch { /* storage is optional */ }
-  try {
-    const saved = localStorage.getItem(OVERLAP_STORAGE_KEY);
-    if (saved !== null && saved.trim() !== "") {
-      const value = Number(saved);
-      if (Number.isFinite(value) && value >= 0) overlapPreference = Math.round(value);
-    }
-  } catch { /* storage is optional */ }
   let enabled = false;
   let suspendedForPrint = false;
   let resumeAfterPrint = false;
@@ -176,7 +158,10 @@ export function initializeReadingMode() {
       slot.toggleAttribute("data-rm-head", from <= 0);
       slot.toggleAttribute("data-rm-tail", from + geometry.h >= geometry.l);
       placements.set(slot, { left, top, clip, paperTop, paperHeight, shadeTop, shadeBottom });
-      if (content !== source) fragments.render(content, toCss(fromTicks - surface.shift), geometry.h, geometry.l);
+      // Slots outside the article have no visible paper. Keep their existing
+      // fragments until they become visible instead of cloning/removing blocks
+      // that would immediately be clipped away.
+      if (content !== source && paperHeight > 0) fragments.render(content, toCss(fromTicks - surface.shift), geometry.h, geometry.l);
     }
   };
 
@@ -184,11 +169,6 @@ export function initializeReadingMode() {
     if (!enabled || !reading || printing.matches) return;
     geometry = native.place(reading.point, reading.layout, force);
     position = toCss(reading.anchor);
-    if (useScrollbarProxy) {
-      const width = `${scrollbar.clientWidth + viewport.scrollWidth - viewport.clientWidth}px`;
-      if (scrollbarPlane.style.width !== width) scrollbarPlane.style.width = width;
-      if (Math.abs(scrollbar.scrollLeft - viewport.scrollLeft) > geometry.unit / 2) scrollbar.scrollLeft = viewport.scrollLeft;
-    }
     updateSlots();
     announceHeading();
   };
@@ -245,23 +225,13 @@ export function initializeReadingMode() {
     const w = toCss(fromCss(Math.min(parseFloat(getComputedStyle(ruler).width), Math.max(1, viewport.clientWidth - 2 * edge))));
     source.style.width = `${w}px`;
     const h = Math.max(1, viewport.clientHeight);
-    const maximumOverlap = Math.floor(Math.min(h / 4, h - 1));
-    const requestedOverlap = overlapPreference
-      ?? Math.round(parseFloat(getComputedStyle(ruler).paddingTop) || 0);
-    const overlap = clamp(requestedOverlap, 0, maximumOverlap);
-    const step = h - overlap;
-    overlapInput.max = String(maximumOverlap);
-    if (document.activeElement !== overlapInput || overlapInput.value !== "") {
-      const value = String(overlap);
-      if (overlapInput.value !== value) overlapInput.value = value;
-    }
     const sourceBox = source.getBoundingClientRect();
     const scale = sourceBox.width / (parseFloat(getComputedStyle(source).width) || sourceBox.width);
     const l = Math.max(1, Math.ceil(sourceBox.height / scale));
     fragments.measure(dirty);
     headings = Array.from(source.querySelectorAll<HTMLElement>("h2[id], h3[id]"),
       (heading) => ({ id: heading.id, t: offsetOf(heading) }));
-    const layout = createLayout(w, gap, h, overlap, l, viewport.clientWidth, edge);
+    const layout = createLayout(w, gap, h, 0, l, viewport.clientWidth, edge);
     // Layout changes preserve the logical anchor; ordinary observations never
     // reconstruct application state from native positions.
     if (reading && Object.keys(layout).every(key => layout[key as keyof typeof layout] === reading!.layout[key as keyof typeof layout])) {
@@ -274,8 +244,8 @@ export function initializeReadingMode() {
     plane.style.setProperty("--rm-w", `${w}px`);
     plane.style.setProperty("--rm-p", `${toCss(layout.p)}px`);
     plane.style.setProperty("--rm-h", `${h}px`);
-    plane.style.setProperty("--rm-step", `${step}px`);
-    plane.style.setProperty("--rm-overlap", `${h - step}px`);
+    plane.style.setProperty("--rm-step", `${h}px`);
+    plane.style.setProperty("--rm-overlap", "0px");
     plane.style.setProperty("--rm-l", `${l}px`);
     plane.style.setProperty("--rm-edge", `${edge}px`);
     reading = new ReadingState(layout, anchor);
@@ -346,23 +316,21 @@ export function initializeReadingMode() {
     if (next === enabled) return;
     const toggleFocused = document.activeElement === toggle;
     motion.reset();
-    // Single-column reading follows main's article, whose header sits behind
-    // the backdrop. Its reading inset is the original 1.5rem, not the n-column
+    // Single-column reading scrolls the article above the backdrop. Its
+    // reading inset is the original 1.5rem, not the n-column
     // header's height. At the beginning keep the card at its normal position.
     const readingInset = 1.5 * (parseFloat(getComputedStyle(root).fontSize) || 16);
     if (next) position = anchor ?? Math.max(0, readingInset - source.getBoundingClientRect().top);
     enabled = next;
     root.classList.toggle("rm-active", enabled);
-    if (settings) settings.open = false;
-    if (enabled && settingsPanel) settingsPanel.prepend(toggle);
-    else toggleParent.insertBefore(toggle, toggleNextSibling);
+    articleScrollport.tabIndex = enabled ? -1 : 0;
     if (toolbar) {
       if (enabled && header) header.appendChild(toolbar);
       else toolbarParent?.insertBefore(toolbar, toolbarNextSibling);
     }
     reader.hidden = !enabled;
     toggle.setAttribute("aria-pressed", String(enabled));
-    toggle.textContent = enabled ? "1段 / n段 ✓" : "1段 / n段";
+    toggle.title = enabled ? "1段表示に切り替える" : "n段表示に切り替える";
     activeHeading = "";
     if (enabled) {
       // All displayed trees need identical image dimensions for measurement,
@@ -370,7 +338,7 @@ export function initializeReadingMode() {
       source.querySelectorAll<HTMLImageElement>("img").forEach((image) => { image.loading = "eager"; });
       dirty = true;
       measure();
-      window.scrollTo({ top: 0, behavior: "instant" });
+      articleScrollport.scrollTo({ top: 0, behavior: "instant" });
     } else {
       restoreSource();
       plane.replaceChildren();
@@ -379,13 +347,10 @@ export function initializeReadingMode() {
       reading = undefined;
       native.reset();
       rangeStart = NaN;
-      window.scrollTo({ top: position <= 0 ? 0 : window.scrollY + source.getBoundingClientRect().top + position - readingInset, behavior: "instant" });
+      articleScrollport.scrollTo({ top: position <= 0 ? 0 : articleScrollport.scrollTop + source.getBoundingClientRect().top + position - readingInset, behavior: "instant" });
       document.dispatchEvent(new CustomEvent("rm:off"));
     }
-    if (toggleFocused) {
-      const control = enabled ? settings?.querySelector<HTMLElement>("summary") : toggle;
-      control?.focus({ preventScroll: true });
-    }
+    if (toggleFocused) toggle.focus({ preventScroll: true });
   };
 
   const applyDefault = () => {
@@ -419,45 +384,6 @@ export function initializeReadingMode() {
     setEnabled(!enabled);
   }, { signal });
 
-  toolbar?.querySelectorAll<HTMLButtonElement>("[data-rm-edge]").forEach((button) => {
-    button.addEventListener("click", () => {
-      if (!enabled || !geometry) return;
-      goToEdge(button.dataset.rmEdge === "end");
-      if (settings) settings.open = false;
-      viewport.focus({ preventScroll: true });
-    }, { signal });
-  });
-
-  document.addEventListener("click", (event) => {
-    if (settings?.open && event.target instanceof Node && !settings.contains(event.target)) settings.open = false;
-  }, { signal });
-  document.addEventListener("keydown", (event) => {
-    if (event.key !== "Escape" || !settings?.open) return;
-    settings.open = false;
-    settings.querySelector<HTMLElement>("summary")?.focus({ preventScroll: true });
-    event.preventDefault();
-  }, { signal });
-
-  const updateOverlap = () => {
-    const requested = overlapInput.valueAsNumber;
-    if (!Number.isFinite(requested)) return;
-    // Capture the latest native position even if its scroll rAF is pending.
-    if (enabled) syncPosition();
-    overlapPreference = clamp(Math.round(requested), 0, Number(overlapInput.max) || 0);
-    const value = String(overlapPreference);
-    if (overlapInput.value !== value) overlapInput.value = value;
-    try { localStorage.setItem(OVERLAP_STORAGE_KEY, String(overlapPreference)); } catch { /* storage is optional */ }
-    scheduleMeasure();
-  };
-  overlapInput.addEventListener("input", updateOverlap, { signal });
-  overlapInput.addEventListener("change", () => {
-    if (!Number.isFinite(overlapInput.valueAsNumber)) {
-      overlapInput.value = String(geometry ? geometry.h - geometry.step : 0);
-      return;
-    }
-    updateOverlap();
-  }, { signal });
-
   viewport.addEventListener("scroll", () => {
     if (!scrolling) scrolling = requestAnimationFrame(() => {
       scrolling = 0;
@@ -465,14 +391,6 @@ export function initializeReadingMode() {
       if (!measuring) syncPosition();
     });
   }, { passive: true, signal });
-  scrollbar.addEventListener("scroll", () => {
-    if (!enabled || !geometry || Math.abs(scrollbar.scrollLeft - viewport.scrollLeft) <= geometry.unit) return;
-    motion.reset();
-    viewport.scrollLeft = scrollbar.scrollLeft;
-    syncPosition();
-  }, { passive: true, signal });
-  scrollbar.addEventListener("pointerdown", () => motion.cancelAnimation(), { passive: true, signal });
-
   // Native vertical input never initiates horizontal movement, including at
   // an edge. Manual gestures only interrupt an explicit key animation.
   viewport.addEventListener("wheel", () => motion.cancelAnimation(), { passive: true, signal });
@@ -584,9 +502,8 @@ export function initializeReadingMode() {
     resizeObserver.disconnect();
     mutationObserver.disconnect();
     [initialFrame, measuring, scrolling].forEach(cancelAnimationFrame);
-    root.classList.remove("rm-active", "rm-ready", "rm-scrollbar-proxy");
+    root.classList.remove("rm-active", "rm-ready");
     root.style.removeProperty("--rm-header-height");
-    toggleParent.insertBefore(toggle, toggleNextSibling);
     if (toolbar) toolbarParent?.insertBefore(toolbar, toolbarNextSibling);
     restoreSource();
     reader.hidden = true;

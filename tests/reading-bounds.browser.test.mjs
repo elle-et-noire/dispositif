@@ -52,8 +52,9 @@ async function pixelAt(page, x, y) {
 async function open(page) {
   await page.addInitScript(() => localStorage.setItem("dispositif:reading-mode", "multi"));
   await page.goto(ARTICLE_URL);
-  // Isolate paper trimming against a flat canvas, independent of list cards.
-  await page.addStyleTag({ content: ".article-index-shell, .rm-backdrop { display: none !important; }" });
+  // Compare paper edges against a flat canvas, without list cards or the
+  // keyboard focus outline painting over the first row of sampled pixels.
+  await page.addStyleTag({ content: ".article-index-shell, .rm-backdrop { display: none !important; } .rm-viewport { outline: none !important; }" });
   await page.waitForSelector(".rm-slot");
   await page.evaluate(() => document.fonts.ready);
   await page.locator(".rm-source").evaluate(s => { s.innerHTML = '<div style="height:13573px;background:#a33b00"></div>'; });
@@ -62,7 +63,7 @@ async function open(page) {
   await settle(page);
 }
 
-test("ズーム・重なり・縦位置によらず横操作だけで全文を読め、消える部分段を含めて横余白を制限する", { timeout: 120_000 }, async () => {
+test("ズーム・縦位置によらず横操作だけで全文を読め、消える部分段を含めて横余白を制限する", { timeout: 120_000 }, async () => {
   const browser = await chromium.launch({ executablePath: process.env.RM_BROWSER_PATH || undefined });
   try {
     for (const zoom of [1, 1.25, 1.5]) for (const width of [390, 1600]) {
@@ -71,8 +72,7 @@ test("ズーム・重なり・縦位置によらず横操作だけで全文を�
         await open(page);
         await page.addStyleTag({ content: `html { zoom: ${zoom}; }` });
         await settle(page);
-        for (const overlap of [0, 21]) {
-          await page.locator("[data-rm-overlap]").evaluate((input, overlap) => { input.value = String(overlap); input.dispatchEvent(new Event("input", { bubbles: true })); }, overlap);
+        { const overlap = 0;
           await settle(page);
           await page.locator(".rm-viewport").focus(); await page.keyboard.press("Home"); await settle(page);
           const initial = await state(page);
@@ -111,15 +111,14 @@ test("ズーム・重なり・縦位置によらず横操作だけで全文を�
   } finally { await browser.close(); }
 });
 
-test("画像の配置から上下に動かすと重複部分が連続的に消え、本文端に余白も横移動も足さない", { timeout: 90_000 }, async () => {
+test("画像の配置から上下に動かすと部分段が連続的に消え、本文端に余白も横移動も足さない", { timeout: 90_000 }, async () => {
   const browser = await chromium.launch({ executablePath: process.env.RM_BROWSER_PATH || undefined, ignoreDefaultArgs: ["--hide-scrollbars"] });
   try {
     for (const width of [1280, 1562]) {
       const page = await browser.newPage({ viewport: { width, height: 1000 } });
       try {
         await open(page);
-        for (const overlap of [0, 21, 100]) {
-          await page.locator("[data-rm-overlap]").evaluate((input, overlap) => { input.value = String(overlap); input.dispatchEvent(new Event("input", { bubbles: true })); }, overlap);
+        { const overlap = 0;
           await settle(page);
           for (const direction of [-1, 1]) {
             await page.locator(".rm-viewport").focus();

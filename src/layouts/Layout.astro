@@ -2,6 +2,7 @@
 import { ClientRouter } from "astro:transitions";
 import "@fontsource-variable/nunito";
 import "@styles/globals.css";
+import "@styles/reading-mode.css";
 import { withBase } from "@lib/base";
 import Toc from "@components/Toc.astro";
 import ArticleIndex from "@components/ArticleIndex.astro";
@@ -40,7 +41,7 @@ const {
         <a href={withBase()} class="site-article-index text-inherit decoration-inherit">記事一覧</a>
         <Toc headings={headings} />
       </header>
-      <div class="article-index-shell" inert={article} aria-hidden={article ? "true" : undefined}>
+      <div class="article-index-shell" inert={article} aria-hidden={article ? "true" : undefined} tabindex={article ? undefined : 0} role={article ? undefined : "region"} aria-label={article ? undefined : "記事一覧"}>
         <ArticleIndex />
       </div>
       <slot />

@@ -3,6 +3,8 @@ import Layout from "@layouts/Layout.astro";
 import DateInfo from "@components/DateInfo.astro";
 import ArticleInteractions from "@components/ArticleInteractions.astro";
 import ReadingMode from "@components/ReadingMode.astro";
+import ReadingSingleIcon from "../icons/reading-single.svg";
+import ReadingMultiIcon from "../icons/reading-multi.svg";
 import Toc from "@components/Toc.astro";
 import { markdownToHtml } from "@lib/convert";
 import { MATH_FONT_PRELOAD_HREF } from "@lib/mathjax";
@@ -38,65 +40,53 @@ const headings = getHeadings(content);
     )
   }
 
-  <a
-    href={withBase()}
-    data-astro-prefetch="hover"
-    aria-label="記事を閉じて一覧へ戻る"
+  <div
+    aria-hidden="true"
     class="rm-backdrop fixed inset-0 z-10 block cursor-pointer bg-[#76ddfc]/15 backdrop-blur-[3px]"
-  ></a>
+  ></div>
 
-  <article class="rm-article prose relative z-20 mx-auto mt-8 flex w-[calc(100%-1rem)] max-w-[68rem] flex-col px-4 pb-16 md:pl-16 md:pr-4">
-    <div class="rm-toolbar not-prose">
-      <button class="rm-toggle" type="button" aria-pressed="false" aria-label="n段の読書モード">1段 / n段</button>
-      <Toc headings={headings} variant="mobile" />
-      <details class="rm-settings">
-        <summary class="rm-settings-toggle">表示設定</summary>
-        <div class="rm-settings-panel">
-          <label class="rm-overlap-control not-prose" for="rm-overlap">
-            <span>重なり</span>
-            <input
-              id="rm-overlap"
-              class="rm-overlap-input"
-              data-rm-overlap
-              type="number"
-              inputmode="numeric"
-              min="0"
-              step="1"
-              value="0"
-              aria-label="段間の本文の重なり（px）"
-            />
-            <span aria-hidden="true">px</span>
-          </label>
-          <div class="rm-jump-controls">
-            <button type="button" data-rm-edge="start">先頭へ</button>
-            <button type="button" data-rm-edge="end">末尾へ</button>
+  <div class="rm-article-scrollport" tabindex="0" role="region" aria-label="記事本文">
+    <a
+      href={withBase()}
+      data-astro-prefetch="hover"
+      aria-label="記事を閉じて一覧へ戻る"
+      class="rm-dismiss block cursor-pointer"
+    ></a>
+    <article class="rm-article prose relative z-20 mx-auto mt-8 flex w-[calc(100%-1rem)] max-w-[68rem] flex-col px-4 pb-16 md:pl-16 md:pr-4">
+      <div class="rm-layout grid min-w-0 grid-cols-1">
+        <aside class="rm-sidebar">
+          <div class="rm-sidebar-stack">
+            <div class="rm-toolbar not-prose">
+              <button class="rm-toggle" type="button" aria-pressed="false" aria-label="n段表示" title="n段表示に切り替える">
+                <ReadingMultiIcon class="rm-toggle-to-multi" aria-hidden="true" />
+                <ReadingSingleIcon class="rm-toggle-to-single" aria-hidden="true" />
+              </button>
+              <Toc headings={headings} variant="mobile" />
+              <a
+                href={withBase()}
+                data-astro-prefetch="hover"
+                aria-label="記事を閉じて一覧へ戻る"
+                class="rm-close"
+              >
+                <span class="batsu" aria-hidden="true"></span>
+              </a>
+            </div>
+            <div class="rm-toc hidden md:flex">
+              <Toc headings={headings} variant="sidebar" />
+            </div>
           </div>
+        </aside>
+        <div class="rm-source min-w-0 w-full font-noto-sans">
+          <h1 class="mb-1 text-lg font-semibold text-[#101828] sm:text-3xl md:mb-3 md:text-4xl">
+            {data.title}
+          </h1>
+          <DateInfo data={data} class="text-xs sm:text-base" />
+          <div class="post" set:html={html} />
         </div>
-      </details>
-      <a
-        href={withBase()}
-        data-astro-prefetch="hover"
-        aria-label="記事を閉じて一覧へ戻る"
-        class="rm-close"
-      >
-        <span class="batsu" aria-hidden="true"></span>
-      </a>
-    </div>
-
-    <div class="rm-layout grid min-w-0 grid-cols-1 md:grid-cols-[minmax(0,48rem)_13rem]">
-      <div class="rm-source min-w-0 w-full font-noto-sans">
-        <h1 class="mb-1 text-lg font-semibold text-[#101828] sm:text-3xl md:mb-3 md:text-4xl">
-          {data.title}
-        </h1>
-        <DateInfo data={data} class="text-xs sm:text-base" />
-        <div class="post" set:html={html} />
+        <ReadingMode />
       </div>
-      <ReadingMode />
-      <aside class="rm-toc hidden min-w-0 w-full pl-4 md:block">
-        <Toc headings={headings} variant="sidebar" />
-      </aside>
-    </div>
-  </article>
+    </article>
+  </div>
 
   <ArticleInteractions />
 </Layout>

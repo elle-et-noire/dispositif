@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { chromium } from "playwright-core";
+import { readingScrollbar } from "./reading-controls.mjs";
 
 const ARTICLE_URL = new URL("symmetric-polynomial/",
   process.env.RM_BASE_URL ?? "http://localhost:4321/dispositif/").href;
@@ -44,17 +45,14 @@ test("本文の左右余白は段と流れ、横バーの左右余白は固定�
           assert.ok(Math.abs(width - initial.viewportRight) < 1.5, "本文の右端に固定の余白が残った");
           if (zoom === 1) {
             const barImage = await page.screenshot();
-            const barPixels = await page.evaluate(async ({ png, zoom }) => {
+            const bar = await readingScrollbar(page);
+            const barPixels = await page.evaluate(async ({ png, bar }) => {
               const image = new Image(); image.src = `data:image/png;base64,${png}`; await image.decode();
               const canvas = document.createElement("canvas"); canvas.width = image.width; canvas.height = image.height;
               const context = canvas.getContext("2d"); context.drawImage(image, 0, 0);
-              const rect = document.querySelector(".rm-viewport").getBoundingClientRect();
-              const y = Math.floor(rect.bottom - 6 * zoom);
-              const v = document.querySelector(".rm-viewport"), track = v.clientWidth - 32;
-              const thumb = track * v.clientWidth / v.scrollWidth;
-              const center = 16 + (track - thumb) * v.scrollLeft / (v.scrollWidth - v.clientWidth) + thumb / 2;
-              return [1, Math.floor(center * zoom)].map((x) => [...context.getImageData(x, y, 1, 1).data]);
-            }, { png: barImage.toString("base64"), zoom });
+              const y = Math.floor(bar.y + bar.height / 2);
+              return [1, Math.floor(bar.center)].map((x) => [...context.getImageData(x, y, 1, 1).data]);
+            }, { png: barImage.toString("base64"), bar });
             assert.notDeepEqual(barPixels[0], [148, 163, 184, 255], "横バーの左余白が消えた");
             assert.deepEqual(barPixels[1], [148, 163, 184, 255], "左右余白を残した横バーがない");
           }

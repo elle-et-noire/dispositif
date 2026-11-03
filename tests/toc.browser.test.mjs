@@ -68,7 +68,7 @@ test("1段のサイドバー目次とn段の上部目次を切り替えて使え
           assert.equal(await page.locator("[data-toc-variant=header]").count(), 1);
           assert.equal(await page.locator("[data-site-header] [data-toc-variant=header]").count(), 1);
           assert.equal(await page.locator("article [data-toc-variant=header], article .rm-toolbar").count(), 0);
-          assert.equal(await page.locator("[data-site-header] .rm-settings").count(), 1);
+          assert.equal(await page.locator("[data-site-header] .rm-toggle").count(), 1);
           assert.equal(await page.locator("[data-toc-variant=sidebar]").isVisible(), false);
 
           const dimensions = await page.locator("[data-toc-variant=header] [data-toc-scroll]").evaluate((container) => ({

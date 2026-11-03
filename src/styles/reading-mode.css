@@ -4,16 +4,16 @@
   --rm-edge-space: 1rem;
   --rm-column-padding: clamp(1rem, 2vw, 1.5rem);
   --rm-reader-space: 1rem;
-  --rm-context-overlap: 0.75lh;
   --rm-surface: var(--note-surface);
   --rm-ink: #324e73;
+  --rm-scrollbar-size: 8px;
 }
 
 .rm-toolbar {
-  position: sticky;
-  top: 0;
+  position: relative;
   z-index: 30;
   display: flex;
+  flex: none;
   justify-content: flex-end;
   align-items: center;
   gap: 0.5rem;
@@ -23,83 +23,30 @@
   font: 500 0.85rem/1.5 var(--font-system);
 }
 
-.rm-settings { position: relative; display: none; visibility: visible; }
-.rm-ready.rm-active .rm-settings { display: block; }
-.rm-settings-toggle {
-  display: flex;
-  align-items: center;
-  min-height: 2rem;
-  padding-inline: 0.5rem;
-  border: 1px solid #cbd5e1;
-  border-radius: 0.35rem;
-  background: var(--rm-surface);
-  list-style: none;
-  white-space: nowrap;
-  cursor: pointer;
-}
-.rm-settings-toggle::-webkit-details-marker { display: none; }
-.rm-settings-panel {
-  position: absolute;
-  top: calc(100% + 0.5rem);
-  right: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.75rem;
-  width: max-content;
-  max-width: calc(100vw - 2rem);
-  padding: 0.875rem;
-  border: 1px solid #cbd5e1;
-  border-radius: 0.4rem;
-  background: var(--rm-surface);
-  box-shadow: 0 3px 10px rgb(0 0 0 / 15%);
-}
 .rm-close { display: block; height: 2rem; flex: none; visibility: visible; }
-.rm-jump-controls { display: none; gap: 0.75rem; }
-.rm-jump-controls button {
-  padding: 0.25rem 0.5rem;
-  border: 1px solid #cbd5e1;
-  border-radius: 0.25rem;
-  cursor: pointer;
-}
 
 .rm-toggle {
   display: none;
   visibility: visible;
   align-self: center;
-  border: 1px solid var(--rm-ink);
-  border-radius: 0.35rem;
-  padding: 0.2rem 0.65rem;
+  align-items: flex-start;
+  justify-content: center;
+  flex: none;
+  width: 30px;
+  height: 2rem;
+  border: 0;
+  padding: 0;
   color: var(--rm-ink);
-  background: var(--rm-surface);
-  font: 500 0.85rem/1.5 var(--font-system);
+  background: transparent;
   cursor: pointer;
 }
 
-.rm-ready .rm-toggle { display: inline-block; }
-.rm-toggle[aria-pressed="true"] { box-shadow: inset 0 0 0 1px var(--rm-ink); }
-
-.rm-overlap-control {
-  display: none;
-  visibility: visible;
-  align-items: center;
-  gap: 0.375rem;
-  color: var(--rm-ink);
-  font: 500 0.8125rem/1.5 var(--font-system);
-  white-space: nowrap;
-}
-
-.rm-overlap-input {
-  width: 3.75rem;
-  height: 2rem;
-  border: 1px solid var(--rm-ink);
-  border-radius: 0.25rem;
-  padding: 0 0.25rem;
-  color: inherit;
-  background: var(--rm-surface);
-  font: inherit;
-  font-size: 1rem;
-}
+.rm-ready .rm-toggle { display: inline-flex; }
+.rm-toggle svg { width: 30px; height: 30px; color: inherit; }
+.rm-toggle-to-single { display: none; }
+.rm-toggle[aria-pressed="true"] .rm-toggle-to-multi { display: none; }
+.rm-toggle[aria-pressed="true"] .rm-toggle-to-single { display: block; }
+.rm-toggle:hover { color: #112b45; }
 
 /* Resolve em/min()/calc() and the gap in CSS, including while the reader is off. */
 .rm-ruler {
@@ -107,7 +54,6 @@
   width: var(--rm-column-width);
   margin-right: var(--rm-gap);
   height: var(--rm-gap);
-  padding-top: var(--rm-context-overlap);
   padding-right: var(--rm-edge-space);
   overflow: hidden;
   visibility: hidden;
@@ -125,9 +71,54 @@
 }
 
 @media screen {
-  .rm-active .rm-overlap-control { display: inline-flex; }
-  .rm-active .rm-jump-controls { display: flex; }
-  .rm-active :is(.rm-toc, .rm-mobile-toc) { display: none; }
+  html[data-page-kind="article"],
+  html[data-page-kind="article"] body { overflow: hidden; }
+
+  /* An element's native transparent track reveals the actual header/backdrop.
+     Keep those layers outside this scrollport rather than tinting the canvas. */
+  .rm-article-scrollport {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    overflow: auto;
+    overscroll-behavior: contain;
+    background: transparent;
+  }
+  /* Cover the whole scrollable background in normal flow. A fixed link would
+     route wheel input to the document instead of this article scrollport. */
+  .rm-dismiss { grid-area: 1 / 1; align-self: stretch; }
+  .rm-article { grid-area: 1 / 1; margin-bottom: 3rem; }
+  .rm-active .rm-article-scrollport { overflow: hidden; }
+
+  .rm-layout { grid-template-rows: 3rem auto; }
+  .rm-source { grid-column: 1; grid-row: 2; }
+  .rm-sidebar {
+    grid-column: 1;
+    grid-row: 1 / 3;
+    min-width: 0;
+    pointer-events: none;
+  }
+  .rm-sidebar-stack {
+    position: sticky;
+    top: 0;
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100svh - 1rem);
+  }
+  .rm-sidebar-stack :is(.rm-toolbar, .rm-toc) { pointer-events: auto; }
+  .rm-sidebar-stack .rm-toc { flex: 1; min-height: 0; }
+  .rm-sidebar-stack .toc-sidebar {
+    position: static;
+    top: auto;
+    flex: 1;
+    min-height: 0;
+    max-height: none;
+  }
+
+  .rm-active :is(.rm-sidebar, .rm-mobile-toc) { display: none; }
 
   html.rm-active,
   .rm-active body { overflow: hidden; }
@@ -211,37 +202,50 @@
     overscroll-behavior: contain;
     scroll-snap-type: none;
     overflow-anchor: none;
-    scrollbar-color: #94a3b8 transparent;
   }
 
-  /* Keep native two-axis scrolling and the horizontal scrollbar. Only the
-     vertical scrollbar's gutter disappears, giving its width to the columns. */
-  @supports selector(::-webkit-scrollbar) {
-    .rm-viewport { scrollbar-color: auto; }
-    .rm-viewport::-webkit-scrollbar { width: 0; height: 12px; }
-    .rm-viewport::-webkit-scrollbar-thumb {
-      border-radius: 6px;
-      background: #94a3b8;
-    }
-    .rm-viewport::-webkit-scrollbar-track { background: transparent; }
-    .rm-viewport::-webkit-scrollbar-track:horizontal { margin: 0 var(--rm-edge-space); }
-  }
-
-  /* Firefox has no per-axis track margins. Keep its native horizontal bar in
-     a narrow sibling control, leaving the text viewport free to reach x=0. */
-  .rm-scrollbar-proxy .rm-viewport { height: calc(100% - 12px); scrollbar-width: none; }
-  .rm-scrollbar {
-    position: absolute;
-    inset: auto var(--rm-edge-space) 0;
-    height: 12px;
-    overflow-x: scroll;
-    overflow-y: hidden;
-    overscroll-behavior: contain;
+  :is([data-page-kind="index"] .article-index-shell, .rm-article-scrollport, .rm-viewport) {
     scrollbar-width: thin;
     scrollbar-color: #94a3b8 transparent;
   }
-  .rm-scrollbar[hidden] { display: none; }
-  .rm-scrollbar-plane { height: 1px; }
+
+  :is([data-page-kind="index"] .article-index-shell, .rm-article-scrollport):focus-visible { outline: 1px solid var(--rm-ink); outline-offset: -1px; }
+  .rm-viewport:focus-visible { outline: none; }
+
+  /* Native bars and buttons scroll the text directly, without JS proxies. */
+  @supports selector(::-webkit-scrollbar) {
+    :is([data-page-kind="index"] .article-index-shell, .rm-article-scrollport, .rm-viewport) { scrollbar-width: auto; scrollbar-color: auto; }
+    :is([data-page-kind="index"] .article-index-shell, .rm-article-scrollport, .rm-viewport)::-webkit-scrollbar { width: var(--rm-scrollbar-size); height: var(--rm-scrollbar-size); background: transparent; }
+    :is([data-page-kind="index"] .article-index-shell, .rm-article-scrollport, .rm-viewport)::-webkit-scrollbar-thumb { border-radius: 4px; background: #94a3b8; }
+    :is([data-page-kind="index"] .article-index-shell, .rm-article-scrollport, .rm-viewport)::-webkit-scrollbar-track,
+    :is([data-page-kind="index"] .article-index-shell, .rm-article-scrollport, .rm-viewport)::-webkit-scrollbar-corner { background: transparent; }
+    :is([data-page-kind="index"] .article-index-shell, .rm-article-scrollport, .rm-viewport)::-webkit-scrollbar-button { display: none; }
+    :is([data-page-kind="index"] .article-index-shell, .rm-article-scrollport, .rm-viewport)::-webkit-scrollbar-button:horizontal:decrement:start,
+    :is([data-page-kind="index"] .article-index-shell, .rm-article-scrollport, .rm-viewport)::-webkit-scrollbar-button:horizontal:increment:end,
+    :is([data-page-kind="index"] .article-index-shell, .rm-article-scrollport, .rm-viewport)::-webkit-scrollbar-button:vertical:decrement:start,
+    :is([data-page-kind="index"] .article-index-shell, .rm-article-scrollport, .rm-viewport)::-webkit-scrollbar-button:vertical:increment:end {
+      display: block;
+      background-position: center;
+      background-repeat: no-repeat;
+      background-size: 8px 8px;
+    }
+    :is([data-page-kind="index"] .article-index-shell, .rm-article-scrollport, .rm-viewport)::-webkit-scrollbar-button:horizontal:decrement:start,
+    :is([data-page-kind="index"] .article-index-shell, .rm-article-scrollport, .rm-viewport)::-webkit-scrollbar-button:horizontal:increment:end { width: 16px; }
+    :is([data-page-kind="index"] .article-index-shell, .rm-article-scrollport, .rm-viewport)::-webkit-scrollbar-button:vertical:decrement:start,
+    :is([data-page-kind="index"] .article-index-shell, .rm-article-scrollport, .rm-viewport)::-webkit-scrollbar-button:vertical:increment:end { height: 16px; }
+    :is([data-page-kind="index"] .article-index-shell, .rm-article-scrollport, .rm-viewport)::-webkit-scrollbar-button:horizontal:decrement:start {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath d='M6 0 1 4l5 4Z' fill='%2364748b'/%3E%3C/svg%3E");
+    }
+    :is([data-page-kind="index"] .article-index-shell, .rm-article-scrollport, .rm-viewport)::-webkit-scrollbar-button:horizontal:increment:end {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath d='m2 0 5 4-5 4Z' fill='%2364748b'/%3E%3C/svg%3E");
+    }
+    :is([data-page-kind="index"] .article-index-shell, .rm-article-scrollport, .rm-viewport)::-webkit-scrollbar-button:vertical:decrement:start {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath d='M0 6 4 1l4 5Z' fill='%2364748b'/%3E%3C/svg%3E");
+    }
+    :is([data-page-kind="index"] .article-index-shell, .rm-article-scrollport, .rm-viewport)::-webkit-scrollbar-button:vertical:increment:end {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath d='m0 2 4 5 4-5Z' fill='%2364748b'/%3E%3C/svg%3E");
+    }
+  }
 
   .rm-plane {
     position: relative;
@@ -347,14 +351,23 @@
 
 }
 
+@media screen and (min-width: 768px) {
+  .rm-layout {
+    grid-template-columns: minmax(0, 1fr) 13rem;
+    column-gap: 2rem;
+  }
+  .rm-sidebar { grid-column: 2; }
+}
+
 @media print {
   .site-header--toc { display: none; }
   .rm-article { margin-top: 0; }
   .rm-source { width: 100% !important; }
+  .rm-dismiss,
   .rm-reader,
+  .rm-sidebar,
   .rm-toolbar,
   .rm-toc,
   .rm-toggle,
-  .rm-overlap-control,
   .rm-ruler { display: none !important; }
 }

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { chromium } from "playwright-core";
+import { readingScrollbar } from "./reading-controls.mjs";
 
 const ARTICLE_URL = new URL("symmetric-polynomial/",
   process.env.RM_BASE_URL ?? "http://localhost:4321/dispositif/").href;
@@ -41,6 +42,31 @@ async function open(page) {
   await settle(page);
   await page.locator(".rm-viewport").focus();
 }
+
+test("先頭・末尾で外向きの矢印を押しても同じ位置へ再スクロールしない", { timeout: 45_000 }, async () => {
+  const browser = await chromium.launch({ executablePath: process.env.RM_BROWSER_PATH || undefined });
+  const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
+  try {
+    await open(page);
+    await page.locator(".rm-viewport").evaluate((v) => {
+      const original = v.scrollTo.bind(v);
+      window.edgeScrollWrites = 0;
+      v.scrollTo = (...args) => { window.edgeScrollWrites++; return original(...args); };
+    });
+    for (const [edge, arrow] of [["Home", "ArrowLeft"], ["End", "ArrowRight"]]) {
+      await page.keyboard.press(edge);
+      await settle(page);
+      const before = await state(page);
+      await page.evaluate(() => { window.edgeScrollWrites = 0; });
+      for (let i = 0; i < 4; i++) await page.keyboard.press(arrow);
+      await settle(page);
+      assert.equal(await page.evaluate(() => window.edgeScrollWrites), 0);
+      const after = await state(page);
+      assert.equal(after.x, before.x);
+      assert.equal(after.y, before.y);
+    }
+  } finally { await browser.close(); }
+});
 
 async function middle(page, phase = 100) {
   await page.keyboard.press("Home");
@@ -173,27 +199,33 @@ test("ヘッダーの横バーは3pxで下端に接し、本文の間隔は16px�
   } finally { await page.close(); await browser.close(); }
 });
 
-test("横バーのトラック余白を指定できない環境でも、本文は画面端まで流れ、バーは16px内側に残る", { timeout: 30_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.RM_BROWSER_PATH || undefined });
+test("標準の横バーの矢印はクリック・長押しで本文だけを動かし、端で止まる", { timeout: 30_000 }, async () => {
+  const browser = await chromium.launch({ executablePath: process.env.RM_BROWSER_PATH || undefined, ignoreDefaultArgs: ["--hide-scrollbars"] });
   const page = await browser.newPage({ viewport: { width: 390, height: 900 } });
   try {
-    await page.addInitScript(() => {
-      const supports = CSS.supports.bind(CSS);
-      CSS.supports = (...args) => args[0] === "selector(::-webkit-scrollbar)" ? false : supports(...args);
-    });
     await open(page);
-    assert.equal(await page.locator(".rm-scrollbar").isVisible(), true);
-    const bar = await page.locator(".rm-scrollbar").boundingBox();
-    assert.equal(bar.x, 16);
-    assert.equal(bar.width, 358);
-    const initialBar = await page.locator(".rm-scrollbar").evaluate((bar) => bar.scrollLeft);
-    await page.locator(".rm-scrollbar").evaluate((bar) => { bar.scrollLeft += 100; });
+    const bar = await readingScrollbar(page);
+    assert.equal(bar.height, 8);
+    const left = bar.x - 8, right = bar.x + bar.width + 8, y = bar.y + bar.height / 2;
+    const initial = await state(page);
+    await page.mouse.click(left, y); await settle(page);
+    assert.ok(Math.abs((await state(page)).x - initial.x) < 1, "先頭から左へ移動した");
+    await page.mouse.click(right, y);
+    await page.waitForFunction(() => document.querySelector(".rm-viewport").scrollLeft >= 39);
     await settle(page);
-    assert.ok(Math.abs((await state(page)).x - 100) < 2);
-    assert.equal(await page.evaluate(() => !!document.elementFromPoint(1, document.querySelector(".rm-viewport").getBoundingClientRect().top + 100)?.closest(".rm-slot")), true);
-    await page.locator(".rm-viewport").evaluate((v) => { v.scrollLeft += 40; });
-    await settle(page);
-    assert.ok(Math.abs(await page.locator(".rm-scrollbar").evaluate((bar) => bar.scrollLeft) - initialBar - 140) < 2);
-    assert.deepEqual(await page.locator(".rm-scrollbar").boundingBox(), bar);
+    const clicked = await state(page);
+    assert.ok(Math.abs(clicked.x - initial.x - 40) < 2, "標準の右矢印で少しずつ動かせない");
+    await page.mouse.move(right, y); await page.mouse.down();
+    await page.waitForTimeout(650); await page.mouse.up();
+    await page.waitForTimeout(200); await settle(page);
+    const held = await state(page);
+    assert.ok(held.x > clicked.x + 80, "標準ボタンの長押しで連続移動できない");
+    assert.ok(Math.abs(held.y - initial.y) < 1, "横操作で縦位置が変わった");
+    await page.waitForTimeout(150); await settle(page);
+    assert.ok(Math.abs((await state(page)).x - held.x) < 1, "ボタンを離しても移動し続ける");
+    await page.keyboard.press("End"); await settle(page);
+    const end = await state(page);
+    await page.mouse.click(right, y); await settle(page);
+    assert.ok(Math.abs((await state(page)).x - end.x) < 1, "末尾から右へ移動した");
   } finally { await page.close(); await browser.close(); }
 });

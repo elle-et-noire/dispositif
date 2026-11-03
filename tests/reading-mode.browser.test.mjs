@@ -104,46 +104,9 @@ async function assertPainted(page) {
   }
 }
 
-async function assertContextOverlap(page) {
+async function assertNoOverlap(page) {
   const state = await layout(page);
-  const overlap = state.h - state.step;
-  assert.ok(overlap > 0 && overlap <= state.h / 4);
-  const visible = state.slots.filter((slot) => slot.visible);
-  const samples = [];
-  const sample = (slot, offset) => {
-    const y = Math.floor(state.top + offset);
-    const t = slot.k * state.step + state.y + y + 0.5 - state.top - slot.contentShift;
-    if (t < 0 || t >= state.l || offset < slot.paperTop || offset >= slot.paperTop + slot.paperHeight) return;
-    samples.push({ x: slot.sampleX, y,
-      expected: COLORS[Math.floor(t / ROW_HEIGHT) % 2] });
-    return t;
-  };
-  for (const slot of visible) {
-    // The edge taper translates surviving duplicate context with its sheet.
-    // Matching viewport-edge samples apply to unchanged interior windows.
-    if (Math.abs(slot.contentShift) > .01) continue;
-    const from = slot.k * state.step + state.y;
-    const bottom = from + state.h < state.l ? sample(slot, state.step + overlap / 2) : undefined;
-    if (from > 0) sample(slot, overlap / 2);
-    const next = visible.find((other) => other.k === slot.k + 1);
-    if (next && bottom !== undefined && Math.abs(slot.contentShift) < .01 && Math.abs(next.contentShift) < .01) {
-      const top = next.k * state.step + state.y
-        + Math.floor(state.top + overlap / 2) + 0.5 - state.top - next.contentShift;
-      assert.ok(Math.abs(bottom - top) < 1, "上下端が同じ文脈を表示していない");
-    }
-  }
-  const pixels = await readPixels(page, samples);
-  for (let i = 0; i < samples.length; i++) {
-    const expected = samples[i].expected;
-    // Edge text should be gently softened, not erased or replaced with a band.
-    const alpha = (pixels[i][2] - expected[2]) / (248 - expected[2]);
-    assert.ok(alpha > 0.05 && alpha < 0.5, `文脈が薄すぎるか消えている: ${pixels[i]}`);
-    for (let channel = 0; channel < 3; channel++) {
-      const blended = expected[channel] * (1 - alpha) + 248 * alpha;
-      assert.ok(Math.abs(pixels[i][channel] - blended) < 5,
-        "重なり部分に別の本文が描画されている");
-    }
-  }
+  assert.equal(state.h - state.step, 0, "段の本文が重複している");
 }
 
 async function settle(page) {
@@ -225,7 +188,7 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
           assert.equal(Math.floor((negative.x - negative.leading + 0.01) / negative.p) + negative.origin, -1);
           assert.equal(negative.y, initial.step);
           await assertPainted(page);
-          await assertContextOverlap(page);
+          await assertNoOverlap(page);
           await page.keyboard.press("ArrowLeft");
           await settle(page);
           const beforePageUp = await layout(page);
@@ -250,12 +213,12 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
             initial.l - initial.h - 17]) {
             await scrollLogical(page, 0, y);
             await assertPainted(page);
-            await assertContextOverlap(page);
+            await assertNoOverlap(page);
           }
           // Recycling and diagonal movement must paint the right source rows too.
           await scrollLogical(page, 3, 220);
           await assertPainted(page);
-          await assertContextOverlap(page);
+          await assertNoOverlap(page);
 
           const beforeWheel = await layout(page);
           await page.mouse.move(beforeWheel.left + 100, beforeWheel.top + 100);
@@ -401,7 +364,7 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
               === document.querySelector(".rm-viewport").clientHeight);
           await settle(page);
           await assertPainted(page);
-          await assertContextOverlap(page);
+          await assertNoOverlap(page);
         } catch (error) {
           const path = join(tmpdir(), `dispositif-reading-paint-${viewport.width}.png`);
           await page.screenshot({ path }).catch(() => {});

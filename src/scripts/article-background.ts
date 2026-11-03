@@ -1,17 +1,40 @@
 // The list itself persists; its shell belongs to the destination page so inert
 // and aria-hidden change with the route rather than persisting stale attributes.
 const index = () => document.querySelector<HTMLElement>("[data-article-index]");
+const indexScrollport = () => document.querySelector<HTMLElement>(".article-index-shell");
 const isArticle = () => document.documentElement.dataset.pageKind === "article";
 let returningToIndex = false;
+let lastInput: "pointer" | "keyboard" = "keyboard";
+let returnByPointer = false;
+
+document.addEventListener("pointerdown", () => { lastInput = "pointer"; }, { capture: true, passive: true });
+document.addEventListener("keydown", (event) => {
+  if (["Shift", "Control", "Alt", "Meta"].includes(event.key)) return;
+  lastInput = "keyboard";
+  const focused = document.querySelector<HTMLElement>(".index-restored-pointer-focus:focus");
+  if (focused) {
+    focused.classList.remove("index-restored-pointer-focus");
+    focused.classList.add("index-restored-keyboard-focus");
+  }
+}, { capture: true });
+document.addEventListener("focusout", (event) => {
+  if (event.target instanceof HTMLElement) {
+    event.target.classList.remove("index-restored-pointer-focus", "index-restored-keyboard-focus");
+  }
+});
 
 const saveIndexPosition = () => {
   const list = index();
-  if (!list || isArticle()) return;
-  list.dataset.scrollY = String(window.scrollY);
-  list.style.setProperty("--article-index-offset", `${-window.scrollY}px`);
+  const scrollport = indexScrollport();
+  if (!list || !scrollport || isArticle()) return;
+  list.dataset.scrollY = String(scrollport.scrollTop);
+  list.style.setProperty("--article-index-offset", `${-scrollport.scrollTop}px`);
 };
 
-document.addEventListener("astro:before-preparation", saveIndexPosition);
+document.addEventListener("astro:before-preparation", () => {
+  if (isArticle()) returnByPointer = lastInput === "pointer";
+  saveIndexPosition();
+});
 
 document.addEventListener("astro:before-swap", () => {
   returningToIndex = isArticle();
@@ -27,10 +50,14 @@ const restoreIndex = () => {
     return;
   }
   if (!returningToIndex) return;
-  window.scrollTo({ top: Number(list.dataset.scrollY) || 0, behavior: "instant" });
+  indexScrollport()?.scrollTo({ top: Number(list.dataset.scrollY) || 0, behavior: "instant" });
   const link = Array.from(list.querySelectorAll<HTMLAnchorElement>("a[href]"))
     .find((item) => item.pathname === list.dataset.returnPath);
-  link?.focus({ preventScroll: true });
+  if (link) {
+    link.classList.toggle("index-restored-pointer-focus", returnByPointer);
+    link.classList.toggle("index-restored-keyboard-focus", !returnByPointer);
+    link.focus({ preventScroll: true });
+  }
 };
 
 document.addEventListener("astro:after-swap", restoreIndex);
@@ -53,16 +80,19 @@ document.addEventListener("click", (event) => {
     || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
   const target = event.target instanceof Element ? event.target : null;
   if (!target?.closest(".rm-article")
-    || target.closest("a, button, input, select, textarea, summary, .rm-scrollbar")) return;
+    || target.closest("a, button, input, select, textarea, summary")) return;
   const viewport = document.querySelector<HTMLElement>(".rm-viewport");
   if (!viewport || !press || press.selected || !window.getSelection()?.isCollapsed
     || Math.hypot(event.clientX - press.x, event.clientY - press.y) > 5
     || Math.abs(viewport.scrollLeft - press.scrollX) > 1
     || Math.abs(viewport.scrollTop - press.scrollY) > 1) return;
-  // Native scrollbar events target the viewport too. Keep that strip operable.
+  // Native scrollbar events target the viewport too. Keep both strips operable.
   const frame = viewport.getBoundingClientRect();
   const scale = frame.height / viewport.offsetHeight;
-  if (event.clientY >= frame.top + viewport.clientHeight * scale && event.clientY <= frame.bottom) return;
+  if (event.clientX >= frame.left && event.clientX <= frame.right
+    && event.clientY >= frame.top && event.clientY <= frame.bottom
+    && (event.clientX >= frame.left + viewport.clientWidth * scale
+      || event.clientY >= frame.top + viewport.clientHeight * scale)) return;
   const onPaper = Array.from(document.querySelectorAll<HTMLElement>(".rm-paper"))
     .some((paper) => {
       const rect = paper.getBoundingClientRect();
@@ -86,5 +116,5 @@ document.addEventListener("click", (event) => {
       return true;
     });
   if (onPaper) return;
-  document.querySelector<HTMLAnchorElement>(".rm-backdrop")?.click();
+  document.querySelector<HTMLAnchorElement>(".rm-dismiss")?.click();
 });

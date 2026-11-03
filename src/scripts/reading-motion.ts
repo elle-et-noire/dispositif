@@ -50,7 +50,10 @@ export class ReadingMotion {
     const to = horizontalDestination(this.current(), target.x, geometry);
     const from = this.current();
     this.reset();
-    if (this.reducedMotion.matches || from.x === to.x) {
+    // An arrow pressed against an edge has no destination change. Avoid a
+    // forced native scroll and a full presentation update for the same point.
+    if (from.x === to.x) return;
+    if (this.reducedMotion.matches) {
       this.move(to);
       return;
     }

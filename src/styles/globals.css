@@ -19,6 +19,23 @@
   --note-shadow: 0 0 3px 0 rgb(128 128 128 / 50%);
 }
 
+@media screen {
+  html[data-page-kind="index"],
+  html[data-page-kind="index"] body { height: 100%; overflow: hidden; }
+  [data-page-kind="index"] main {
+    display: flex;
+    flex-direction: column;
+    height: 100svh;
+    padding-bottom: 0;
+  }
+  [data-page-kind="index"] [data-site-header] { position: relative; z-index: 1; flex: none; }
+  [data-page-kind="index"] .article-index-shell { flex: 1; min-height: 0; overflow: auto; }
+  [data-page-kind="index"] [data-article-index] { padding-top: 1.75rem; }
+  @media (min-width: 768px) {
+    [data-page-kind="index"] [data-article-index] { padding-top: 1.5rem; }
+  }
+}
+
 /* Keep the same list mounted while the note scrolls independently above it. */
 [data-page-kind="article"] .article-index-shell {
   position: fixed;
@@ -52,10 +69,12 @@ body {
   border-color: var(--color-gray-200, currentcolor);
 }
 
-:focus-visible {
+:focus-visible,
+.index-restored-keyboard-focus:focus {
   outline: 2px solid #2e8cfe;
   outline-offset: 2px;
 }
+.index-restored-pointer-focus:focus { outline: none; }
 
 @media (prefers-reduced-motion: reduce) {
   *,

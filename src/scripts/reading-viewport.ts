@@ -61,11 +61,16 @@ export class ReadingViewport {
     // A write is acknowledged by its REALIZED offsets, never fed back as input.
     this.observe();
     const view = cssGeometry(layout, point, next, this.lastX, this.lastY, this.unit);
-    this.plane.dataset.rmOriginColumn = String(view.originColumn);
-    this.plane.dataset.rmOriginY = String(view.originY);
-    this.plane.dataset.rmLeading = String(view.leading);
-    this.plane.dataset.rmXTicks = String(point.x);
-    this.plane.dataset.rmYTicks = String(point.y);
+    const data = this.plane.dataset;
+    const update = (key: string, value: number) => {
+      const text = String(value);
+      if (data[key] !== text) data[key] = text;
+    };
+    update("rmOriginColumn", view.originColumn);
+    update("rmOriginY", view.originY);
+    update("rmLeading", view.leading);
+    update("rmXTicks", point.x);
+    update("rmYTicks", point.y);
     return view;
   }
 }

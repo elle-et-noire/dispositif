@@ -197,6 +197,9 @@ const { headings, variant = "header" } = Astro.props;
         .map((item) => document.getElementById(item.dataset.tocId ?? ""))
         .filter((heading): heading is HTMLElement => heading !== null);
 
+      const articleScrollport = document.querySelector<HTMLElement>(".rm-article-scrollport");
+      const pageScroller = articleScrollport ?? document.scrollingElement!;
+
       const activeOffset = () => headings[0]
         ? (Number.parseFloat(getComputedStyle(headings[0]).scrollMarginTop) || 64) + 1
         : 64;
@@ -221,6 +224,7 @@ const { headings, variant = "header" } = Astro.props;
       const observer = new IntersectionObserver(
         syncActiveToScrollPosition,
         {
+          root: articleScrollport,
           rootMargin: `-${activeOffset()}px 0px -70% 0px`,
         },
       );
@@ -305,11 +309,11 @@ const { headings, variant = "header" } = Astro.props;
         }
 
         return new Promise<void>((resolve) => {
-          const startY = window.scrollY;
+          const startY = pageScroller.scrollTop;
           const scrollMarginTop =
             Number.parseFloat(getComputedStyle(heading).scrollMarginTop) || 0;
           const maximumY =
-            document.documentElement.scrollHeight - window.innerHeight;
+            pageScroller.scrollHeight - pageScroller.clientHeight;
           const targetY = Math.min(
             Math.max(
               0,
@@ -325,7 +329,7 @@ const { headings, variant = "header" } = Astro.props;
               (time - startTime) / TOC_SCROLL_DURATION,
               1,
             );
-            window.scrollTo({
+            pageScroller.scrollTo({
               top: startY + distance * easeOutCubic(progress),
               behavior: "auto",
             });
