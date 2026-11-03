@@ -14,6 +14,25 @@
 :root {
   color: #171717;
   font-family: var(--font-sans);
+  --note-surface: #f8f8f8;
+  --note-radius: 0.5rem;
+  --note-shadow: 0 0 3px 0 rgb(128 128 128 / 50%);
+}
+
+/* Keep the same list mounted while the note scrolls independently above it. */
+[data-page-kind="article"] .article-index-shell {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+[data-page-kind="article"] [data-article-index] {
+  transform: translateY(var(--article-index-offset, 0px));
+}
+
+@media print {
+  [data-page-kind="article"] :is(.article-index-shell, .rm-backdrop) { display: none; }
 }
 
 html,
@@ -45,7 +64,7 @@ body {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     scroll-behavior: auto !important;
-    transition-duration: 0.01ms !important;
+    transition-duration: 0s !important;
   }
 }
 
@@ -70,7 +89,7 @@ body {
   content: "»";
 }
 
-.site-header--toc {
+.rm-active .site-header--toc {
   z-index: 40;
   padding: 0;
   text-align: left;
@@ -78,9 +97,13 @@ body {
 }
 
 .toc-header {
+  display: none;
   width: 100%;
   min-width: 0;
 }
+
+.toc-header-row { display: contents; }
+.toc-scroll-arrow { display: none; }
 
 .toc-toggle {
   display: flex;
@@ -98,7 +121,6 @@ body {
 .toc-header[open] .toc-chevron { transform: rotate(180deg); }
 
 .toc-header-scroll {
-  --toc-heading-height: min(12rem, 35dvh);
   position: absolute;
   top: 100%;
   left: 0;
@@ -144,15 +166,14 @@ body {
   line-height: 1.5;
 }
 
-.rm-toc,
-.site-article-index { display: none; }
+.rm-active .site-header--toc .site-article-index { display: none; }
 
 .toc-sidebar {
   position: sticky;
-  top: 5rem;
+  top: 1rem;
   display: flex;
   flex-direction: column;
-  max-height: calc(100dvh - 6rem);
+  max-height: calc(100svh - 2rem);
   padding-top: 1rem;
   font-family: var(--font-system);
   font-size: 1rem;
@@ -184,40 +205,108 @@ body {
   padding-inline-start: 1rem;
 }
 
+/* Match main's article-local mobile disclosure and desktop sidebar. */
+.rm-mobile-toc { display: block; position: static; visibility: visible; }
+.toc-mobile-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 2rem;
+  list-style: none;
+  color: #324e73;
+  cursor: pointer;
+}
+.toc-mobile-toggle::-webkit-details-marker { display: none; }
+.toc-mobile-toggle svg { transition: transform 150ms; }
+.rm-mobile-toc[open] .toc-mobile-toggle svg { transform: rotate(180deg); }
+.toc-mobile-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.5rem);
+  display: flex;
+  flex-direction: column;
+  width: min(13rem, calc(100vw - 2rem));
+  max-height: calc(100svh - 6rem);
+  overflow: hidden;
+  border-radius: 0.375rem;
+  background: #f8f8f8;
+  font-family: var(--font-system);
+  font-size: 1rem;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 25%);
+}
+.toc-mobile-panel .toc-sidebar-title { width: 100%; }
 @media screen and (min-width: 768px) {
-  html:not(.rm-active) .article-with-toc {
-    max-width: 68rem;
-    padding-inline: 4rem 1rem;
-  }
-
-  html:not(.rm-active) .article-with-toc .rm-layout {
-    grid-template-columns: minmax(0, 48rem) 13rem;
-    gap: 0;
-  }
-
-  html:not(.rm-active) .rm-toc { display: block; padding-left: 1rem; }
-  html:not(.rm-active) .site-header--toc .toc-header { display: none; }
-  html:not(.rm-active) .site-article-index {
-    display: block;
-    height: 3.5rem;
-    color: inherit;
-    font-size: 1.25rem;
-    line-height: 3.5rem;
-    text-align: center;
-    text-decoration: underline;
-    text-decoration-color: #fde047;
-    text-decoration-thickness: 4px;
-    text-underline-offset: 0.5rem;
-  }
+  .rm-mobile-toc { display: none; }
 }
 
 @media screen {
+  .rm-active .toc-header { display: block; min-height: 3.5rem; }
+  .rm-active .toc-toggle { display: none; }
+
+  .rm-active .toc-header-row {
+    --toc-scrollbar-size: 3px;
+    --toc-arrow-size: 12px;
+    --toc-content-offset: 0.5rem;
+    display: grid;
+    grid-template-columns: 32px minmax(0, 1fr) 32px;
+    height: 3.5rem;
+  }
+
+  .rm-active .toc-scroll-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    align-self: start;
+    width: 32px;
+    height: 2.25rem;
+    margin-top: var(--toc-content-offset);
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #64748b;
+    cursor: pointer;
+    touch-action: none;
+  }
+  .rm-active .toc-scroll-arrow svg {
+    display: block;
+    flex: none;
+    width: calc(var(--toc-arrow-size) * 0.8660254);
+    height: var(--toc-arrow-size);
+  }
+  .rm-active .toc-scroll-arrow:is(:hover, :focus-visible) { color: #324e73; }
+  .rm-active .toc-scroll-arrow:disabled { visibility: hidden; }
+
   .rm-active .toc-header-scroll {
+    --toc-scrollbar-thumb: #8290a2;
+    position: static;
+    min-width: 0;
     display: flex;
     align-items: flex-start;
+    height: 3.5rem;
     max-height: none;
     overflow-x: auto;
     overflow-y: hidden;
+    padding: calc(0.25rem + var(--toc-content-offset)) 0 0;
+    box-shadow: none;
+    scrollbar-width: thin;
+    scrollbar-color: var(--toc-scrollbar-thumb) transparent;
+  }
+
+  .rm-active .toc-header-scroll:is(:hover, :focus-within, :focus-visible) {
+    --toc-scrollbar-thumb: #64748b;
+  }
+  @supports selector(::-webkit-scrollbar) {
+    /* Standard thin/color settings override these per-axis styles in Chromium. */
+    .rm-active .toc-header-scroll { scrollbar-width: auto; scrollbar-color: auto; }
+    .rm-active .toc-header-scroll::-webkit-scrollbar { height: var(--toc-scrollbar-size); }
+    .rm-active .toc-header-scroll::-webkit-scrollbar-track { background: transparent; margin: 0; }
+    .rm-active .toc-header-scroll::-webkit-scrollbar-thumb {
+      background: var(--toc-scrollbar-thumb);
+      border: 0;
+      border-radius: 0;
+    }
+    .rm-active .toc-header-scroll::-webkit-scrollbar-button { display: none; }
   }
 
   .rm-active .toc-list {
@@ -233,13 +322,15 @@ body {
 
   .rm-active .toc-list-item .toc-link {
     display: block;
-    writing-mode: vertical-rl;
-    height: var(--toc-heading-height);
-    width: max-content;
+    writing-mode: horizontal-tb;
+    height: 100%;
+    width: auto;
+    padding: 0.125rem 0.5rem;
+    line-height: 1.5rem;
     border-inline-start: 0;
-    border-inline-end: 4px solid var(--color-gray-200, #e5e7eb);
-    white-space: normal;
-    overflow-wrap: anywhere;
+    border-bottom: 3px solid var(--color-gray-200, #e5e7eb);
+    white-space: nowrap;
+    overflow-wrap: normal;
   }
 }
 
@@ -253,7 +344,7 @@ body {
 }
 
 .rm-active .is-active-li > .toc-link {
-  border-inline-end-color: #324e73;
+  border-bottom-color: #324e73;
 }
 
 .batsu {
@@ -292,7 +383,7 @@ body {
 
 .post :is(h2, h3),
 .post [id^="mjx-eqn:"] {
-  scroll-margin-top: calc(3.5rem + 1rem);
+  scroll-margin-top: 1.5rem;
 }
 
 .post a {

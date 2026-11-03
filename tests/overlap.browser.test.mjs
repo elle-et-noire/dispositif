@@ -1,3 +1,4 @@
+import { openReadingSettings, toggleReadingMode } from "./reading-controls.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { chromium } from "playwright-core";
@@ -15,7 +16,7 @@ async function state(page) {
     const originColumn = Number(document.querySelector(".rm-plane").dataset.rmOriginColumn);
     const originY = parseFloat(document.querySelector(".rm-plane").dataset.rmOriginY);
     return {
-      t: (Math.floor((viewport.scrollLeft + 0.01) / p) + originColumn) * step + viewport.scrollTop + originY,
+      t: (Math.floor((viewport.scrollLeft - Number(plane.dataset.rmLeading) + 0.01) / p) + originColumn) * step + viewport.scrollTop + originY,
       overlap: viewport.clientHeight - step,
       max: Number(input.max),
       value: input.valueAsNumber,
@@ -43,7 +44,8 @@ test("本文の重なりをpx単位で変更・保存できる", { timeout: 90_0
           await page.addInitScript(() => localStorage.setItem("dispositif:reading-mode", "multi"));
           await page.goto(ARTICLE_URL, { waitUntil: "domcontentloaded" });
           await page.evaluate(() => document.fonts.ready);
-          await page.waitForSelector("html.rm-active [data-rm-overlap]");
+          await page.waitForSelector("html.rm-active .rm-settings-toggle");
+          await openReadingSettings(page);
           const input = page.locator("[data-rm-overlap]");
           assert.equal(await input.count(), 1);
           assert.equal(await input.getAttribute("step"), "1");
@@ -54,7 +56,7 @@ test("本文の重なりをpx単位で変更・保存できる", { timeout: 90_0
             const p = parseFloat(style.getPropertyValue("--rm-p"));
             const origin = Number(document.querySelector(".rm-plane").dataset.rmOriginColumn);
             const y = parseFloat(document.querySelector(".rm-plane").dataset.rmOriginY);
-            viewport.scrollTo({ left: (3 - origin) * p + 73, top: 143 - y, behavior: "instant" });
+            viewport.scrollTo({ left: (3 - origin) * p + 73 + Number(document.querySelector(".rm-plane").dataset.rmLeading), top: 143 - y, behavior: "instant" });
           });
           await page.evaluate(async () => {
             await new Promise(requestAnimationFrame);
@@ -79,9 +81,10 @@ test("本文の重なりをpx単位で変更・保存できる", { timeout: 90_0
           await waitForOverlap(page, 0);
           assert.ok(Math.abs((await state(page)).t - before.t) < 1);
           assert.equal(await page.locator(".rm-slot").first().evaluate((slot) =>
-            getComputedStyle(slot, "::after").height), "0px");
+            getComputedStyle(slot.querySelector(".rm-shade"), "::after").height), "0px");
           await page.reload({ waitUntil: "domcontentloaded" });
           await waitForOverlap(page, 0);
+          await openReadingSettings(page);
 
           await input.fill("9999");
           await page.waitForFunction(() => {
@@ -101,9 +104,9 @@ test("本文の重なりをpx単位で変更・保存できる", { timeout: 90_0
           await page.setViewportSize({ width, height: 900 });
           await waitForOverlap(page, maximum);
 
-          await page.locator(".rm-toggle").click();
+          await toggleReadingMode(page);
           assert.equal(await input.isVisible(), false);
-          await page.locator(".rm-toggle").click();
+          await toggleReadingMode(page);
           await waitForOverlap(page, maximum);
           await page.locator(".rm-toolbar > a").click();
           await page.waitForURL(BASE_URL);
@@ -134,8 +137,9 @@ test("本文の重なりをpx単位で変更・保存できる", { timeout: 90_0
           };
         });
         await page.goto(ARTICLE_URL, { waitUntil: "domcontentloaded" });
-        await page.waitForSelector("html.rm-ready .rm-toggle");
-        await page.locator(".rm-toggle").click();
+        await page.waitForSelector("html.rm-ready > body .rm-toolbar > .rm-toggle");
+        await toggleReadingMode(page);
+        await openReadingSettings(page);
         await page.locator("[data-rm-overlap]").fill("17");
         await waitForOverlap(page, 17);
         assert.deepEqual(errors, []);

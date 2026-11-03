@@ -1,11 +1,66 @@
 :root {
   --rm-column-width: min(38em, calc(100vw - 2rem));
-  --rm-gap: 2rem;
+  --rm-gap: 1rem;
+  --rm-edge-space: 1rem;
   --rm-column-padding: clamp(1rem, 2vw, 1.5rem);
-  --rm-reader-space: clamp(0.5rem, 1.25dvh, 0.75rem);
+  --rm-reader-space: 1rem;
   --rm-context-overlap: 0.75lh;
-  --rm-surface: #f8f8f8;
+  --rm-surface: var(--note-surface);
   --rm-ink: #324e73;
+}
+
+.rm-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.5rem;
+  padding-top: 1rem;
+  visibility: hidden;
+  color: var(--rm-ink);
+  font: 500 0.85rem/1.5 var(--font-system);
+}
+
+.rm-settings { position: relative; display: none; visibility: visible; }
+.rm-ready.rm-active .rm-settings { display: block; }
+.rm-settings-toggle {
+  display: flex;
+  align-items: center;
+  min-height: 2rem;
+  padding-inline: 0.5rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.35rem;
+  background: var(--rm-surface);
+  list-style: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.rm-settings-toggle::-webkit-details-marker { display: none; }
+.rm-settings-panel {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+  width: max-content;
+  max-width: calc(100vw - 2rem);
+  padding: 0.875rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.4rem;
+  background: var(--rm-surface);
+  box-shadow: 0 3px 10px rgb(0 0 0 / 15%);
+}
+.rm-close { display: block; height: 2rem; flex: none; visibility: visible; }
+.rm-jump-controls { display: none; gap: 0.75rem; }
+.rm-jump-controls button {
+  padding: 0.25rem 0.5rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.25rem;
+  cursor: pointer;
 }
 
 .rm-toggle {
@@ -53,6 +108,7 @@
   margin-right: var(--rm-gap);
   height: var(--rm-gap);
   padding-top: var(--rm-context-overlap);
+  padding-right: var(--rm-edge-space);
   overflow: hidden;
   visibility: hidden;
   pointer-events: none;
@@ -62,15 +118,36 @@
 
 .rm-reader[hidden] { display: none; }
 
+.rm-article {
+  border-radius: var(--note-radius);
+  background: var(--note-surface);
+  box-shadow: var(--note-shadow);
+}
+
 @media screen {
   .rm-active .rm-overlap-control { display: inline-flex; }
+  .rm-active .rm-jump-controls { display: flex; }
+  .rm-active :is(.rm-toc, .rm-mobile-toc) { display: none; }
 
   html.rm-active,
   .rm-active body { overflow: hidden; }
 
-  .rm-active [data-site-header] { z-index: 40; }
-  .rm-active .rm-backdrop { display: none; }
-
+  .rm-active [data-site-header] {
+    z-index: 40;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 3.5rem;
+    padding: 0;
+  }
+  .rm-active [data-site-header] > :not(.rm-toolbar) { flex: 1; min-width: 0; }
+  .rm-active [data-site-header] > .rm-toolbar {
+    position: relative;
+    top: auto;
+    right: auto;
+    flex: none;
+    padding: 0 1rem 0 0;
+  }
   .rm-active .rm-article {
     position: fixed;
     inset: var(--rm-header-height, 3rem) 0 0;
@@ -82,15 +159,7 @@
     padding: 0;
     border-radius: 0;
     background: transparent;
-  }
-
-  .rm-active .rm-toolbar {
-    position: relative;
-    top: 0;
-    flex: none;
-    flex-wrap: wrap;
-    padding: 0.4rem 1rem;
-    background: var(--rm-surface);
+    box-shadow: none;
   }
 
   .rm-active .rm-layout {
@@ -111,9 +180,9 @@
     margin-top: var(--rm-column-padding);
   }
 
-  /* Keep the original accessible and laid out at exactly W for measurement.
-     Do not use display:none, visibility:hidden, or aria-hidden here. */
-  .rm-active .rm-source {
+  /* Measure the original at exactly W before mounting it as a visible column.
+     It keeps its IDs and accessibility tree, including while being measured. */
+  .rm-active .rm-source:not(.rm-content) {
     position: fixed;
     top: 0;
     left: 0;
@@ -130,7 +199,8 @@
     grid-row: 1;
     min-width: 0;
     min-height: 0;
-    margin-inline: 1rem;
+    overflow: clip;
+    margin-inline: 0;
     margin-block: var(--rm-reader-space);
   }
 
@@ -143,6 +213,35 @@
     overflow-anchor: none;
     scrollbar-color: #94a3b8 transparent;
   }
+
+  /* Keep native two-axis scrolling and the horizontal scrollbar. Only the
+     vertical scrollbar's gutter disappears, giving its width to the columns. */
+  @supports selector(::-webkit-scrollbar) {
+    .rm-viewport { scrollbar-color: auto; }
+    .rm-viewport::-webkit-scrollbar { width: 0; height: 12px; }
+    .rm-viewport::-webkit-scrollbar-thumb {
+      border-radius: 6px;
+      background: #94a3b8;
+    }
+    .rm-viewport::-webkit-scrollbar-track { background: transparent; }
+    .rm-viewport::-webkit-scrollbar-track:horizontal { margin: 0 var(--rm-edge-space); }
+  }
+
+  /* Firefox has no per-axis track margins. Keep its native horizontal bar in
+     a narrow sibling control, leaving the text viewport free to reach x=0. */
+  .rm-scrollbar-proxy .rm-viewport { height: calc(100% - 12px); scrollbar-width: none; }
+  .rm-scrollbar {
+    position: absolute;
+    inset: auto var(--rm-edge-space) 0;
+    height: 12px;
+    overflow-x: scroll;
+    overflow-y: hidden;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: #94a3b8 transparent;
+  }
+  .rm-scrollbar[hidden] { display: none; }
+  .rm-scrollbar-plane { height: 1px; }
 
   .rm-plane {
     position: relative;
@@ -164,7 +263,7 @@
     /* Clip on the rail, which moves with the native scroll plane. A clip on
        the sticky window can retain its old paint bounds and discard incoming
        text even though the text's bounding rectangle has moved correctly. */
-    clip-path: inset(0);
+    clip-path: inset(0 -4px);
   }
 
   .rm-slot {
@@ -172,10 +271,21 @@
     top: 0;
     width: var(--rm-w);
     height: var(--rm-h);
-    background: var(--rm-surface);
-    border-radius: 0.25rem;
+    isolation: isolate;
     /* The shared viewport clips all windows vertically to exactly H. Keep this
        sticky box unclipped so the plane-relative text can keep painting. */
+  }
+
+  /* A separate sibling keeps surface updates out of the MathJax tree. */
+  .rm-paper {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    z-index: -1;
+    background: var(--rm-surface);
+    border-radius: 0;
+    box-shadow: var(--note-shadow);
+    pointer-events: none;
   }
 
   .rm-content {
@@ -189,8 +299,19 @@
     font-family: var(--font-noto-sans);
   }
 
-  .rm-slot::before,
-  .rm-slot::after {
+  /* Clip overlap shading to the same paper bounds, including tiny tails. */
+  .rm-shade {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    overflow: hidden;
+    border-radius: 0;
+    z-index: 2;
+    pointer-events: none;
+  }
+
+  .rm-shade::before,
+  .rm-shade::after {
     position: absolute;
     right: 0;
     left: 0;
@@ -200,17 +321,29 @@
     pointer-events: none;
   }
 
-  .rm-slot::before {
-    top: 0;
+  .rm-shade::before {
+    top: var(--rm-shade-top, 0px);
     background: linear-gradient(color-mix(in srgb, var(--rm-surface) 45%, transparent), transparent);
   }
 
-  .rm-slot::after {
-    bottom: 0;
+  .rm-shade::after {
+    bottom: var(--rm-shade-bottom, 0px);
     background: linear-gradient(transparent, color-mix(in srgb, var(--rm-surface) 45%, transparent));
   }
 
-  .rm-slot[data-rm-k="0"]::before { display: none; }
+  .rm-slot[data-rm-head] .rm-shade::before,
+  .rm-slot[data-rm-tail] .rm-shade::after { display: none; }
+
+  /* Keep changing edge styles on the surface siblings. Inherited custom
+     properties on the slot would invalidate the entire MathJax subtree. */
+  .rm-slot[data-rm-head] > :is(.rm-paper, .rm-shade) {
+    border-top-left-radius: var(--note-radius);
+    border-top-right-radius: var(--note-radius);
+  }
+  .rm-slot[data-rm-tail] > :is(.rm-paper, .rm-shade) {
+    border-bottom-left-radius: var(--note-radius);
+    border-bottom-right-radius: var(--note-radius);
+  }
 
 }
 
@@ -219,6 +352,7 @@
   .rm-article { margin-top: 0; }
   .rm-source { width: 100% !important; }
   .rm-reader,
+  .rm-toolbar,
   .rm-toc,
   .rm-toggle,
   .rm-overlap-control,

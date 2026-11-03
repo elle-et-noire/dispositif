@@ -1,14 +1,7 @@
 ---
 import Layout from "@layouts/Layout.astro";
-import PostCard from "@components/PostCard.astro";
-import { getAllPosts } from "@lib/post";
-
-const posts = getAllPosts();
 ---
 
 <Layout>
   <h1 class="sr-only">記事一覧</h1>
-  <div class="mx-auto flex w-full flex-col items-center gap-3 px-2 pb-16 pt-20 md:w-[48rem]">
-    {posts.map((post) => <PostCard slug={post.slug} data={post.data} />)}
-  </div>
 </Layout>

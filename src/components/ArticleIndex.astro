@@ -1,0 +1,18 @@
+---
+import PostCard from "./PostCard.astro";
+import { getAllPosts } from "@lib/post";
+
+const posts = getAllPosts();
+---
+
+<div
+  data-article-index
+  transition:persist="article-index"
+  class="mx-auto flex w-full flex-col items-center gap-3 px-2 pb-16 pt-20 md:w-[48rem]"
+>
+  {posts.map((post) => <PostCard slug={post.slug} data={post.data} />)}
+</div>
+
+<script>
+  import "../scripts/article-background";
+</script>

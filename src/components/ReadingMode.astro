@@ -7,9 +7,12 @@ import "@styles/reading-mode.css";
     class="rm-viewport"
     tabindex="0"
     role="region"
-    aria-label="n段の読書領域。左右キーで段移動、PageDown・Spaceで先へ、Home・Endで先頭・末尾へ"
+    aria-label="n段の読書領域。上下にスクロールできます。左右キーで段移動、PageDown・Spaceで先へ、PageUp・Shift+Spaceで前へ、Home・Endで先頭・末尾へ"
   >
     <div class="rm-plane"></div>
+  </div>
+  <div class="rm-scrollbar" hidden tabindex="0" role="group" aria-label="本文の横スクロール">
+    <div class="rm-scrollbar-plane"></div>
   </div>
 </div>
 <div class="rm-ruler" aria-hidden="true"><div></div></div>

@@ -4,7 +4,7 @@ import TocList from "./TocList.astro";
 
 interface Props {
   headings: Heading[];
-  variant?: "header" | "sidebar";
+  variant?: "header" | "sidebar" | "mobile";
 }
 
 const { headings, variant = "header" } = Astro.props;
@@ -18,6 +18,20 @@ const { headings, variant = "header" } = Astro.props;
         <TocList headings={headings} />
       </div>
     </nav>
+  ) : variant === "mobile" ? (
+    <details data-toc data-toc-variant="mobile" class="rm-mobile-toc not-prose">
+      <summary class="toc-mobile-toggle" aria-label="目次を開閉">
+        <svg aria-hidden="true" viewBox="0 0 30 30" width="30" height="30">
+          <path d="m5 10 10 10 10-10" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" />
+        </svg>
+      </summary>
+      <nav aria-label="目次" class="toc-mobile-panel">
+        <h2 class="toc-sidebar-title">目次</h2>
+        <div class="toc toc-scrollable toc-sidebar-scroll" data-toc-scroll tabindex="0" role="group" aria-label="目次の縦スクロール">
+          <TocList headings={headings} />
+        </div>
+      </nav>
+    </details>
   ) : (
     <details
       data-toc
@@ -30,14 +44,23 @@ const { headings, variant = "header" } = Astro.props;
           <path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" />
         </svg>
       </summary>
-      <nav
-        aria-label="目次"
-        class="toc toc-scrollable toc-header-scroll"
-        data-toc-scroll
-        tabindex="0"
-      >
-        <TocList headings={headings} />
-      </nav>
+      <div class="toc-header-row">
+        <button class="toc-scroll-arrow" data-toc-direction="-1" type="button" aria-label="目次を左へスクロール" aria-controls="toc-header-scroll" disabled>
+          <svg aria-hidden="true" viewBox="0 0 0.8660254 1"><polygon points="0,0.5 0.8660254,0 0.8660254,1" fill="currentColor" /></svg>
+        </button>
+        <nav
+          id="toc-header-scroll"
+          aria-label="目次"
+          class="toc toc-scrollable toc-header-scroll"
+          data-toc-scroll
+          tabindex="0"
+        >
+          <TocList headings={headings} />
+        </nav>
+        <button class="toc-scroll-arrow" data-toc-direction="1" type="button" aria-label="目次を右へスクロール" aria-controls="toc-header-scroll" disabled>
+          <svg aria-hidden="true" viewBox="0 0 0.8660254 1"><polygon points="0.8660254,0.5 0,0 0,1" fill="currentColor" /></svg>
+        </button>
+      </div>
     </details>
   ))
 }
@@ -60,13 +83,72 @@ const { headings, variant = "header" } = Astro.props;
       const disclosure = nav instanceof HTMLDetailsElement ? nav : null;
       const isHorizontal = () => nav.dataset.tocVariant === "header"
         && document.documentElement.classList.contains("rm-active");
-      const close = () => { if (disclosure) disclosure.open = false; };
+      let readingOpen = false;
+      const syncReadingDisclosure = () => {
+        if (!disclosure) return;
+        if (isHorizontal()) {
+          readingOpen = true;
+          disclosure.open = true;
+        } else if (readingOpen) {
+          readingOpen = false;
+          disclosure.open = false;
+        }
+      };
+      const close = () => { if (disclosure && !isHorizontal()) disclosure.open = false; };
 
       const items = Array.from(
         nav.querySelectorAll<HTMLLIElement>("[data-toc-id]"),
       );
       const scrollContainer =
         nav.querySelector<HTMLElement>("[data-toc-scroll]");
+      const arrows = Array.from(nav.querySelectorAll<HTMLButtonElement>("[data-toc-direction]"));
+      const syncArrows = () => {
+        if (!scrollContainer) return;
+        const maximum = scrollContainer.scrollWidth - scrollContainer.clientWidth;
+        arrows.forEach((button) => {
+          button.disabled = !isHorizontal() || maximum <= 1
+            || (button.dataset.tocDirection === "-1"
+              ? scrollContainer.scrollLeft <= 1 : scrollContainer.scrollLeft >= maximum - 1);
+        });
+      };
+      let repeatDelay = 0;
+      let repeatTimer = 0;
+      let repeatedButton: HTMLButtonElement | undefined;
+      const stopRepeat = () => {
+        window.clearTimeout(repeatDelay);
+        window.clearInterval(repeatTimer);
+      };
+      arrows.forEach((button) => {
+        const move = (continuous = false) => {
+          if (!scrollContainer || button.disabled || !isHorizontal()) { stopRepeat(); return; }
+          scrollContainer.scrollBy({ left: Number(button.dataset.tocDirection) * (continuous ? 24 : 100),
+            behavior: continuous || matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
+        };
+        // Use click for ordinary activation regardless of the input device.
+        // Only a completed hold consumes its following pointer-generated click.
+        button.addEventListener("click", (event) => {
+          const repeated = event.detail > 0 && repeatedButton === button;
+          repeatedButton = undefined;
+          stopRepeat();
+          if (!repeated) move();
+        }, { signal });
+        button.addEventListener("pointerdown", (event) => {
+          if (event.button !== 0) return;
+          stopRepeat();
+          repeatedButton = undefined;
+          repeatDelay = window.setTimeout(() => {
+            repeatedButton = button;
+            move(true);
+            repeatTimer = window.setInterval(() => move(true), 40);
+          }, 300);
+        }, { signal });
+        button.addEventListener("pointerleave", stopRepeat, { signal });
+        button.addEventListener("lostpointercapture", stopRepeat, { signal });
+      });
+      window.addEventListener("pointerup", stopRepeat, { signal });
+      window.addEventListener("pointercancel", stopRepeat, { signal });
+      window.addEventListener("blur", stopRepeat, { signal });
+      scrollContainer?.addEventListener("scroll", syncArrows, { passive: true, signal });
       let active = "";
       let activeItem: HTMLLIElement | undefined;
 
@@ -144,7 +226,7 @@ const { headings, variant = "header" } = Astro.props;
       );
       headings.forEach((heading) => observer.observe(heading));
 
-      const resizeObserver = new ResizeObserver(revealActive);
+      const resizeObserver = new ResizeObserver(() => { revealActive(); syncArrows(); });
       if (scrollContainer) resizeObserver.observe(scrollContainer);
       const list = nav.querySelector(".toc-list");
       if (list) resizeObserver.observe(list);
@@ -158,7 +240,7 @@ const { headings, variant = "header" } = Astro.props;
         }
       }, { capture: true, signal });
       document.addEventListener("keydown", (event) => {
-        if (event.key !== "Escape" || !disclosure?.open) return;
+        if (isHorizontal() || event.key !== "Escape" || !disclosure?.open) return;
         event.preventDefault();
         close();
         summary?.focus({ preventScroll: true });
@@ -186,10 +268,18 @@ const { headings, variant = "header" } = Astro.props;
       }, { passive: false });
 
       const readingHeading = (event: Event) => {
+        syncReadingDisclosure();
         activate((event as CustomEvent<{ id: string }>).detail.id);
+        syncArrows();
+      };
+      const readingOff = () => {
+        syncReadingDisclosure();
+        syncActiveToScrollPosition();
+        stopRepeat();
+        syncArrows();
       };
       document.addEventListener("rm:heading", readingHeading);
-      document.addEventListener("rm:off", syncActiveToScrollPosition);
+      document.addEventListener("rm:off", readingOff);
 
       document.addEventListener(
         "astro:before-swap",
@@ -197,9 +287,10 @@ const { headings, variant = "header" } = Astro.props;
           observer.disconnect();
           resizeObserver.disconnect();
           controller.abort();
+          stopRepeat();
           window.cancelAnimationFrame(scrollAnimationFrame);
           document.removeEventListener("rm:heading", readingHeading);
-          document.removeEventListener("rm:off", syncActiveToScrollPosition);
+          document.removeEventListener("rm:off", readingOff);
         },
         { once: true },
       );
@@ -273,8 +364,8 @@ const { headings, variant = "header" } = Astro.props;
           if (!heading) return;
           event.preventDefault();
           close();
-          // Reading mode handles the native scroll plane during capture. Let
-          // this handler close the drawer without scrolling the document too.
+          // Reading mode handles the native plane during capture. Its header
+          // stays visible; only single-column reading uses a disclosure.
           if (document.documentElement.classList.contains("rm-active")) return;
           await scrollToHeading(heading);
           history.replaceState(history.state, "", `#${encodeURIComponent(id)}`);
