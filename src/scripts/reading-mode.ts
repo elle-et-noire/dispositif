@@ -1,4 +1,5 @@
 import type { ReadingGeometry } from "./reading-geometry";
+import type { ReadingLayout, ReadingPoint } from "./reading-coordinates";
 import { createLayout, fromCss, toCss, ticks, zero, paperWindow, slotColumns, visibleColumnCount,
   ReadingState, endPoint } from "./reading-coordinates";
 import { ReadingViewport } from "./reading-viewport";
@@ -7,6 +8,27 @@ import { ReadingMotion } from "./reading-motion";
 
 const STORAGE_KEY = "dispositif:reading-mode";
 let dispose: (() => void) | undefined;
+type HistoryPosition = {
+  mode: "single" | "multi"; position: number; point?: ReadingPoint; layout?: ReadingLayout;
+  anchor?: { path: number[]; ratio: number; width: number };
+  details?: boolean[];
+};
+const HISTORY_STORAGE_KEY = "dispositif:reading-history";
+const historyPositions = new Map<string, HistoryPosition>();
+try {
+  const saved: unknown = JSON.parse(sessionStorage.getItem(HISTORY_STORAGE_KEY) ?? "[]");
+  if (Array.isArray(saved)) for (const item of saved) {
+    if (Array.isArray(item) && typeof item[0] === "string" && item[1]
+      && ["single", "multi"].includes(item[1].mode) && Number.isFinite(item[1].position)) {
+      historyPositions.set(item[0], item[1] as HistoryPosition);
+    }
+  }
+} catch { /* session storage is optional */ }
+const persistHistoryPositions = () => {
+  try { sessionStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify([...historyPositions].slice(-100))); }
+  catch { /* reading remains available without storage */ }
+};
+window.addEventListener("pagehide", persistHistoryPositions);
 
 export function initializeReadingMode() {
   dispose?.();
@@ -23,6 +45,16 @@ export function initializeReadingMode() {
   const toolbarParent = toolbar?.parentNode;
   const toolbarNextSibling = toolbar?.nextSibling ?? null;
   if (!source || !articleScrollport || !viewport || !reader || !plane || !ruler || !toggle) return;
+
+  // Astro preserves state properties on history traversal. Give each article
+  // entry its own key; the positions stay in memory rather than writing to
+  // history or storage on every scroll frame.
+  const entryKey: string = history.state?.dispositifReadingKey ?? `${Date.now()}-${Math.random()}`;
+  if (history.state && !history.state.dispositifReadingKey) {
+    history.replaceState({ ...history.state, dispositifReadingKey: entryKey }, "");
+  }
+  const savedHistoryPosition = historyPositions.get(entryKey);
+  let historyReady = false;
 
   const sourceParent = source.parentNode!;
   const sourceNextSibling = source.nextSibling;
@@ -51,6 +83,7 @@ export function initializeReadingMode() {
   let activeHeading = "";
   let navigationHeading: { id: string; position: number } | undefined;
   let slots: HTMLElement[] = [];
+  let preferredSourceColumn: number | undefined;
   let headings: { id: string; t: number }[] = [];
   const fragments = new ReadingFragments(source);
 
@@ -58,6 +91,62 @@ export function initializeReadingMode() {
     const box = source.getBoundingClientRect();
     const scale = box.width / (parseFloat(getComputedStyle(source).width) || box.width);
     return (element.getBoundingClientRect().top - box.top) / scale;
+  };
+
+  // Preserve a position within the same block when the article is reflowed
+  // at a different width. This is only measured on mode changes.
+  const captureAnchor = (offset: number) => {
+    const sourceBox = source.getBoundingClientRect();
+    const scale = sourceBox.width / (parseFloat(getComputedStyle(source).width) || sourceBox.width);
+    const y = sourceBox.top + offset * scale;
+    let best: { element: HTMLElement; ratio: number; height: number; distance: number } | undefined;
+    for (const element of source.querySelectorAll<HTMLElement>("h1, h2, h3, h4, p, li, pre, table, figure, details")) {
+      const rect = element.getBoundingClientRect();
+      if (!rect.height) continue;
+      const distance = Math.max(rect.top - y, y - rect.bottom, 0);
+      if (!best || distance < best.distance || (distance === best.distance && rect.height < best.height)) {
+        best = { element, ratio: Math.max(0, Math.min(1, (y - rect.top) / rect.height)), height: rect.height, distance };
+      }
+    }
+    return best;
+  };
+  const anchorOffset = (anchor: ReturnType<typeof captureAnchor>) => {
+    if (!anchor || !source.contains(anchor.element)) return undefined;
+    const box = source.getBoundingClientRect();
+    const scale = box.width / (parseFloat(getComputedStyle(source).width) || box.width);
+    return offsetOf(anchor.element) + anchor.ratio * anchor.element.getBoundingClientRect().height / scale;
+  };
+
+  const saveHistoryAnchor = () => {
+    const entry = historyPositions.get(entryKey);
+    if (!entry || suspendedForPrint) return;
+    const inset = 1.5 * (parseFloat(getComputedStyle(root).fontSize) || 16);
+    const offset = enabled ? position : Math.max(0, inset - source.getBoundingClientRect().top);
+    const anchor = offset > 0 ? captureAnchor(offset) : undefined;
+    if (!anchor) { delete entry.anchor; return; }
+    const path: number[] = [];
+    let element: Element = anchor.element;
+    while (element !== source && element.parentElement) {
+      path.unshift(Array.prototype.indexOf.call(element.parentElement.children, element));
+      element = element.parentElement;
+    }
+    if (element === source) entry.anchor = { path, ratio: anchor.ratio,
+      width: parseFloat(getComputedStyle(source).width) || source.getBoundingClientRect().width };
+  };
+  const saveHistoryDetails = () => {
+    const entry = historyPositions.get(entryKey);
+    if (!entry || suspendedForPrint) return;
+    entry.details = Array.from(source.querySelectorAll<HTMLDetailsElement>("details"), (details) => details.open);
+  };
+  const historyAnchorOffset = (anchor: HistoryPosition["anchor"]) => {
+    if (!anchor || !Array.isArray(anchor.path) || !Number.isFinite(anchor.ratio)) return undefined;
+    let element: Element = source;
+    for (const index of anchor.path) {
+      const child = element.children[index];
+      if (!child) return undefined;
+      element = child;
+    }
+    return anchorOffset({ element: element as HTMLElement, ratio: anchor.ratio, height: 0, distance: 0 });
   };
 
   const announceHeading = () => {
@@ -120,6 +209,15 @@ export function initializeReadingMode() {
         if (k === undefined) continue;
         if (old !== String(k)) slot.dataset.rmK = String(k);
       }
+      if (preferredSourceColumn !== undefined && wanted.has(preferredSourceColumn)) {
+        const original = slots.find((slot) => slot.firstElementChild === source);
+        const destination = slots.find((slot) => Number(slot.dataset.rmK) === preferredSourceColumn);
+        if (original && destination && original !== destination) {
+          const previous = original.dataset.rmK!;
+          original.dataset.rmK = destination.dataset.rmK!;
+          destination.dataset.rmK = previous;
+        }
+      } else preferredSourceColumn = undefined;
       rangeStart = start;
       dirty = false;
     }
@@ -195,6 +293,13 @@ export function initializeReadingMode() {
     if (movement.y !== undefined) reading.vertical(movement.y);
     present();
   };
+
+  function saveHistoryPosition() {
+    if (!historyReady || suspendedForPrint) return;
+    historyPositions.set(entryKey, enabled
+      ? { mode: "multi", position, point: reading?.point, layout: reading?.layout }
+      : { mode: "single", position: articleScrollport!.scrollTop });
+  }
 
   const goToEdge = (end: boolean) => {
     if (!reading) return;
@@ -274,7 +379,7 @@ export function initializeReadingMode() {
     syncPosition();
     let parent = target.parentElement;
     while (parent && parent !== source) {
-      if (parent instanceof HTMLDetailsElement) parent.open = true;
+      if (parent instanceof HTMLDetailsElement && parent.querySelector(":scope > summary") !== target) parent.open = true;
       parent = parent.parentElement;
     }
     syncDetails();
@@ -284,6 +389,8 @@ export function initializeReadingMode() {
     if (!reading) return;
     motion.reset();
     reading.navigate(fromCss(offsetOf(target)));
+    preferredSourceColumn = Math.floor((fromCss(offsetOf(target)) - reading.point.y) / reading.layout.step);
+    rangeStart = NaN;
     present(true);
     if (target.matches("h2[id], h3[id]")) {
       // At the trailing edge a heading can land in a column to the right.
@@ -320,7 +427,9 @@ export function initializeReadingMode() {
     // reading inset is the original 1.5rem, not the n-column
     // header's height. At the beginning keep the card at its normal position.
     const readingInset = 1.5 * (parseFloat(getComputedStyle(root).fontSize) || 16);
+    if (enabled) syncPosition();
     if (next) position = anchor ?? Math.max(0, readingInset - source.getBoundingClientRect().top);
+    const contentAnchor = !suspendedForPrint && anchor === undefined && position > 0 ? captureAnchor(position) : undefined;
     enabled = next;
     root.classList.toggle("rm-active", enabled);
     articleScrollport.tabIndex = enabled ? -1 : 0;
@@ -338,19 +447,25 @@ export function initializeReadingMode() {
       source.querySelectorAll<HTMLImageElement>("img").forEach((image) => { image.loading = "eager"; });
       dirty = true;
       measure();
+      const target = anchorOffset(contentAnchor);
+      if (target !== undefined && reading) { reading.restore(fromCss(target)); present(true); }
       articleScrollport.scrollTo({ top: 0, behavior: "instant" });
     } else {
       restoreSource();
+      const target = anchorOffset(contentAnchor);
+      if (target !== undefined) position = target;
       plane.replaceChildren();
       slots = [];
       geometry = undefined;
       reading = undefined;
       native.reset();
       rangeStart = NaN;
+      preferredSourceColumn = undefined;
       articleScrollport.scrollTo({ top: position <= 0 ? 0 : articleScrollport.scrollTop + source.getBoundingClientRect().top + position - readingInset, behavior: "instant" });
       document.dispatchEvent(new CustomEvent("rm:off"));
     }
     if (toggleFocused) toggle.focus({ preventScroll: true });
+    saveHistoryPosition();
   };
 
   const applyDefault = () => {
@@ -389,8 +504,10 @@ export function initializeReadingMode() {
       scrolling = 0;
       // ResizeObserver's anchor takes priority over scrolls caused by resizing.
       if (!measuring) syncPosition();
+      saveHistoryPosition();
     });
   }, { passive: true, signal });
+  articleScrollport.addEventListener("scroll", saveHistoryPosition, { passive: true, signal });
   // Native vertical input never initiates horizontal movement, including at
   // an edge. Manual gestures only interrupt an explicit key animation.
   viewport.addEventListener("wheel", () => motion.cancelAnimation(), { passive: true, signal });
@@ -412,6 +529,10 @@ export function initializeReadingMode() {
         original.open = control.matches("summary") ? !original.open : false;
         syncDetails();
         scheduleMeasure();
+        if (!original.open && event.detail === 0) {
+          const summary = original.querySelector<HTMLElement>(":scope > summary");
+          if (summary) { navigate(summary); summary.focus({ preventScroll: true }); }
+        }
       }
       return;
     }
@@ -473,6 +594,13 @@ export function initializeReadingMode() {
   window.visualViewport?.addEventListener("resize", scheduleMeasure, { signal });
   window.addEventListener("beforeprint", suspendForPrint, { signal });
   window.addEventListener("afterprint", resumeFromPrint, { signal });
+  window.addEventListener("pagehide", () => {
+    if (enabled) syncPosition();
+    saveHistoryPosition();
+    saveHistoryDetails();
+    saveHistoryAnchor();
+    persistHistoryPositions();
+  }, { signal });
   printing.addEventListener("change", () => {
     if (printing.matches) suspendForPrint();
     else resumeFromPrint();
@@ -493,10 +621,48 @@ export function initializeReadingMode() {
   root.classList.add("rm-ready");
   // All astro:page-load handlers (including copy-button enhancement) finish first.
   const initialFrame = requestAnimationFrame(() => {
+    // Restore disclosure layout before measuring or applying a saved offset.
+    if (Array.isArray(savedHistoryPosition?.details)) {
+      source.querySelectorAll<HTMLDetailsElement>("details").forEach((details, index) => {
+        const open = savedHistoryPosition.details![index];
+        if (typeof open === "boolean" && details.open !== open) details.open = open;
+      });
+    }
     applyDefault();
-    followHash();
+    if (savedHistoryPosition) {
+      const sameMode = savedHistoryPosition.mode === (enabled ? "multi" : "single");
+      const sameWidth = !savedHistoryPosition.anchor || Math.abs(
+        (parseFloat(getComputedStyle(source).width) || source.getBoundingClientRect().width)
+          - savedHistoryPosition.anchor.width) < 0.5;
+      if (enabled && reading && sameMode) {
+        const savedLayout = savedHistoryPosition.layout;
+        if (savedLayout && savedHistoryPosition.point
+          && Number.isFinite(savedHistoryPosition.point.x) && Number.isFinite(savedHistoryPosition.point.y)
+          && (Object.keys(reading.layout) as (keyof ReadingLayout)[]).every((key) => reading!.layout[key] === savedLayout[key])) {
+          reading.restorePoint(savedHistoryPosition.point);
+        } else reading.restore(fromCss(historyAnchorOffset(savedHistoryPosition.anchor) ?? savedHistoryPosition.position));
+        present(true);
+      } else if (!enabled && sameMode && sameWidth) articleScrollport.scrollTop = savedHistoryPosition.position;
+      else {
+        const anchor = historyAnchorOffset(savedHistoryPosition.anchor);
+        if (anchor !== undefined) {
+          if (enabled && reading) { reading.restore(fromCss(anchor)); present(true); }
+          else {
+            const inset = 1.5 * (parseFloat(getComputedStyle(root).fontSize) || 16);
+            articleScrollport.scrollTop += source.getBoundingClientRect().top + anchor - inset;
+          }
+        } else if (sameMode && !enabled) articleScrollport.scrollTop = savedHistoryPosition.position;
+        else followHash();
+      }
+    } else followHash();
+    historyReady = true;
+    saveHistoryPosition();
   });
   dispose = () => {
+    if (enabled) syncPosition();
+    saveHistoryPosition();
+    saveHistoryDetails();
+    saveHistoryAnchor();
     motion.reset();
     controller.abort();
     resizeObserver.disconnect();

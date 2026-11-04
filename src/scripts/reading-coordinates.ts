@@ -124,5 +124,7 @@ export class ReadingState {
   home() { this.location = { x: zero, y: zero }; }
   end() { this.location = endPoint(this.layout); }
   restore(anchor: Tick) { this.location = restoredPoint(anchor, this.layout); }
+  // Only restore points previously produced by this same layout.
+  restorePoint(point: ReadingPoint) { this.location = { x: point.x, y: point.y }; }
   navigate(anchor: Tick) { this.location = nearestPoint(anchor, this.location, this.layout); }
 }

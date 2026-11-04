@@ -112,7 +112,7 @@
             behavior: prefersReducedMotion() ? "auto" : "smooth",
             block: "start",
           });
-          history.replaceState(null, "", link.hash);
+          history.replaceState(history.state, "", link.hash);
           if (event.detail > 0) link.blur();
         });
       });
