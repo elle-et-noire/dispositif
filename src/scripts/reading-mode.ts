@@ -49,10 +49,16 @@ export function initializeReadingMode() {
   // Astro preserves state properties on history traversal. Give each article
   // entry its own key; the positions stay in memory rather than writing to
   // history or storage on every scroll frame.
-  const entryKey: string = history.state?.dispositifReadingKey ?? `${Date.now()}-${Math.random()}`;
-  if (history.state && !history.state.dispositifReadingKey) {
-    history.replaceState({ ...history.state, dispositifReadingKey: entryKey }, "");
-  }
+  const ensureHistoryKey = () => {
+    const key: string = history.state?.dispositifReadingKey ?? `${Date.now()}-${Math.random()}`;
+    if (history.state && !history.state.dispositifReadingKey) {
+      history.replaceState({ ...history.state, dispositifReadingKey: key }, "");
+    }
+    return key;
+  };
+  let entryKey = ensureHistoryKey();
+  const articlePath = location.pathname + location.search;
+  let historyIndex = Number.isFinite(history.state?.index) ? Number(history.state.index) : 0;
   const savedHistoryPosition = historyPositions.get(entryKey);
   let historyReady = false;
 
@@ -117,11 +123,11 @@ export function initializeReadingMode() {
     return offsetOf(anchor.element) + anchor.ratio * anchor.element.getBoundingClientRect().height / scale;
   };
 
-  const saveHistoryAnchor = () => {
+  const saveHistoryAnchor = (offsetOverride?: number) => {
     const entry = historyPositions.get(entryKey);
     if (!entry || suspendedForPrint) return;
     const inset = 1.5 * (parseFloat(getComputedStyle(root).fontSize) || 16);
-    const offset = enabled ? position : Math.max(0, inset - source.getBoundingClientRect().top);
+    const offset = offsetOverride ?? (enabled ? position : Math.max(0, inset - source.getBoundingClientRect().top));
     const anchor = offset > 0 ? captureAnchor(offset) : undefined;
     if (!anchor) { delete entry.anchor; return; }
     const path: number[] = [];
@@ -296,9 +302,10 @@ export function initializeReadingMode() {
 
   function saveHistoryPosition() {
     if (!historyReady || suspendedForPrint) return;
+    const details = historyPositions.get(entryKey)?.details;
     historyPositions.set(entryKey, enabled
-      ? { mode: "multi", position, point: reading?.point, layout: reading?.layout }
-      : { mode: "single", position: articleScrollport!.scrollTop });
+      ? { mode: "multi", position, point: reading?.point, layout: reading?.layout, details }
+      : { mode: "single", position: articleScrollport!.scrollTop, details });
   }
 
   const goToEdge = (end: boolean) => {
@@ -514,9 +521,32 @@ export function initializeReadingMode() {
   viewport.addEventListener("pointerdown", () => motion.cancelAnimation(), { passive: true, signal });
   viewport.addEventListener("touchstart", () => motion.cancelAnimation(), { passive: true, signal });
 
+  // Firefox reports detail=1 for Enter-generated clicks on links. Remember
+  // the activating key as well as supporting detail=0 from other browsers
+  // and assistive technologies; a pointer press cancels that indication.
+  let keyboardActivation: Element | undefined;
+  document.addEventListener("keydown", (event) => {
+    keyboardActivation = (event.key === "Enter" || event.key === " ") && event.target instanceof Element
+      ? event.target : undefined;
+  }, { capture: true, signal });
+  document.addEventListener("pointerdown", () => { keyboardActivation = undefined; }, { capture: true, passive: true, signal });
   document.addEventListener("click", (event) => {
-    if (!enabled || event.button !== 0 || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
     const element = event.target instanceof Element ? event.target : null;
+    if (!enabled && event.button === 0 && !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey) {
+      const link = element?.closest<HTMLAnchorElement>(".rm-source a[href]");
+      if (link && !link.matches('[href^="#mjx-eqn"]') && !link.closest("[data-toc]")) {
+        const url = new URL(link.href, location.href);
+        if (url.origin === location.origin && url.pathname + url.search === articlePath && url.hash) {
+          // Firefox can scroll to the fragment before popstate fires, so save
+          // the departing entry while the original position is still visible.
+          saveHistoryPosition(); saveHistoryDetails(); saveHistoryAnchor();
+        }
+      }
+    }
+    if (!enabled || event.button !== 0 || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
+    const fromKeyboard = event.detail === 0 || Boolean(keyboardActivation && element
+      && (keyboardActivation === element || keyboardActivation.contains(element) || element.contains(keyboardActivation)));
+    keyboardActivation = undefined;
     const slot = element?.closest(".rm-slot");
     const control = element?.closest("summary, [data-details-close]");
     if (slot && control) {
@@ -529,7 +559,7 @@ export function initializeReadingMode() {
         original.open = control.matches("summary") ? !original.open : false;
         syncDetails();
         scheduleMeasure();
-        if (!original.open && event.detail === 0) {
+        if (!original.open && fromKeyboard) {
           const summary = original.querySelector<HTMLElement>(":scope > summary");
           if (summary) { navigate(summary); summary.focus({ preventScroll: true }); }
         }
@@ -547,7 +577,7 @@ export function initializeReadingMode() {
     if (!link.closest("[data-toc]")) event.stopPropagation();
     navigate(target);
     history.replaceState(history.state, "", url.hash);
-    if (event.detail === 0) {
+    if (fromKeyboard) {
       if (!target.hasAttribute("tabindex")) {
         target.tabIndex = -1;
         target.addEventListener("blur", () => target.removeAttribute("tabindex"), { once: true });
@@ -557,9 +587,9 @@ export function initializeReadingMode() {
   }, { capture: true, signal });
 
   document.addEventListener("toggle", (event) => {
-    if (enabled && event.target instanceof HTMLDetailsElement && source.contains(event.target)) {
-      syncDetails();
-      scheduleMeasure();
+    if (event.target instanceof HTMLDetailsElement && source.contains(event.target)) {
+      if (enabled) { syncDetails(); scheduleMeasure(); }
+      if (historyReady) saveHistoryDetails();
     }
   }, { capture: true, signal });
 
@@ -589,7 +619,6 @@ export function initializeReadingMode() {
     event.preventDefault();
   }, { signal });
 
-  window.addEventListener("hashchange", followHash, { signal });
   window.addEventListener("resize", () => { applyDefault(); scheduleMeasure(); }, { signal });
   window.visualViewport?.addEventListener("resize", scheduleMeasure, { signal });
   window.addEventListener("beforeprint", suspendForPrint, { signal });
@@ -618,43 +647,103 @@ export function initializeReadingMode() {
   const mutationObserver = new MutationObserver(() => { dirty = true; scheduleMeasure(); });
   mutationObserver.observe(source, { childList: true, subtree: true, characterData: true });
 
+  const restoreDetails = (saved: HistoryPosition) => {
+    let changed = false;
+    if (Array.isArray(saved.details)) {
+      source.querySelectorAll<HTMLDetailsElement>("details").forEach((details, index) => {
+        const open = saved.details![index];
+        if (typeof open === "boolean" && details.open !== open) { details.open = open; changed = true; }
+      });
+    }
+    return changed;
+  };
+  const restoreHistoryPosition = (saved: HistoryPosition) => {
+    const sameMode = saved.mode === (enabled ? "multi" : "single");
+    const sameWidth = !saved.anchor || Math.abs(
+      (parseFloat(getComputedStyle(source).width) || source.getBoundingClientRect().width)
+        - saved.anchor.width) < 0.5;
+    if (enabled && reading && sameMode) {
+      const savedLayout = saved.layout;
+      if (savedLayout && saved.point
+        && Number.isFinite(saved.point.x) && Number.isFinite(saved.point.y)
+        && (Object.keys(reading.layout) as (keyof ReadingLayout)[]).every((key) => reading!.layout[key] === savedLayout[key])) {
+        reading.restorePoint(saved.point);
+      } else reading.restore(fromCss(historyAnchorOffset(saved.anchor) ?? saved.position));
+      present(true);
+    } else if (!enabled && sameMode && sameWidth) articleScrollport.scrollTop = saved.position;
+    else {
+      const anchor = historyAnchorOffset(saved.anchor);
+      if (anchor !== undefined) {
+        if (enabled && reading) { reading.restore(fromCss(anchor)); present(true); }
+        else {
+          const inset = 1.5 * (parseFloat(getComputedStyle(root).fontSize) || 16);
+          articleScrollport.scrollTop += source.getBoundingClientRect().top + anchor - inset;
+        }
+      } else if (sameMode && !enabled) articleScrollport.scrollTop = saved.position;
+      else followHash();
+    }
+  };
+
+  let restoredHash: string | undefined;
+  window.addEventListener("popstate", () => {
+    if (!historyReady || location.pathname + location.search !== articlePath) return;
+    // Native fragment navigation can create an entry with null state. Astro's
+    // router ignores such entries, so give it a normal index and notify it.
+    const nativeFragmentEntry = history.state === null;
+    if (nativeFragmentEntry) {
+      history.replaceState({ index: historyIndex + 1, scrollX: window.scrollX, scrollY: window.scrollY }, "");
+    }
+    const nextKey = history.state?.dispositifReadingKey;
+    if (nextKey && nextKey === entryKey) return;
+    if (nextKey) {
+      if (enabled) syncPosition();
+      saveHistoryPosition();
+      saveHistoryDetails();
+      saveHistoryAnchor();
+    } else {
+      // A native fragment change may already have moved the scrollport in
+      // Firefox. Reconstruct the old document offset from the saved position
+      // instead of anchoring the destination that just came into view.
+      const previous = historyPositions.get(entryKey);
+      if (previous && !previous.anchor) {
+        const inset = 1.5 * (parseFloat(getComputedStyle(root).fontSize) || 16);
+        const offset = previous.mode === "multi" ? previous.position
+          : Math.max(0, inset - source.getBoundingClientRect().top
+            + previous.position - articleScrollport.scrollTop);
+        saveHistoryAnchor(offset);
+      }
+    }
+    entryKey = ensureHistoryKey();
+    if (Number.isFinite(history.state?.index)) historyIndex = Number(history.state.index);
+    if (nativeFragmentEntry) window.dispatchEvent(new PopStateEvent("popstate", { state: history.state }));
+    const saved = historyPositions.get(entryKey);
+    if (saved) {
+      const changed = restoreDetails(saved);
+      if (changed && enabled) { syncDetails(); dirty = true; measure(); }
+      restoreHistoryPosition(saved);
+      restoredHash = location.hash;
+    } else {
+      // The browser will move to the new fragment after the popstate event.
+      // Subsequent scroll events record that position under the new key.
+      saveHistoryPosition();
+      saveHistoryDetails();
+      restoredHash = undefined;
+    }
+  }, { signal });
+  window.addEventListener("hashchange", () => {
+    if (restoredHash === location.hash) { restoredHash = undefined; return; }
+    restoredHash = undefined;
+    followHash();
+  }, { signal });
+
   root.classList.add("rm-ready");
   // All astro:page-load handlers (including copy-button enhancement) finish first.
   const initialFrame = requestAnimationFrame(() => {
     // Restore disclosure layout before measuring or applying a saved offset.
-    if (Array.isArray(savedHistoryPosition?.details)) {
-      source.querySelectorAll<HTMLDetailsElement>("details").forEach((details, index) => {
-        const open = savedHistoryPosition.details![index];
-        if (typeof open === "boolean" && details.open !== open) details.open = open;
-      });
-    }
+    if (savedHistoryPosition) restoreDetails(savedHistoryPosition);
     applyDefault();
-    if (savedHistoryPosition) {
-      const sameMode = savedHistoryPosition.mode === (enabled ? "multi" : "single");
-      const sameWidth = !savedHistoryPosition.anchor || Math.abs(
-        (parseFloat(getComputedStyle(source).width) || source.getBoundingClientRect().width)
-          - savedHistoryPosition.anchor.width) < 0.5;
-      if (enabled && reading && sameMode) {
-        const savedLayout = savedHistoryPosition.layout;
-        if (savedLayout && savedHistoryPosition.point
-          && Number.isFinite(savedHistoryPosition.point.x) && Number.isFinite(savedHistoryPosition.point.y)
-          && (Object.keys(reading.layout) as (keyof ReadingLayout)[]).every((key) => reading!.layout[key] === savedLayout[key])) {
-          reading.restorePoint(savedHistoryPosition.point);
-        } else reading.restore(fromCss(historyAnchorOffset(savedHistoryPosition.anchor) ?? savedHistoryPosition.position));
-        present(true);
-      } else if (!enabled && sameMode && sameWidth) articleScrollport.scrollTop = savedHistoryPosition.position;
-      else {
-        const anchor = historyAnchorOffset(savedHistoryPosition.anchor);
-        if (anchor !== undefined) {
-          if (enabled && reading) { reading.restore(fromCss(anchor)); present(true); }
-          else {
-            const inset = 1.5 * (parseFloat(getComputedStyle(root).fontSize) || 16);
-            articleScrollport.scrollTop += source.getBoundingClientRect().top + anchor - inset;
-          }
-        } else if (sameMode && !enabled) articleScrollport.scrollTop = savedHistoryPosition.position;
-        else followHash();
-      }
-    } else followHash();
+    if (savedHistoryPosition) restoreHistoryPosition(savedHistoryPosition);
+    else followHash();
     historyReady = true;
     saveHistoryPosition();
   });

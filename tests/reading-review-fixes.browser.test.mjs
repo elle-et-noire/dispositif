@@ -8,6 +8,141 @@ const settle = (page) => page.evaluate(async () => {
   for (let i = 0; i < 5; i++) await new Promise(requestAnimationFrame);
 });
 
+test("本文内リンクの履歴ごとに位置と折りたたみを保存し、戻る・進む・一覧からの復帰で復元する", { timeout: 45_000 }, async () => {
+  const browser = await chromium.launch({ executablePath: process.env.RM_BROWSER_PATH || undefined });
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  try {
+    await page.addInitScript(() => localStorage.setItem("dispositif:reading-mode", "single"));
+    await page.goto(new URL("nextjs-mdx/", BASE).href);
+    await page.waitForSelector(".rm-ready");
+    await page.evaluate(() => document.fonts.ready);
+    await page.locator(".rm-source details summary").first().click();
+    const link = page.locator('.rm-source a[href^="#"]').filter({ hasText: "参考文献" }).first();
+    await link.scrollIntoViewIfNeeded();
+    await settle(page);
+    const snapshot = () => page.evaluate(() => ({
+      top: document.querySelector(".rm-article-scrollport").scrollTop,
+      open: document.querySelector(".rm-source details").open,
+      key: history.state?.dispositifReadingKey,
+    }));
+    const before = await snapshot();
+    assert.equal(before.open, true);
+    await link.click();
+    await page.waitForURL(/#.+/);
+    await settle(page);
+    await page.locator(".rm-source details").first().evaluate((details) => { details.open = false; });
+    await settle(page);
+    const destination = await snapshot();
+    assert.notEqual(destination.key, before.key);
+    assert.notEqual(destination.top, before.top);
+    assert.equal(destination.open, false);
+    await page.goBack();
+    await settle(page);
+    assert.deepEqual(await snapshot(), before);
+    await page.goForward();
+    await settle(page);
+    assert.deepEqual(await snapshot(), destination);
+    await page.locator(".rm-close:visible").click();
+    await page.waitForSelector('html[data-page-kind="index"]');
+    await page.goBack();
+    await page.waitForSelector('html[data-page-kind="article"].rm-ready');
+    await settle(page);
+    assert.deepEqual(await snapshot(), destination);
+  } finally { await browser.close(); }
+});
+
+test("直接のハッシュ変更でも履歴項目を区別し、一覧から記事へ戻れる", { timeout: 45_000 }, async () => {
+  const browser = await chromium.launch({ executablePath: process.env.RM_BROWSER_PATH || undefined });
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  try {
+    await page.addInitScript(() => localStorage.setItem("dispositif:reading-mode", "single"));
+    await page.goto(ARTICLE);
+    await page.waitForSelector(".rm-ready");
+    await settle(page);
+    await page.locator(".rm-article-scrollport").evaluate((v) => { v.scrollTop = 2500; });
+    await settle(page);
+    const initialKey = await page.evaluate(() => history.state.dispositifReadingKey);
+    await page.evaluate(() => { location.hash = document.querySelector(".rm-source h2").id; });
+    await page.waitForFunction(() => location.hash && history.state?.dispositifReadingKey);
+    await settle(page);
+    const hashState = await page.evaluate(() => ({ key: history.state.dispositifReadingKey,
+      top: document.querySelector(".rm-article-scrollport").scrollTop }));
+    assert.notEqual(hashState.key, initialKey);
+    await page.locator(".rm-close:visible").click();
+    await page.waitForSelector('html[data-page-kind="index"]');
+    await page.goBack();
+    await page.waitForSelector('html[data-page-kind="article"].rm-ready');
+    await settle(page);
+    assert.deepEqual(await page.evaluate(() => ({ key: history.state.dispositifReadingKey,
+      top: document.querySelector(".rm-article-scrollport").scrollTop })), hashState);
+    await page.goBack();
+    await settle(page);
+    assert.equal(await page.locator(".rm-article-scrollport").evaluate((v) => v.scrollTop), 2500);
+    await page.goForward();
+    await settle(page);
+    assert.deepEqual(await page.evaluate(() => ({ key: history.state.dispositifReadingKey,
+      top: document.querySelector(".rm-article-scrollport").scrollTop })), hashState);
+  } finally { await browser.close(); }
+});
+
+test("直接のハッシュ変更後に段を切り替えて戻っても元の本文付近へ戻る", { timeout: 45_000 }, async () => {
+  const browser = await chromium.launch({ executablePath: process.env.RM_BROWSER_PATH || undefined });
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  try {
+    await page.addInitScript(() => localStorage.setItem("dispositif:reading-mode", "single"));
+    await page.goto(ARTICLE);
+    await page.waitForSelector(".rm-ready");
+    await page.evaluate(() => document.fonts.ready);
+    const heading = page.locator(".rm-source h2").nth(5);
+    const name = await heading.innerText();
+    await heading.evaluate((el) => el.scrollIntoView({ block: "start" }));
+    await settle(page);
+    await page.evaluate(() => { location.hash = document.querySelector(".rm-source h2").id; });
+    await page.waitForFunction(() => location.hash && history.state?.dispositifReadingKey);
+    await settle(page);
+    await page.locator(".rm-toggle").click();
+    await page.waitForSelector("html.rm-active .rm-slot");
+    await page.goBack();
+    await settle(page);
+    const visible = await page.locator(".rm-slot h2").evaluateAll((headings, name) => headings
+      .filter((h) => h.textContent === name).map((h) => h.getBoundingClientRect().toJSON())
+      .filter((r) => r.x >= 0 && r.x < innerWidth && r.y >= 60 && r.y < innerHeight), name);
+    assert.ok(visible.some((r) => r.y < 130), JSON.stringify(visible));
+  } finally { await browser.close(); }
+});
+
+test("キーボード由来でもdetail=1のクリックでは選択先へフォーカスする", { timeout: 45_000 }, async () => {
+  const browser = await chromium.launch({ executablePath: process.env.RM_BROWSER_PATH || undefined });
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  try {
+    await page.addInitScript(() => localStorage.setItem("dispositif:reading-mode", "multi"));
+    await page.goto(ARTICLE);
+    await page.waitForSelector(".rm-slot");
+    const link = page.locator('[data-toc-variant="header"] .toc-link').nth(1);
+    await link.focus();
+    await link.evaluate((el) => {
+      el.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+      el.dispatchEvent(new MouseEvent("click", { detail: 1, bubbles: true, cancelable: true }));
+    });
+    await settle(page);
+    assert.equal(await page.evaluate(() => document.activeElement.tagName), "H2");
+    await page.goto(new URL("nextjs-mdx/", BASE).href);
+    await page.waitForSelector(".rm-slot");
+    const summary = page.locator(".rm-source details summary").first();
+    await summary.focus();
+    await page.keyboard.press("Enter");
+    const close = page.locator(".rm-source details .details-close-button--bottom").first();
+    await close.focus();
+    await close.evaluate((el) => {
+      el.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+      el.dispatchEvent(new MouseEvent("click", { detail: 1, bubbles: true, cancelable: true }));
+    });
+    await settle(page);
+    assert.equal(await summary.locator("..").evaluate((details) => details.open), false);
+    assert.equal(await summary.evaluate((el) => document.activeElement === el), true);
+  } finally { await browser.close(); }
+});
+
 test("履歴復元では折りたたみの開閉状態を先に戻し、中や後の読書位置を保つ", { timeout: 90_000 }, async () => {
   const browser = await chromium.launch({ executablePath: process.env.RM_BROWSER_PATH || undefined });
   try {
