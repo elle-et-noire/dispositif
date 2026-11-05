@@ -1,0 +1,7 @@
+{
+  "platform": "Linux-6.18.54.1-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+  "cpu": "x86_64",
+  "clock_ticks": 100,
+  "node": "v22.12.0",
+  "browser_procedure": "one browser per engine, new context per run; index fonts awaited; HTTP/OS caches not cleared; Python http.server both builds; 1440x900; multi; no routing"
+}
