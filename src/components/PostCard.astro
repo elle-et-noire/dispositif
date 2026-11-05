@@ -6,14 +6,17 @@ import { withBase } from "@lib/base";
 interface Props {
   slug: string;
   data: PostFrontmatter;
+  // この記事の数式フォント。ホバー時に記事の HTML と一緒に先読みする。
+  mathFonts?: string[];
 }
 
-const { slug, data } = Astro.props;
+const { slug, data, mathFonts = [] } = Astro.props;
 ---
 
 <a
   href={withBase(`${slug}/`)}
   data-astro-prefetch="hover"
+  data-math-fonts={mathFonts.length ? mathFonts.join(" ") : undefined}
   class="block w-full overflow-hidden rounded-md border-[0.5pt] border-[#dadfe4] bg-[#f8f8f8] px-3 pb-1 pt-2 text-[#324e73] no-underline shadow-[0_1px_1px_1px_rgba(0,0,0,0.2)] sm:pb-2 sm:pt-4 md:px-6"
 >
   <h2 class="mb-1 font-sans text-base font-semibold md:text-xl">{data.title}</h2>

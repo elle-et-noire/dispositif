@@ -13,6 +13,7 @@ import type { Root, Element } from "hast";
 
 import { preprocessMarkdown } from "./preprocess";
 import { renderArticleMath } from "./mathjax";
+import { mathFontUrls } from "./math-fonts";
 import { withBase } from "./base";
 
 // 本文リンクの安全化。Next 版の component/safelink.tsx と同じ方針：
@@ -95,7 +96,28 @@ export type Converted = {
   css: string;
 };
 
-export const markdownToHtml = async (text: string): Promise<Converted> => {
+// 記事ページと、全ページに入る記事一覧（各記事の数式フォント）の両方が同じ記事を変換する。
+// 結果は本文だけで決まるので、同じ本文の変換を 1 回にまとめる。
+const converted = new Map<string, Promise<Converted>>();
+
+export const markdownToHtml = (text: string): Promise<Converted> => {
+  let result = converted.get(text);
+  if (!result) {
+    result = convert(text);
+    converted.set(text, result);
+    // 失敗した変換は再試行できるよう残さない。
+    result.catch(() => converted.delete(text));
+  }
+  return result;
+};
+
+/** この記事の数式表示で読み込まれるフォントの URL（数式がなければ空）。 */
+export const articleMathFonts = async (text: string): Promise<string[]> => {
+  const { html, css } = await markdownToHtml(text);
+  return mathFontUrls(html, css);
+};
+
+const convert = async (text: string): Promise<Converted> => {
   // 数式・独自記法の前処理（lib/preprocess.ts）。数式は出現順の mathexprs へ収集され、
   // 本文にはプレースホルダ（data-im / data-dm の span）が残る。
   const { processible, mathexprs } = preprocessMarkdown(text);

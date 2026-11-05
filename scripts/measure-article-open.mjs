@@ -1,0 +1,152 @@
+// Measure the time from clicking an article on the index to the article being
+// visible, split at Astro's navigation events, with the resources fetched after
+// the click. Chromium also records a trace and reports main-thread self time
+// per category (style, layout, paint, script, parse, GC) for each span.
+//
+// Conditions: tips-python (no math) and symmetric-polynomial (math), single and
+// multi, "cold" (fresh context) and "warm" (another article with the same kind
+// of content opened first), 1440x900, 300 ms hover before the click.
+//
+// Usage (against a production build served by `astro preview`):
+//   node scripts/measure-article-open.mjs http://localhost:4321/dispositif/ 3 > out.jsonl
+// Environment: ENGINES=chromium,firefox  TRACE=0 (disable the Chromium trace;
+// tracing adds overhead, so compare wall-clock times with TRACE=0).
+import { chromium, firefox } from 'playwright-core';
+
+const base = process.argv[2] ?? 'http://localhost:4321/dispositif/';
+const runs = Number(process.argv[3] ?? 3);
+const articles = ['tips-python', 'symmetric-polynomial'];
+const modes = ['single', 'multi'];
+const caches = ['cold', 'warm'];
+const engines = Object.entries({ chromium, firefox }).filter(([n]) => !process.env.ENGINES || process.env.ENGINES.split(',').includes(n));
+
+const probe = () => {
+  const t = (name) => {
+    const times = (window.rmT ??= {});
+    if (times[name] !== undefined) return;
+    times[name] = performance.now();
+    if (window.rmTracing) performance.mark(`rm:${name}`);
+  };
+  window.rmMark = t;
+  for (const e of ['astro:before-preparation', 'astro:after-preparation', 'astro:before-swap', 'astro:after-swap', 'astro:page-load']) {
+    document.addEventListener(e, () => t(e.slice(6)));
+  }
+  window.rmFonts = [];
+  document.fonts.addEventListener('loadingdone', (e) => window.rmFonts.push([performance.now(), e.fontfaces.map(f => f.family).join(',')]));
+  const observe = () => new MutationObserver(() => {
+    const c = document.documentElement.classList;
+    if (c.contains('rm-pending')) t('pending');
+    if (c.contains('rm-ready')) t('ready');
+    if (window.rmT?.pending && !c.contains('rm-pending') && c.contains('rm-ready')) t('visible');
+  }).observe(document, { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] });
+  observe();
+  window.rmLoaf = [];
+  try {
+    new PerformanceObserver((list) => {
+      for (const e of list.getEntries()) window.rmLoaf.push({
+        start: e.startTime, duration: e.duration, blocking: e.blockingDuration,
+        render: e.renderStart ? e.startTime + e.duration - e.renderStart : 0,
+        styleLayout: e.styleAndLayoutStart ? e.startTime + e.duration - e.styleAndLayoutStart : 0,
+        scripts: e.scripts.map(s => ({ fn: s.sourceFunctionName, url: s.sourceURL.split('/').pop(), dur: s.duration, forced: s.forcedStyleAndLayoutDuration, invoker: s.invoker })),
+      });
+    }).observe({ type: 'long-animation-frame', buffered: true });
+  } catch { /* Firefox has no LoAF */ }
+};
+
+// Self time per category on the renderer main thread, split at the rm:* marks.
+const CATEGORY = [
+  [/^(ParseHTML)$/, 'parse'],
+  [/^(UpdateLayoutTree|RecalculateStyles|ParseAuthorStyleSheet|ScheduleStyleRecalculation)$/, 'style'],
+  [/^(Layout)$/, 'layout'],
+  [/^(Paint|PrePaint|Layerize|UpdateLayer|UpdateLayerTree|CompositeLayers|Commit|RasterTask|PaintImage|Decode.*)$/, 'paint'],
+  [/(GC|gc|Scavenge|MarkCompact)/, 'gc'],
+  [/^(FunctionCall|EvaluateScript|v8\.|V8\.|TimerFire|EventDispatch|FireAnimationFrame|RunMicrotasks|v8\.compile|v8\.run|CompileScript|CompileCode|v8\.callFunction)/, 'script'],
+];
+const categorize = (name) => CATEGORY.find(([re]) => re.test(name))?.[1] ?? 'other';
+function summarizeTrace(json) {
+  const events = json.traceEvents ?? json;
+  const main = events.find(e => e.name === 'thread_name' && e.args?.name === 'CrRendererMain'
+    && events.some(m => m.pid === e.pid && m.name?.startsWith?.('rm:')));
+  if (!main) return { error: 'no main thread' };
+  const marks = Object.fromEntries(events.filter(e => e.pid === main.pid && e.name?.startsWith?.('rm:') && e.ph !== 'e')
+    .map(e => [e.name.slice(3), e.ts]));
+  const order = ['click', 'after-swap', 'page-load', 'visible'].filter(k => marks[k] !== undefined);
+  const spans = order.slice(1).map((k, i) => [`${order[i]}→${k}`, marks[order[i]], marks[k]]);
+  const xs = events.filter(e => e.pid === main.pid && e.tid === main.tid && e.ph === 'X' && e.dur)
+    .sort((a, b) => a.ts - b.ts || b.dur - a.dur);
+  // Self time: subtract direct children.
+  const self = new Map();
+  const stack = [];
+  for (const e of xs) {
+    while (stack.length && stack.at(-1).ts + stack.at(-1).dur <= e.ts) stack.pop();
+    const parent = stack.at(-1);
+    if (parent) self.set(parent, (self.get(parent) ?? parent.dur) - Math.min(e.dur, parent.ts + parent.dur - e.ts));
+    stack.push(e);
+  }
+  const result = {};
+  for (const [label, from, to] of spans) {
+    const bucket = { wall: Math.round((to - from) / 1000) };
+    for (const e of xs) {
+      const start = Math.max(e.ts, from), end = Math.min(e.ts + e.dur, to);
+      if (end <= start) continue;
+      const own = (self.get(e) ?? e.dur) * (end - start) / e.dur;
+      const cat = categorize(e.name);
+      if (cat === 'other' && (e.name === 'RunTask' || e.name === 'ThreadControllerImpl::RunTask')) { bucket.task = (bucket.task ?? 0) + own / 1000; continue; }
+      bucket[cat] = (bucket[cat] ?? 0) + own / 1000;
+      if (cat === 'other') (bucket.otherNames ??= {})[e.name] = ((bucket.otherNames ??= {})[e.name] ?? 0) + own / 1000;
+    }
+    for (const k of Object.keys(bucket)) if (typeof bucket[k] === 'number') bucket[k] = Math.round(bucket[k]);
+    if (bucket.otherNames) bucket.otherNames = Object.fromEntries(Object.entries(bucket.otherNames).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([k, v]) => [k, Math.round(v)]));
+    result[label] = bucket;
+  }
+  return result;
+}
+
+const out = (row) => process.stdout.write(JSON.stringify(row) + '\n');
+for (const [engineName, engine] of engines) {
+  const browser = await engine.launch();
+  for (let run = 0; run < runs; run++) for (const article of articles) for (const mode of modes) for (const cache of caches) {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    await context.addInitScript(([mode]) => {
+      if (location.protocol !== 'about:') localStorage.setItem('dispositif:reading-mode', mode);
+    }, [mode]);
+    await context.addInitScript(probe);
+    const page = await context.newPage();
+    if (cache === 'warm') {
+      // Load another article directly first so shared fonts/CSS/JS are cached.
+      const other = article === 'tips-python' ? 'tips-wsl' : 'tips-julia';
+      await page.goto(new URL(`${other}/`, base).href);
+      await page.waitForFunction(() => document.documentElement.classList.contains('rm-ready') && !document.documentElement.classList.contains('rm-pending'));
+      await page.evaluate(() => document.fonts.ready);
+    }
+    await page.goto(base);
+    await page.evaluate(() => document.fonts.ready);
+    const link = page.locator(`a[href$="${article}/"]`).first();
+    await link.scrollIntoViewIfNeeded();
+    await link.hover();
+    await page.waitForTimeout(300);
+    const tracing = engineName === 'chromium' && process.env.TRACE !== '0';
+    if (tracing) await browser.startTracing(page, { categories: ['devtools.timeline', 'disabled-by-default-devtools.timeline', 'blink.user_timing', 'v8', 'disabled-by-default-v8.gc'] });
+    const clickAt = await page.evaluate((tracing) => {
+      window.rmT = {}; window.rmLoaf = []; window.rmFonts = []; window.rmTracing = tracing;
+      performance.clearResourceTimings(); performance.mark('rm:click'); return performance.now();
+    }, tracing);
+    await link.click();
+    await page.waitForFunction(() => window.rmT?.visible, null, { timeout: 30_000 });
+    await page.waitForTimeout(500);
+    const trace = tracing ? summarizeTrace(JSON.parse((await browser.stopTracing()).toString())) : undefined;
+    const data = await page.evaluate((clickAt) => ({
+      t: window.rmT, fonts: window.rmFonts, loaf: window.rmLoaf.filter(l => l.start >= clickAt - 5),
+      resources: performance.getEntriesByType('resource').map(r => ({
+        name: r.name.split('/').slice(-2).join('/'), type: r.initiatorType, start: r.startTime, end: r.responseEnd,
+        transfer: r.transferSize, body: r.decodedBodySize })),
+    }), clickAt);
+    const rel = Object.fromEntries(Object.entries(data.t).map(([k, v]) => [k, Math.round(v - clickAt)]));
+    out({ engine: engineName, run, article, mode, cache, rel, trace,
+      fonts: data.fonts.map(([t, f]) => [Math.round(t - clickAt), f]),
+      resources: data.resources.map(r => ({ ...r, start: Math.round(r.start - clickAt), end: Math.round(r.end - clickAt) })),
+      loaf: data.loaf.map(l => ({ ...l, start: Math.round(l.start - clickAt) })) });
+    await context.close();
+  }
+  await browser.close();
+}

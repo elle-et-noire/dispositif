@@ -518,3 +518,39 @@ node --test --test-concurrency=1 tests/*.browser.test.mjs
 ```
 
 `reading-no-iframe-pinned-run.sh` の内部では次を実行する。`reading-pick-idle-cores.py 5 8` で CPU を選び、`systemd-run --user --scope --quiet -p CPUWeight=1000 taskset -c <CPU>` で 2 つのサーバーと計測スクリプトを起動する。終了時にはサーバーの PID を止め、ポートの解放を確認する。環境記録は `docs/reading-no-iframe-environment-pinned-20261105.json`、試行ごとのサンプルは `~/dispositif-artifacts/no-iframe-20261105/samples-pinned-20261105.jsonl` にある。コミット、push、main へのマージは行っていない。
+
+## 表示までの内訳と数式フォントの先読み（2026-11-06）
+
+iframe 先読みをやめて延びたクリックから表示までの時間を、重い事前処理を戻さずに取り戻すための計測と対策。計測は `scripts/measure-article-open.mjs`（本番ビルドを `astro preview` で配信、1440×900、ホバー 300 ms 後にクリック、各条件 3 回）。cold は新しいコンテキストで一覧から最初に開く条件、warm は同種の記事（数式記事なら tips-julia）を先に開いた条件。値は中央値（ms）で、単一環境・少数試行の結果である。
+
+### 内訳（対策前）
+
+| 記事・段組み | Chromium cold / warm | Firefox cold / warm |
+| --- | --- | --- |
+| tips-python・1段 | 122 / 97 | 167 / 158 |
+| tips-python・n段 | 138 / 129 | 230 / 187 |
+| symmetric-polynomial・1段 | 429 / 326 | 448 / 269 |
+| symmetric-polynomial・n段 | 692 / 605 | 740 / 606 |
+
+- 数式記事では、cold と warm の差（90〜180 ms）の大半が MathJax フォントだった。cold ではフォントがレイアウト中に順に見つかって読み込まれ、届くたびにレイアウトし直す（Chromium の 1 段で、差し替えから読み込み完了までのレイアウトが cold 237 ms、warm 105 ms）。
+- n段では、差し替え直後に本文が 1 段の幅（768 px）でレイアウトされてから、リーダーが段の幅（608 px）でやり直す。Chromium の数式記事で最初のレイアウトは 115〜169 ms。
+- n段の組み立て（読み込み完了から表示まで）は数式記事で約 300 ms。Chromium ではスタイル計算約 150 ms とレイアウト約 100 ms で、段に複製した約 1 万 3 千ノードの分である。
+
+### 対策：ホバー時に記事の数式フォントを読み込む
+
+ビルド時に、記事の CHTML のスタイルシートと本文から、実際に読み込まれるフォントを求める（`lib/math-fonts.ts`）。`@font-face` のうち、本文に現れる class・要素の規則が参照するものだけを選ぶ。symmetric-polynomial・tips-julia・how-to-write の 3 記事で、Chromium / Firefox × 1 段 / n 段のすべてで、ブラウザーが実際に読み込むフォントと一致した。一覧の記事リンクがこの一覧を持ち、Astro の HTML 先読みと同じ条件（80 ms のホバーまたはフォーカス、離れたら中止、オフライン・低速回線では行わない）で読み込む（`src/scripts/math-font-prefetch.ts`）。
+
+`<link rel="prefetch">` で HTTP キャッシュに入れるだけでは、ほとんど効果がなかった（Chromium の数式記事・1 段 cold 429→427 ms）。フォントは差し替え後にやはり順に見つかって届き、そのたびにレイアウトし直すためである。Astro の差し替えは同じ文書の中で行われるので、`FontFace.load()` で文書のメモリに読み込んでおくと、記事の `@font-face` が同じ URL を指したときにすぐ使われる。読み込んだフォントは独自の名前で、`document.fonts` には加えないので、一覧の表示は変わらない。
+
+| 数式記事（cold） | 対策前 | link prefetch | FontFace |
+| --- | --- | --- | --- |
+| Chromium・1段 | 429 | 427 | 304 |
+| Chromium・n段 | 692 | 656 | 592 |
+| Firefox・1段 | 448 | 378 | 340 |
+| Firefox・n段 | 740 | 727 | 649 |
+
+4 条件とも同じ向きに 90〜125 ms 短くなり、warm とほぼ同じ水準になった。数式のない記事はフォントがないので変わらない。ホバーで読み込むのは記事が使うフォントだけで、symmetric-polynomial で 7 本、約 181 KiB（うち mjx-tex-n が 161 KiB）。
+
+### 残る課題
+
+n段の 2 つの費用（1 段の幅での最初のレイアウトと、段の組み立て）は、この対策では変わらない。前者は、n段の設定で表示準備中の本文をレイアウトしない案（`visibility: hidden` の代わりに `display: none` など）で次に検証する。

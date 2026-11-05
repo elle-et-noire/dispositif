@@ -1,8 +1,10 @@
 ---
 import PostCard from "./PostCard.astro";
 import { getAllPosts } from "@lib/post";
+import { articleMathFonts } from "@lib/convert";
 
 const posts = getAllPosts();
+const mathFonts = await Promise.all(posts.map((post) => articleMathFonts(post.content)));
 ---
 
 <div
@@ -10,9 +12,10 @@ const posts = getAllPosts();
   transition:persist="article-index"
   class="mx-auto flex w-full flex-col items-center gap-3 px-2 pb-16 pt-20 md:w-[48rem]"
 >
-  {posts.map((post) => <PostCard slug={post.slug} data={post.data} />)}
+  {posts.map((post, i) => <PostCard slug={post.slug} data={post.data} mathFonts={mathFonts[i]} />)}
 </div>
 
 <script>
   import "../scripts/article-background";
+  import "../scripts/math-font-prefetch";
 </script>
