@@ -1,0 +1,199 @@
+{
+ "recorded_at": "2026-11-05T22:37:32+0900",
+ "os": "Ubuntu 24.04.5 LTS",
+ "kernel": "7.0.0-34-generic",
+ "cpu_model": "Intel(R) Xeon(R) W-2295 CPU @ 3.00GHz",
+ "logical_cpus": 36,
+ "clock_ticks": 100,
+ "governor": "powersave",
+ "memory_kib": 65504172,
+ "node": "v24.21.0",
+ "python": "3.12.3",
+ "loadavg_at_start": [
+  "3.50",
+  "5.07",
+  "6.51"
+ ],
+ "core_selection": {
+  "window_s": 5.0,
+  "measured_at": "2026-11-05T22:37:31+0900",
+  "util": {
+   "0": 0.006,
+   "1": 0.016,
+   "2": 0.08,
+   "3": 0.028,
+   "4": 0.018,
+   "5": 0.002,
+   "6": 0.004,
+   "7": 0.006,
+   "8": 0.002,
+   "9": 0.002,
+   "10": 0.0,
+   "11": 0.004,
+   "12": 1.0,
+   "13": 0.159,
+   "14": 0.02,
+   "15": 0.02,
+   "16": 0.008,
+   "17": 0.058,
+   "18": 0.01,
+   "19": 0.008,
+   "20": 0.004,
+   "21": 0.004,
+   "22": 0.002,
+   "23": 0.004,
+   "24": 0.01,
+   "25": 0.002,
+   "26": 0.002,
+   "27": 0.0,
+   "28": 0.004,
+   "29": 0.002,
+   "30": 0.0,
+   "31": 0.0,
+   "32": 0.0,
+   "33": 0.002,
+   "34": 0.004,
+   "35": 0.002
+  },
+  "core_util": {
+   "9+27": 0.002,
+   "10+28": 0.004,
+   "8+26": 0.004,
+   "11+29": 0.006,
+   "5+23": 0.006,
+   "7+25": 0.008,
+   "16+34": 0.012,
+   "6+24": 0.014,
+   "0+18": 0.016,
+   "4+22": 0.02,
+   "14+32": 0.02,
+   "15+33": 0.022,
+   "1+19": 0.024,
+   "3+21": 0.032,
+   "17+35": 0.06,
+   "2+20": 0.084,
+   "13+31": 0.159,
+   "12+30": 1.0
+  },
+  "chosen_cores": [
+   "5+23",
+   "6+24",
+   "7+25",
+   "8+26",
+   "9+27",
+   "10+28",
+   "11+29",
+   "16+34"
+  ],
+  "cpus": "5-11,16,23-29,34"
+ },
+ "servers": {
+  "before_4597": {
+   "pid": 3781024,
+   "affinity": "5-11,16,23-29,34",
+   "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-r56499226cf3a462e8e62797a4ae9070b.scope",
+   "cpu_weight": "1000"
+  },
+  "after_4598": {
+   "pid": 3781025,
+   "affinity": "5-11,16,23-29,34",
+   "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-r47d0139c4307456fba25a353d7def4e9.scope",
+   "cpu_weight": "1000"
+  }
+ },
+ "builds": {
+  "before": {
+   "source": "git worktree at 7997c3d25f35f7d520fcb8a4a8a4afb2f5c7ef86 (/tmp/claude-1000/-home-shimizu-dispositif/fa96b711-8148-4ffa-9e15-33da96ad091f/scratchpad/wt-before), npm ci, npm run build",
+   "commit": "7997c3d25f35f7d520fcb8a4a8a4afb2f5c7ef86",
+   "worktree_status": "",
+   "dist_tree_sha256": "6a0627d3b006ae83144948506918cdf904660ae6131cd826c93965315e73b8c9"
+  },
+  "after": {
+   "source": "working tree of ~/dispositif (uncommitted final code), npm run build, dist copied to /tmp/claude-1000/-home-shimizu-dispositif/fa96b711-8148-4ffa-9e15-33da96ad091f/scratchpad/build-after-final",
+   "head": "551776a9def9252fc812c89dc4c6d2df4ea8c967",
+   "diff_src_sha256": "a01cdca509ba7b678069b72158366990713475b6ea4290e81438fb2f93b03a94",
+   "diff_tracked_sha256": "a01cdca509ba7b678069b72158366990713475b6ea4290e81438fb2f93b03a94",
+   "diff_src_stat": " 2 files changed, 21 insertions(+), 39 deletions(-)",
+   "dist_tree_sha256": "5662c550987aac81a71d25fe6a467600ddd21d0246c0ac15458fed2c6a412e93"
+  }
+ },
+ "top_processes_at_start": [
+  "COMMAND         %CPU",
+  "julia           99.9",
+  "julia           37.7",
+  "python3         33.3",
+  "python3         27.2",
+  "python3         27.2",
+  "claude           5.9",
+  "claude           4.3",
+  "claude           4.1",
+  "claude           3.2",
+  "claude           2.4",
+  "claude           2.2"
+ ],
+ "playwright_core": "1.64.1",
+ "measurement": {
+  "scope_command": "systemd-run --user --scope -p CPUWeight=1000 taskset -c 5-11,16,23-29,34 <server|node measurer>",
+  "runner": "scripts/experiments/reading-no-iframe-pinned-run.sh <before dist> <after dist> docs/reading-no-iframe-comparison-pinned-20261105",
+  "instrument": "scripts/experiments/reading-no-iframe-pinned-comparison.mjs (new file; reading-no-iframe-comparison.mjs unchanged)",
+  "core_choice": "reading-pick-idle-cores.py measured /proc/stat for 5 s immediately before the run and chose the 8 physical cores with the lowest summed utilisation of both hardware threads",
+  "measurer_cgroup_weight": "recorded in trial 1 definitions.measurer (cpu.weight 1000, affinity 5-11,16,23-29,34)",
+  "trials": 48,
+  "errors": 0,
+  "started_utc": "2026-11-05T13:37:32.648Z",
+  "last_trial_started_utc": "2026-11-05T13:39:37.437Z",
+  "browsers": {
+   "chromium": {
+    "version": "156.0.8078.4",
+    "executable": "~/.cache/ms-playwright/chromium-1248/chrome-linux64/chrome (Playwright default; headless)"
+   },
+   "firefox": {
+    "version": "157.0",
+    "executable": "~/.cache/ms-playwright/firefox-1555/firefox/firefox (Playwright default; headless; not the snap /usr/bin/firefox)"
+   }
+  },
+  "procedure": "one browser per engine, reused for all 24 trials of that engine; new context per trial (1440x900, reducedMotion reduce, multi stored by init script); index loaded and fonts awaited before S0; hover via locator.hover, waitForTimeout(dwell), mouse down/up; no page.route or request abort; order within each pair alternates by run parity (before first on odd runs)",
+  "serving": "scripts/experiments/reading-comparison-server.py (Python ThreadingHTTPServer, no cache headers set by the script) for both builds, 127.0.0.1:4597 before, 4598 after",
+  "cache_scope": "Browser processes, OS page cache, the servers and their file caches are warm and reused across trials. Each new context starts with an empty HTTP cache and storage, but compiled code caches and shared browser processes may persist; trials are not described as cold.",
+  "flag_rules_fixed_before_run": {
+   "externalShareAbove": 0.05,
+   "systemUtilDifferenceAbove": 0.15,
+   "note": "defined in reading-no-iframe-pinned-summary.mjs before the 48-trial run; flagged pairs are kept and summaries are given with and without them"
+  },
+  "disturbance_observed": {
+   "flagged_pairs": 0,
+   "external_share_on_pinned_cpus": {
+    "median": 0.006,
+    "max": 0.018
+   },
+   "system_util": {
+    "min": 0.054,
+    "max": 0.097
+   },
+   "load1": {
+    "min": 2.42,
+    "max": 3.5
+   },
+   "pinned_util": {
+    "min": 0.037,
+    "max": 0.109
+   },
+   "pinned_mean_freq_khz_at_S0": {
+    "min": 1269132,
+    "max": 1824927
+   }
+  },
+  "shared_unpinned_disturbance": "L3 cache, memory bandwidth and the package power/turbo budget are shared with the other jobs (julia, rustc, python controllers of other sessions under app.slice) and are not isolated by pinning or CPU weight. Other jobs were not stopped, delayed or moved.",
+  "top_processes_note": "top_processes_at_start is a ps snapshot by command name; the python3 entries may include the two just-started servers (ps %CPU is lifetime-averaged).",
+  "instrument_load": {
+   "sample_interval_ms": 100,
+   "sample_duration_ms_median_of_trial_medians": 24.8,
+   "sample_duration_ms_max": 37.9,
+   "worker_thread_ticks_per_trial_median": 60.5,
+   "node_process_ticks_per_trial_median": 69.5,
+   "exited_pids_pre": 0,
+   "exited_pids_post": 0
+  },
+  "not_comparable_with": "docs/reading-no-iframe-environment-20261105.json (original machine, WSL2, Node v22.12.0, 150 ms sampling, no pinning); values are not compared directly"
+ }
+}

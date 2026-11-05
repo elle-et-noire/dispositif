@@ -1,0 +1,2385 @@
+{
+ "source": "docs/reading-no-iframe-comparison-pinned-20261105.jsonl",
+ "trials": 48,
+ "errors": 0,
+ "flagRules": {
+  "externalShareAbove": 0.05,
+  "systemUtilDifferenceAbove": 0.15
+ },
+ "flaggedPairs": [],
+ "disturbanceOverall": {
+  "externalShare": {
+   "median": 0.005991655703845842,
+   "max": 0.01819560272934041
+  },
+  "systemUtil": {
+   "median": 0.06720810922934364,
+   "min": 0.05357353114329448,
+   "max": 0.09740670461733081
+  },
+  "load1": {
+   "min": 2.42,
+   "max": 3.5
+  }
+ },
+ "instrument": {
+  "sampleMsMedian": 24.800427499998477,
+  "sampleMsMax": 37.92160600000352,
+  "workerTicksMedian": 60.5,
+  "nodeTicksMedian": 69.5,
+  "exitedPre": 0,
+  "exitedPost": 0
+ },
+ "byEngine": {
+  "all": {
+   "chromium": {
+    "pairs": 12,
+    "metrics": {
+     "pre.cpuTicks": {
+      "before": 31.5,
+      "after": 7.5,
+      "medianDiff": -24.5,
+      "lower": 12,
+      "higher": 0,
+      "equal": 0
+     },
+     "pre.peakPssDeltaMiB": {
+      "before": 35.6,
+      "after": 3.7,
+      "medianDiff": -32.3,
+      "lower": 12,
+      "higher": 0,
+      "equal": 0
+     },
+     "pre.pssAtClickDeltaMiB": {
+      "before": 35.6,
+      "after": 3.7,
+      "medianDiff": -32.3,
+      "lower": 12,
+      "higher": 0,
+      "equal": 0
+     },
+     "post.cpuTicks": {
+      "before": 72,
+      "after": 94,
+      "medianDiff": 4,
+      "lower": 3,
+      "higher": 8,
+      "equal": 1
+     },
+     "post.cpuTicksToVisible": {
+      "before": 65.5,
+      "after": 86,
+      "medianDiff": 10.5,
+      "lower": 5,
+      "higher": 7,
+      "equal": 0
+     },
+     "post.peakPssDeltaMiB": {
+      "before": 114.2,
+      "after": 133.5,
+      "medianDiff": 14.4,
+      "lower": 0,
+      "higher": 12,
+      "equal": 0
+     },
+     "post.peakPssAboveStartMiB": {
+      "before": 153.4,
+      "after": 137.2,
+      "medianDiff": -18.5,
+      "lower": 11,
+      "higher": 1,
+      "equal": 0
+     },
+     "total.cpuTicks": {
+      "before": 123.5,
+      "after": 101.5,
+      "medianDiff": -26.5,
+      "lower": 12,
+      "higher": 0,
+      "equal": 0
+     },
+     "total.peakPssDeltaMiB": {
+      "before": 153.4,
+      "after": 137.2,
+      "medianDiff": -18.5,
+      "lower": 11,
+      "higher": 1,
+      "equal": 0
+     },
+     "displayMs": {
+      "before": 451,
+      "after": 587.8,
+      "medianDiff": 156,
+      "lower": 0,
+      "higher": 12,
+      "equal": 0
+     },
+     "hoverToDisplayMs": {
+      "before": 1182.3,
+      "after": 1265,
+      "medianDiff": 105.3,
+      "lower": 1,
+      "higher": 11,
+      "equal": 0
+     },
+     "actualDwellMs": {
+      "before": 746.5,
+      "after": 677.5,
+      "medianDiff": -4.7,
+      "lower": 12,
+      "higher": 0,
+      "equal": 0
+     },
+     "dispatchMs": {
+      "before": 29.4,
+      "after": 13.4,
+      "medianDiff": -16,
+      "lower": 11,
+      "higher": 1,
+      "equal": 0
+     }
+    },
+    "usedPrepared": {
+     "before": 3,
+     "after": 0
+    },
+    "fallback": {
+     "before": 0,
+     "after": 0
+    }
+   },
+   "firefox": {
+    "pairs": 12,
+    "metrics": {
+     "pre.cpuTicks": {
+      "before": 80,
+      "after": 35,
+      "medianDiff": -46.5,
+      "lower": 12,
+      "higher": 0,
+      "equal": 0
+     },
+     "pre.peakPssDeltaMiB": {
+      "before": 55.6,
+      "after": 31,
+      "medianDiff": -23.5,
+      "lower": 11,
+      "higher": 1,
+      "equal": 0
+     },
+     "pre.pssAtClickDeltaMiB": {
+      "before": 55.6,
+      "after": 28.2,
+      "medianDiff": -30.9,
+      "lower": 11,
+      "higher": 1,
+      "equal": 0
+     },
+     "post.cpuTicks": {
+      "before": 141.5,
+      "after": 146,
+      "medianDiff": 3,
+      "lower": 5,
+      "higher": 7,
+      "equal": 0
+     },
+     "post.cpuTicksToVisible": {
+      "before": 130.5,
+      "after": 140,
+      "medianDiff": 4,
+      "lower": 4,
+      "higher": 7,
+      "equal": 1
+     },
+     "post.peakPssDeltaMiB": {
+      "before": 63.9,
+      "after": 84.4,
+      "medianDiff": 7.9,
+      "lower": 0,
+      "higher": 12,
+      "equal": 0
+     },
+     "post.peakPssAboveStartMiB": {
+      "before": 129.5,
+      "after": 116.1,
+      "medianDiff": -9.1,
+      "lower": 9,
+      "higher": 3,
+      "equal": 0
+     },
+     "total.cpuTicks": {
+      "before": 216,
+      "after": 185.5,
+      "medianDiff": -39,
+      "lower": 11,
+      "higher": 1,
+      "equal": 0
+     },
+     "total.peakPssDeltaMiB": {
+      "before": 129.5,
+      "after": 116.1,
+      "medianDiff": -9.1,
+      "lower": 9,
+      "higher": 3,
+      "equal": 0
+     },
+     "displayMs": {
+      "before": 500,
+      "after": 529.5,
+      "medianDiff": 51.5,
+      "lower": 1,
+      "higher": 11,
+      "equal": 0
+     },
+     "hoverToDisplayMs": {
+      "before": 1239,
+      "after": 1252,
+      "medianDiff": 5,
+      "lower": 6,
+      "higher": 6,
+      "equal": 0
+     },
+     "actualDwellMs": {
+      "before": 743,
+      "after": 715,
+      "medianDiff": -25,
+      "lower": 10,
+      "higher": 2,
+      "equal": 0
+     },
+     "dispatchMs": {
+      "before": 53.8,
+      "after": 33.7,
+      "medianDiff": -23.5,
+      "lower": 11,
+      "higher": 1,
+      "equal": 0
+     }
+    },
+    "usedPrepared": {
+     "before": 0,
+     "after": 0
+    },
+    "fallback": {
+     "before": 0,
+     "after": 0
+    }
+   }
+  },
+  "unflagged": {
+   "chromium": {
+    "pairs": 12,
+    "metrics": {
+     "pre.cpuTicks": {
+      "before": 31.5,
+      "after": 7.5,
+      "medianDiff": -24.5,
+      "lower": 12,
+      "higher": 0,
+      "equal": 0
+     },
+     "pre.peakPssDeltaMiB": {
+      "before": 35.6,
+      "after": 3.7,
+      "medianDiff": -32.3,
+      "lower": 12,
+      "higher": 0,
+      "equal": 0
+     },
+     "pre.pssAtClickDeltaMiB": {
+      "before": 35.6,
+      "after": 3.7,
+      "medianDiff": -32.3,
+      "lower": 12,
+      "higher": 0,
+      "equal": 0
+     },
+     "post.cpuTicks": {
+      "before": 72,
+      "after": 94,
+      "medianDiff": 4,
+      "lower": 3,
+      "higher": 8,
+      "equal": 1
+     },
+     "post.cpuTicksToVisible": {
+      "before": 65.5,
+      "after": 86,
+      "medianDiff": 10.5,
+      "lower": 5,
+      "higher": 7,
+      "equal": 0
+     },
+     "post.peakPssDeltaMiB": {
+      "before": 114.2,
+      "after": 133.5,
+      "medianDiff": 14.4,
+      "lower": 0,
+      "higher": 12,
+      "equal": 0
+     },
+     "post.peakPssAboveStartMiB": {
+      "before": 153.4,
+      "after": 137.2,
+      "medianDiff": -18.5,
+      "lower": 11,
+      "higher": 1,
+      "equal": 0
+     },
+     "total.cpuTicks": {
+      "before": 123.5,
+      "after": 101.5,
+      "medianDiff": -26.5,
+      "lower": 12,
+      "higher": 0,
+      "equal": 0
+     },
+     "total.peakPssDeltaMiB": {
+      "before": 153.4,
+      "after": 137.2,
+      "medianDiff": -18.5,
+      "lower": 11,
+      "higher": 1,
+      "equal": 0
+     },
+     "displayMs": {
+      "before": 451,
+      "after": 587.8,
+      "medianDiff": 156,
+      "lower": 0,
+      "higher": 12,
+      "equal": 0
+     },
+     "hoverToDisplayMs": {
+      "before": 1182.3,
+      "after": 1265,
+      "medianDiff": 105.3,
+      "lower": 1,
+      "higher": 11,
+      "equal": 0
+     },
+     "actualDwellMs": {
+      "before": 746.5,
+      "after": 677.5,
+      "medianDiff": -4.7,
+      "lower": 12,
+      "higher": 0,
+      "equal": 0
+     },
+     "dispatchMs": {
+      "before": 29.4,
+      "after": 13.4,
+      "medianDiff": -16,
+      "lower": 11,
+      "higher": 1,
+      "equal": 0
+     }
+    },
+    "usedPrepared": {
+     "before": 3,
+     "after": 0
+    },
+    "fallback": {
+     "before": 0,
+     "after": 0
+    }
+   },
+   "firefox": {
+    "pairs": 12,
+    "metrics": {
+     "pre.cpuTicks": {
+      "before": 80,
+      "after": 35,
+      "medianDiff": -46.5,
+      "lower": 12,
+      "higher": 0,
+      "equal": 0
+     },
+     "pre.peakPssDeltaMiB": {
+      "before": 55.6,
+      "after": 31,
+      "medianDiff": -23.5,
+      "lower": 11,
+      "higher": 1,
+      "equal": 0
+     },
+     "pre.pssAtClickDeltaMiB": {
+      "before": 55.6,
+      "after": 28.2,
+      "medianDiff": -30.9,
+      "lower": 11,
+      "higher": 1,
+      "equal": 0
+     },
+     "post.cpuTicks": {
+      "before": 141.5,
+      "after": 146,
+      "medianDiff": 3,
+      "lower": 5,
+      "higher": 7,
+      "equal": 0
+     },
+     "post.cpuTicksToVisible": {
+      "before": 130.5,
+      "after": 140,
+      "medianDiff": 4,
+      "lower": 4,
+      "higher": 7,
+      "equal": 1
+     },
+     "post.peakPssDeltaMiB": {
+      "before": 63.9,
+      "after": 84.4,
+      "medianDiff": 7.9,
+      "lower": 0,
+      "higher": 12,
+      "equal": 0
+     },
+     "post.peakPssAboveStartMiB": {
+      "before": 129.5,
+      "after": 116.1,
+      "medianDiff": -9.1,
+      "lower": 9,
+      "higher": 3,
+      "equal": 0
+     },
+     "total.cpuTicks": {
+      "before": 216,
+      "after": 185.5,
+      "medianDiff": -39,
+      "lower": 11,
+      "higher": 1,
+      "equal": 0
+     },
+     "total.peakPssDeltaMiB": {
+      "before": 129.5,
+      "after": 116.1,
+      "medianDiff": -9.1,
+      "lower": 9,
+      "higher": 3,
+      "equal": 0
+     },
+     "displayMs": {
+      "before": 500,
+      "after": 529.5,
+      "medianDiff": 51.5,
+      "lower": 1,
+      "higher": 11,
+      "equal": 0
+     },
+     "hoverToDisplayMs": {
+      "before": 1239,
+      "after": 1252,
+      "medianDiff": 5,
+      "lower": 6,
+      "higher": 6,
+      "equal": 0
+     },
+     "actualDwellMs": {
+      "before": 743,
+      "after": 715,
+      "medianDiff": -25,
+      "lower": 10,
+      "higher": 2,
+      "equal": 0
+     },
+     "dispatchMs": {
+      "before": 53.8,
+      "after": 33.7,
+      "medianDiff": -23.5,
+      "lower": 11,
+      "higher": 1,
+      "equal": 0
+     }
+    },
+    "usedPrepared": {
+     "before": 0,
+     "after": 0
+    },
+    "fallback": {
+     "before": 0,
+     "after": 0
+    }
+   }
+  }
+ },
+ "byCondition": {
+  "all": {
+   "chromium/tips-python/300": {
+    "pairs": 3,
+    "metrics": {
+     "pre.cpuTicks": {
+      "before": 25,
+      "after": 7,
+      "medianDiff": -18,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "pre.peakPssDeltaMiB": {
+      "before": 25.5,
+      "after": 4,
+      "medianDiff": -21.5,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "pre.pssAtClickDeltaMiB": {
+      "before": 25.5,
+      "after": 4,
+      "medianDiff": -21.5,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "post.cpuTicks": {
+      "before": 49,
+      "after": 53,
+      "medianDiff": 4,
+      "lower": 0,
+      "higher": 3,
+      "equal": 0
+     },
+     "post.cpuTicksToVisible": {
+      "before": 38,
+      "after": 35,
+      "medianDiff": -1,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "post.peakPssDeltaMiB": {
+      "before": 89.5,
+      "after": 97.6,
+      "medianDiff": 4.9,
+      "lower": 0,
+      "higher": 3,
+      "equal": 0
+     },
+     "post.peakPssAboveStartMiB": {
+      "before": 115.1,
+      "after": 101.1,
+      "medianDiff": -16.5,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "total.cpuTicks": {
+      "before": 76,
+      "after": 61,
+      "medianDiff": -13,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "total.peakPssDeltaMiB": {
+      "before": 115.1,
+      "after": 101.1,
+      "medianDiff": -16.5,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "displayMs": {
+      "before": 156.2,
+      "after": 175.5,
+      "medianDiff": 20.9,
+      "lower": 0,
+      "higher": 3,
+      "equal": 0
+     },
+     "hoverToDisplayMs": {
+      "before": 499.5,
+      "after": 500.2,
+      "medianDiff": 14.9,
+      "lower": 0,
+      "higher": 3,
+      "equal": 0
+     },
+     "actualDwellMs": {
+      "before": 328.4,
+      "after": 325,
+      "medianDiff": -3.7,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "dispatchMs": {
+      "before": 22.8,
+      "after": 13.4,
+      "medianDiff": -8.4,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     }
+    },
+    "usedPrepared": {
+     "before": 0,
+     "after": 0
+    },
+    "fallback": {
+     "before": 0,
+     "after": 0
+    }
+   },
+   "chromium/tips-python/1000": {
+    "pairs": 3,
+    "metrics": {
+     "pre.cpuTicks": {
+      "before": 31,
+      "after": 7,
+      "medianDiff": -24,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "pre.peakPssDeltaMiB": {
+      "before": 28.2,
+      "after": 4,
+      "medianDiff": -24.1,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "pre.pssAtClickDeltaMiB": {
+      "before": 28.1,
+      "after": 4,
+      "medianDiff": -24.1,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "post.cpuTicks": {
+      "before": 50,
+      "after": 49,
+      "medianDiff": 0,
+      "lower": 1,
+      "higher": 1,
+      "equal": 1
+     },
+     "post.cpuTicksToVisible": {
+      "before": 20,
+      "after": 43,
+      "medianDiff": 16,
+      "lower": 0,
+      "higher": 3,
+      "equal": 0
+     },
+     "post.peakPssDeltaMiB": {
+      "before": 77.3,
+      "after": 88,
+      "medianDiff": 10.7,
+      "lower": 0,
+      "higher": 3,
+      "equal": 0
+     },
+     "post.peakPssAboveStartMiB": {
+      "before": 105.4,
+      "after": 90.9,
+      "medianDiff": -14.6,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "total.cpuTicks": {
+      "before": 81,
+      "after": 56,
+      "medianDiff": -25,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "total.peakPssDeltaMiB": {
+      "before": 105.4,
+      "after": 90.9,
+      "medianDiff": -14.6,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "displayMs": {
+      "before": 39.2,
+      "after": 226.4,
+      "medianDiff": 169.5,
+      "lower": 0,
+      "higher": 3,
+      "equal": 0
+     },
+     "hoverToDisplayMs": {
+      "before": 1066.6,
+      "after": 1252,
+      "medianDiff": 167.2,
+      "lower": 0,
+      "higher": 3,
+      "equal": 0
+     },
+     "actualDwellMs": {
+      "before": 1027.3,
+      "after": 1025,
+      "medianDiff": -2,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "dispatchMs": {
+      "before": 17.5,
+      "after": 13.6,
+      "medianDiff": -3.9,
+      "lower": 2,
+      "higher": 1,
+      "equal": 0
+     }
+    },
+    "usedPrepared": {
+     "before": 3,
+     "after": 0
+    },
+    "fallback": {
+     "before": 0,
+     "after": 0
+    }
+   },
+   "chromium/symmetric-polynomial/300": {
+    "pairs": 3,
+    "metrics": {
+     "pre.cpuTicks": {
+      "before": 32,
+      "after": 8,
+      "medianDiff": -25,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "pre.peakPssDeltaMiB": {
+      "before": 47.1,
+      "after": 3.6,
+      "medianDiff": -43.5,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "pre.pssAtClickDeltaMiB": {
+      "before": 47.1,
+      "after": 3.6,
+      "medianDiff": -43.5,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "post.cpuTicks": {
+      "before": 141,
+      "after": 137,
+      "medianDiff": -4,
+      "lower": 2,
+      "higher": 1,
+      "equal": 0
+     },
+     "post.cpuTicksToVisible": {
+      "before": 140,
+      "after": 137,
+      "medianDiff": -3,
+      "lower": 2,
+      "higher": 1,
+      "equal": 0
+     },
+     "post.peakPssDeltaMiB": {
+      "before": 168.7,
+      "after": 198.2,
+      "medianDiff": 18.4,
+      "lower": 0,
+      "higher": 3,
+      "equal": 0
+     },
+     "post.peakPssAboveStartMiB": {
+      "before": 216.1,
+      "after": 201.8,
+      "medianDiff": -25.9,
+      "lower": 2,
+      "higher": 1,
+      "equal": 0
+     },
+     "total.cpuTicks": {
+      "before": 173,
+      "after": 144,
+      "medianDiff": -29,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "total.peakPssDeltaMiB": {
+      "before": 216.1,
+      "after": 201.8,
+      "medianDiff": -25.9,
+      "lower": 2,
+      "higher": 1,
+      "equal": 0
+     },
+     "displayMs": {
+      "before": 832.6,
+      "after": 955.9,
+      "medianDiff": 89.3,
+      "lower": 0,
+      "higher": 3,
+      "equal": 0
+     },
+     "hoverToDisplayMs": {
+      "before": 1235,
+      "after": 1282.9,
+      "medianDiff": 49.6,
+      "lower": 1,
+      "higher": 2,
+      "equal": 0
+     },
+     "actualDwellMs": {
+      "before": 429.9,
+      "after": 328,
+      "medianDiff": -99.4,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "dispatchMs": {
+      "before": 120.8,
+      "after": 15,
+      "medianDiff": -105,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     }
+    },
+    "usedPrepared": {
+     "before": 0,
+     "after": 0
+    },
+    "fallback": {
+     "before": 0,
+     "after": 0
+    }
+   },
+   "chromium/symmetric-polynomial/1000": {
+    "pairs": 3,
+    "metrics": {
+     "pre.cpuTicks": {
+      "before": 114,
+      "after": 8,
+      "medianDiff": -105,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "pre.peakPssDeltaMiB": {
+      "before": 168.5,
+      "after": 3.5,
+      "medianDiff": -165,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "pre.pssAtClickDeltaMiB": {
+      "before": 168,
+      "after": 3.5,
+      "medianDiff": -164.5,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "post.cpuTicks": {
+      "before": 97,
+      "after": 152,
+      "medianDiff": 57,
+      "lower": 0,
+      "higher": 3,
+      "equal": 0
+     },
+     "post.cpuTicksToVisible": {
+      "before": 93,
+      "after": 152,
+      "medianDiff": 59,
+      "lower": 0,
+      "higher": 3,
+      "equal": 0
+     },
+     "post.peakPssDeltaMiB": {
+      "before": 137.7,
+      "after": 172.8,
+      "medianDiff": 33.1,
+      "lower": 0,
+      "higher": 3,
+      "equal": 0
+     },
+     "post.peakPssAboveStartMiB": {
+      "before": 309,
+      "after": 176.8,
+      "medianDiff": -131.4,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "total.cpuTicks": {
+      "before": 211,
+      "after": 160,
+      "medianDiff": -48,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "total.peakPssDeltaMiB": {
+      "before": 309,
+      "after": 176.8,
+      "medianDiff": -131.4,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "displayMs": {
+      "before": 735.3,
+      "after": 1003.9,
+      "medianDiff": 273.9,
+      "lower": 0,
+      "higher": 3,
+      "equal": 0
+     },
+     "hoverToDisplayMs": {
+      "before": 1763.5,
+      "after": 2029.3,
+      "medianDiff": 266.7,
+      "lower": 0,
+      "higher": 3,
+      "equal": 0
+     },
+     "actualDwellMs": {
+      "before": 1030.7,
+      "after": 1025.4,
+      "medianDiff": -5.8,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "dispatchMs": {
+      "before": 32,
+      "after": 12.4,
+      "medianDiff": -19.5,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     }
+    },
+    "usedPrepared": {
+     "before": 0,
+     "after": 0
+    },
+    "fallback": {
+     "before": 0,
+     "after": 0
+    }
+   },
+   "firefox/tips-python/300": {
+    "pairs": 3,
+    "metrics": {
+     "pre.cpuTicks": {
+      "before": 55,
+      "after": 33,
+      "medianDiff": -22,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "pre.peakPssDeltaMiB": {
+      "before": 39.3,
+      "after": 30.3,
+      "medianDiff": -11.8,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "pre.pssAtClickDeltaMiB": {
+      "before": 39.3,
+      "after": 30.3,
+      "medianDiff": -11.8,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "post.cpuTicks": {
+      "before": 59,
+      "after": 78,
+      "medianDiff": 20,
+      "lower": 0,
+      "higher": 3,
+      "equal": 0
+     },
+     "post.cpuTicksToVisible": {
+      "before": 56,
+      "after": 58,
+      "medianDiff": 3,
+      "lower": 0,
+      "higher": 2,
+      "equal": 1
+     },
+     "post.peakPssDeltaMiB": {
+      "before": 46.2,
+      "after": 51,
+      "medianDiff": 7.8,
+      "lower": 0,
+      "higher": 3,
+      "equal": 0
+     },
+     "post.peakPssAboveStartMiB": {
+      "before": 85.5,
+      "after": 81.3,
+      "medianDiff": -7.9,
+      "lower": 2,
+      "higher": 1,
+      "equal": 0
+     },
+     "total.cpuTicks": {
+      "before": 113,
+      "after": 111,
+      "medianDiff": -2,
+      "lower": 2,
+      "higher": 1,
+      "equal": 0
+     },
+     "total.peakPssDeltaMiB": {
+      "before": 85.5,
+      "after": 81.3,
+      "medianDiff": -7.9,
+      "lower": 2,
+      "higher": 1,
+      "equal": 0
+     },
+     "displayMs": {
+      "before": 237,
+      "after": 263,
+      "medianDiff": 39,
+      "lower": 0,
+      "higher": 3,
+      "equal": 0
+     },
+     "hoverToDisplayMs": {
+      "before": 601,
+      "after": 628,
+      "medianDiff": 37,
+      "lower": 1,
+      "higher": 2,
+      "equal": 0
+     },
+     "actualDwellMs": {
+      "before": 367,
+      "after": 360,
+      "medianDiff": -4,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "dispatchMs": {
+      "before": 38.2,
+      "after": 37.3,
+      "medianDiff": -3.7,
+      "lower": 2,
+      "higher": 1,
+      "equal": 0
+     }
+    },
+    "usedPrepared": {
+     "before": 0,
+     "after": 0
+    },
+    "fallback": {
+     "before": 0,
+     "after": 0
+    }
+   },
+   "firefox/tips-python/1000": {
+    "pairs": 3,
+    "metrics": {
+     "pre.cpuTicks": {
+      "before": 64,
+      "after": 39,
+      "medianDiff": -30,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "pre.peakPssDeltaMiB": {
+      "before": 33.9,
+      "after": 30.8,
+      "medianDiff": -3.1,
+      "lower": 2,
+      "higher": 1,
+      "equal": 0
+     },
+     "pre.pssAtClickDeltaMiB": {
+      "before": 32.9,
+      "after": 23.9,
+      "medianDiff": -9.1,
+      "lower": 2,
+      "higher": 1,
+      "equal": 0
+     },
+     "post.cpuTicks": {
+      "before": 61,
+      "after": 65,
+      "medianDiff": 4,
+      "lower": 1,
+      "higher": 2,
+      "equal": 0
+     },
+     "post.cpuTicksToVisible": {
+      "before": 60,
+      "after": 65,
+      "medianDiff": 5,
+      "lower": 1,
+      "higher": 2,
+      "equal": 0
+     },
+     "post.peakPssDeltaMiB": {
+      "before": 46.1,
+      "after": 54.2,
+      "medianDiff": 7.7,
+      "lower": 0,
+      "higher": 3,
+      "equal": 0
+     },
+     "post.peakPssAboveStartMiB": {
+      "before": 78.6,
+      "after": 77.2,
+      "medianDiff": -1.4,
+      "lower": 2,
+      "higher": 1,
+      "equal": 0
+     },
+     "total.cpuTicks": {
+      "before": 133,
+      "after": 109,
+      "medianDiff": -29,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "total.peakPssDeltaMiB": {
+      "before": 78.6,
+      "after": 77.2,
+      "medianDiff": -1.4,
+      "lower": 2,
+      "higher": 1,
+      "equal": 0
+     },
+     "displayMs": {
+      "before": 258,
+      "after": 281,
+      "medianDiff": 28,
+      "lower": 1,
+      "higher": 2,
+      "equal": 0
+     },
+     "hoverToDisplayMs": {
+      "before": 1316,
+      "after": 1342,
+      "medianDiff": 33,
+      "lower": 1,
+      "higher": 2,
+      "equal": 0
+     },
+     "actualDwellMs": {
+      "before": 1059,
+      "after": 1061,
+      "medianDiff": 2,
+      "lower": 1,
+      "higher": 2,
+      "equal": 0
+     },
+     "dispatchMs": {
+      "before": 43.1,
+      "after": 36.6,
+      "medianDiff": -6.4,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     }
+    },
+    "usedPrepared": {
+     "before": 0,
+     "after": 0
+    },
+    "fallback": {
+     "before": 0,
+     "after": 0
+    }
+   },
+   "firefox/symmetric-polynomial/300": {
+    "pairs": 3,
+    "metrics": {
+     "pre.cpuTicks": {
+      "before": 89,
+      "after": 33,
+      "medianDiff": -58,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "pre.peakPssDeltaMiB": {
+      "before": 75.3,
+      "after": 31.3,
+      "medianDiff": -44.3,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "pre.pssAtClickDeltaMiB": {
+      "before": 75.3,
+      "after": 31.3,
+      "medianDiff": -44.3,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "post.cpuTicks": {
+      "before": 200,
+      "after": 218,
+      "medianDiff": -1,
+      "lower": 2,
+      "higher": 1,
+      "equal": 0
+     },
+     "post.cpuTicksToVisible": {
+      "before": 197,
+      "after": 207,
+      "medianDiff": 11,
+      "lower": 1,
+      "higher": 2,
+      "equal": 0
+     },
+     "post.peakPssDeltaMiB": {
+      "before": 97.8,
+      "after": 127,
+      "medianDiff": 32.3,
+      "lower": 0,
+      "higher": 3,
+      "equal": 0
+     },
+     "post.peakPssAboveStartMiB": {
+      "before": 174.6,
+      "after": 158.7,
+      "medianDiff": -13.1,
+      "lower": 2,
+      "higher": 1,
+      "equal": 0
+     },
+     "total.cpuTicks": {
+      "before": 291,
+      "after": 249,
+      "medianDiff": -54,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "total.peakPssDeltaMiB": {
+      "before": 174.6,
+      "after": 158.7,
+      "medianDiff": -13.1,
+      "lower": 2,
+      "higher": 1,
+      "equal": 0
+     },
+     "displayMs": {
+      "before": 733,
+      "after": 811,
+      "medianDiff": 55,
+      "lower": 0,
+      "higher": 3,
+      "equal": 0
+     },
+     "hoverToDisplayMs": {
+      "before": 1158,
+      "after": 1153,
+      "medianDiff": 21,
+      "lower": 1,
+      "higher": 2,
+      "equal": 0
+     },
+     "actualDwellMs": {
+      "before": 406,
+      "after": 359,
+      "medianDiff": -34,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "dispatchMs": {
+      "before": 102.2,
+      "after": 32.2,
+      "medianDiff": -70,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     }
+    },
+    "usedPrepared": {
+     "before": 0,
+     "after": 0
+    },
+    "fallback": {
+     "before": 0,
+     "after": 0
+    }
+   },
+   "firefox/symmetric-polynomial/1000": {
+    "pairs": 3,
+    "metrics": {
+     "pre.cpuTicks": {
+      "before": 163,
+      "after": 37,
+      "medianDiff": -125,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "pre.peakPssDeltaMiB": {
+      "before": 88.1,
+      "after": 31.4,
+      "medianDiff": -57.6,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "pre.pssAtClickDeltaMiB": {
+      "before": 88.1,
+      "after": 27.1,
+      "medianDiff": -65.3,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "post.cpuTicks": {
+      "before": 233,
+      "after": 214,
+      "medianDiff": -19,
+      "lower": 2,
+      "higher": 1,
+      "equal": 0
+     },
+     "post.cpuTicksToVisible": {
+      "before": 230,
+      "after": 213,
+      "medianDiff": -17,
+      "lower": 2,
+      "higher": 1,
+      "equal": 0
+     },
+     "post.peakPssDeltaMiB": {
+      "before": 85.2,
+      "after": 120.7,
+      "medianDiff": 44.6,
+      "lower": 0,
+      "higher": 3,
+      "equal": 0
+     },
+     "post.peakPssAboveStartMiB": {
+      "before": 177.6,
+      "after": 139.5,
+      "medianDiff": -39.5,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "total.cpuTicks": {
+      "before": 397,
+      "after": 253,
+      "medianDiff": -144,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "total.peakPssDeltaMiB": {
+      "before": 177.6,
+      "after": 139.5,
+      "medianDiff": -39.5,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "displayMs": {
+      "before": 725,
+      "after": 828,
+      "medianDiff": 99,
+      "lower": 0,
+      "higher": 3,
+      "equal": 0
+     },
+     "hoverToDisplayMs": {
+      "before": 1950,
+      "after": 1886,
+      "medianDiff": -80,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "actualDwellMs": {
+      "before": 1228,
+      "after": 1073,
+      "medianDiff": -155,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "dispatchMs": {
+      "before": 236,
+      "after": 32.1,
+      "medianDiff": -201.1,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     }
+    },
+    "usedPrepared": {
+     "before": 0,
+     "after": 0
+    },
+    "fallback": {
+     "before": 0,
+     "after": 0
+    }
+   }
+  },
+  "unflagged": {
+   "chromium/tips-python/300": {
+    "pairs": 3,
+    "metrics": {
+     "pre.cpuTicks": {
+      "before": 25,
+      "after": 7,
+      "medianDiff": -18,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "pre.peakPssDeltaMiB": {
+      "before": 25.5,
+      "after": 4,
+      "medianDiff": -21.5,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "pre.pssAtClickDeltaMiB": {
+      "before": 25.5,
+      "after": 4,
+      "medianDiff": -21.5,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "post.cpuTicks": {
+      "before": 49,
+      "after": 53,
+      "medianDiff": 4,
+      "lower": 0,
+      "higher": 3,
+      "equal": 0
+     },
+     "post.cpuTicksToVisible": {
+      "before": 38,
+      "after": 35,
+      "medianDiff": -1,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "post.peakPssDeltaMiB": {
+      "before": 89.5,
+      "after": 97.6,
+      "medianDiff": 4.9,
+      "lower": 0,
+      "higher": 3,
+      "equal": 0
+     },
+     "post.peakPssAboveStartMiB": {
+      "before": 115.1,
+      "after": 101.1,
+      "medianDiff": -16.5,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "total.cpuTicks": {
+      "before": 76,
+      "after": 61,
+      "medianDiff": -13,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "total.peakPssDeltaMiB": {
+      "before": 115.1,
+      "after": 101.1,
+      "medianDiff": -16.5,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "displayMs": {
+      "before": 156.2,
+      "after": 175.5,
+      "medianDiff": 20.9,
+      "lower": 0,
+      "higher": 3,
+      "equal": 0
+     },
+     "hoverToDisplayMs": {
+      "before": 499.5,
+      "after": 500.2,
+      "medianDiff": 14.9,
+      "lower": 0,
+      "higher": 3,
+      "equal": 0
+     },
+     "actualDwellMs": {
+      "before": 328.4,
+      "after": 325,
+      "medianDiff": -3.7,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "dispatchMs": {
+      "before": 22.8,
+      "after": 13.4,
+      "medianDiff": -8.4,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     }
+    },
+    "usedPrepared": {
+     "before": 0,
+     "after": 0
+    },
+    "fallback": {
+     "before": 0,
+     "after": 0
+    }
+   },
+   "chromium/tips-python/1000": {
+    "pairs": 3,
+    "metrics": {
+     "pre.cpuTicks": {
+      "before": 31,
+      "after": 7,
+      "medianDiff": -24,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "pre.peakPssDeltaMiB": {
+      "before": 28.2,
+      "after": 4,
+      "medianDiff": -24.1,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "pre.pssAtClickDeltaMiB": {
+      "before": 28.1,
+      "after": 4,
+      "medianDiff": -24.1,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "post.cpuTicks": {
+      "before": 50,
+      "after": 49,
+      "medianDiff": 0,
+      "lower": 1,
+      "higher": 1,
+      "equal": 1
+     },
+     "post.cpuTicksToVisible": {
+      "before": 20,
+      "after": 43,
+      "medianDiff": 16,
+      "lower": 0,
+      "higher": 3,
+      "equal": 0
+     },
+     "post.peakPssDeltaMiB": {
+      "before": 77.3,
+      "after": 88,
+      "medianDiff": 10.7,
+      "lower": 0,
+      "higher": 3,
+      "equal": 0
+     },
+     "post.peakPssAboveStartMiB": {
+      "before": 105.4,
+      "after": 90.9,
+      "medianDiff": -14.6,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "total.cpuTicks": {
+      "before": 81,
+      "after": 56,
+      "medianDiff": -25,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "total.peakPssDeltaMiB": {
+      "before": 105.4,
+      "after": 90.9,
+      "medianDiff": -14.6,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "displayMs": {
+      "before": 39.2,
+      "after": 226.4,
+      "medianDiff": 169.5,
+      "lower": 0,
+      "higher": 3,
+      "equal": 0
+     },
+     "hoverToDisplayMs": {
+      "before": 1066.6,
+      "after": 1252,
+      "medianDiff": 167.2,
+      "lower": 0,
+      "higher": 3,
+      "equal": 0
+     },
+     "actualDwellMs": {
+      "before": 1027.3,
+      "after": 1025,
+      "medianDiff": -2,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "dispatchMs": {
+      "before": 17.5,
+      "after": 13.6,
+      "medianDiff": -3.9,
+      "lower": 2,
+      "higher": 1,
+      "equal": 0
+     }
+    },
+    "usedPrepared": {
+     "before": 3,
+     "after": 0
+    },
+    "fallback": {
+     "before": 0,
+     "after": 0
+    }
+   },
+   "chromium/symmetric-polynomial/300": {
+    "pairs": 3,
+    "metrics": {
+     "pre.cpuTicks": {
+      "before": 32,
+      "after": 8,
+      "medianDiff": -25,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "pre.peakPssDeltaMiB": {
+      "before": 47.1,
+      "after": 3.6,
+      "medianDiff": -43.5,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "pre.pssAtClickDeltaMiB": {
+      "before": 47.1,
+      "after": 3.6,
+      "medianDiff": -43.5,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "post.cpuTicks": {
+      "before": 141,
+      "after": 137,
+      "medianDiff": -4,
+      "lower": 2,
+      "higher": 1,
+      "equal": 0
+     },
+     "post.cpuTicksToVisible": {
+      "before": 140,
+      "after": 137,
+      "medianDiff": -3,
+      "lower": 2,
+      "higher": 1,
+      "equal": 0
+     },
+     "post.peakPssDeltaMiB": {
+      "before": 168.7,
+      "after": 198.2,
+      "medianDiff": 18.4,
+      "lower": 0,
+      "higher": 3,
+      "equal": 0
+     },
+     "post.peakPssAboveStartMiB": {
+      "before": 216.1,
+      "after": 201.8,
+      "medianDiff": -25.9,
+      "lower": 2,
+      "higher": 1,
+      "equal": 0
+     },
+     "total.cpuTicks": {
+      "before": 173,
+      "after": 144,
+      "medianDiff": -29,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "total.peakPssDeltaMiB": {
+      "before": 216.1,
+      "after": 201.8,
+      "medianDiff": -25.9,
+      "lower": 2,
+      "higher": 1,
+      "equal": 0
+     },
+     "displayMs": {
+      "before": 832.6,
+      "after": 955.9,
+      "medianDiff": 89.3,
+      "lower": 0,
+      "higher": 3,
+      "equal": 0
+     },
+     "hoverToDisplayMs": {
+      "before": 1235,
+      "after": 1282.9,
+      "medianDiff": 49.6,
+      "lower": 1,
+      "higher": 2,
+      "equal": 0
+     },
+     "actualDwellMs": {
+      "before": 429.9,
+      "after": 328,
+      "medianDiff": -99.4,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "dispatchMs": {
+      "before": 120.8,
+      "after": 15,
+      "medianDiff": -105,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     }
+    },
+    "usedPrepared": {
+     "before": 0,
+     "after": 0
+    },
+    "fallback": {
+     "before": 0,
+     "after": 0
+    }
+   },
+   "chromium/symmetric-polynomial/1000": {
+    "pairs": 3,
+    "metrics": {
+     "pre.cpuTicks": {
+      "before": 114,
+      "after": 8,
+      "medianDiff": -105,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "pre.peakPssDeltaMiB": {
+      "before": 168.5,
+      "after": 3.5,
+      "medianDiff": -165,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "pre.pssAtClickDeltaMiB": {
+      "before": 168,
+      "after": 3.5,
+      "medianDiff": -164.5,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "post.cpuTicks": {
+      "before": 97,
+      "after": 152,
+      "medianDiff": 57,
+      "lower": 0,
+      "higher": 3,
+      "equal": 0
+     },
+     "post.cpuTicksToVisible": {
+      "before": 93,
+      "after": 152,
+      "medianDiff": 59,
+      "lower": 0,
+      "higher": 3,
+      "equal": 0
+     },
+     "post.peakPssDeltaMiB": {
+      "before": 137.7,
+      "after": 172.8,
+      "medianDiff": 33.1,
+      "lower": 0,
+      "higher": 3,
+      "equal": 0
+     },
+     "post.peakPssAboveStartMiB": {
+      "before": 309,
+      "after": 176.8,
+      "medianDiff": -131.4,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "total.cpuTicks": {
+      "before": 211,
+      "after": 160,
+      "medianDiff": -48,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "total.peakPssDeltaMiB": {
+      "before": 309,
+      "after": 176.8,
+      "medianDiff": -131.4,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "displayMs": {
+      "before": 735.3,
+      "after": 1003.9,
+      "medianDiff": 273.9,
+      "lower": 0,
+      "higher": 3,
+      "equal": 0
+     },
+     "hoverToDisplayMs": {
+      "before": 1763.5,
+      "after": 2029.3,
+      "medianDiff": 266.7,
+      "lower": 0,
+      "higher": 3,
+      "equal": 0
+     },
+     "actualDwellMs": {
+      "before": 1030.7,
+      "after": 1025.4,
+      "medianDiff": -5.8,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "dispatchMs": {
+      "before": 32,
+      "after": 12.4,
+      "medianDiff": -19.5,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     }
+    },
+    "usedPrepared": {
+     "before": 0,
+     "after": 0
+    },
+    "fallback": {
+     "before": 0,
+     "after": 0
+    }
+   },
+   "firefox/tips-python/300": {
+    "pairs": 3,
+    "metrics": {
+     "pre.cpuTicks": {
+      "before": 55,
+      "after": 33,
+      "medianDiff": -22,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "pre.peakPssDeltaMiB": {
+      "before": 39.3,
+      "after": 30.3,
+      "medianDiff": -11.8,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "pre.pssAtClickDeltaMiB": {
+      "before": 39.3,
+      "after": 30.3,
+      "medianDiff": -11.8,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "post.cpuTicks": {
+      "before": 59,
+      "after": 78,
+      "medianDiff": 20,
+      "lower": 0,
+      "higher": 3,
+      "equal": 0
+     },
+     "post.cpuTicksToVisible": {
+      "before": 56,
+      "after": 58,
+      "medianDiff": 3,
+      "lower": 0,
+      "higher": 2,
+      "equal": 1
+     },
+     "post.peakPssDeltaMiB": {
+      "before": 46.2,
+      "after": 51,
+      "medianDiff": 7.8,
+      "lower": 0,
+      "higher": 3,
+      "equal": 0
+     },
+     "post.peakPssAboveStartMiB": {
+      "before": 85.5,
+      "after": 81.3,
+      "medianDiff": -7.9,
+      "lower": 2,
+      "higher": 1,
+      "equal": 0
+     },
+     "total.cpuTicks": {
+      "before": 113,
+      "after": 111,
+      "medianDiff": -2,
+      "lower": 2,
+      "higher": 1,
+      "equal": 0
+     },
+     "total.peakPssDeltaMiB": {
+      "before": 85.5,
+      "after": 81.3,
+      "medianDiff": -7.9,
+      "lower": 2,
+      "higher": 1,
+      "equal": 0
+     },
+     "displayMs": {
+      "before": 237,
+      "after": 263,
+      "medianDiff": 39,
+      "lower": 0,
+      "higher": 3,
+      "equal": 0
+     },
+     "hoverToDisplayMs": {
+      "before": 601,
+      "after": 628,
+      "medianDiff": 37,
+      "lower": 1,
+      "higher": 2,
+      "equal": 0
+     },
+     "actualDwellMs": {
+      "before": 367,
+      "after": 360,
+      "medianDiff": -4,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "dispatchMs": {
+      "before": 38.2,
+      "after": 37.3,
+      "medianDiff": -3.7,
+      "lower": 2,
+      "higher": 1,
+      "equal": 0
+     }
+    },
+    "usedPrepared": {
+     "before": 0,
+     "after": 0
+    },
+    "fallback": {
+     "before": 0,
+     "after": 0
+    }
+   },
+   "firefox/tips-python/1000": {
+    "pairs": 3,
+    "metrics": {
+     "pre.cpuTicks": {
+      "before": 64,
+      "after": 39,
+      "medianDiff": -30,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "pre.peakPssDeltaMiB": {
+      "before": 33.9,
+      "after": 30.8,
+      "medianDiff": -3.1,
+      "lower": 2,
+      "higher": 1,
+      "equal": 0
+     },
+     "pre.pssAtClickDeltaMiB": {
+      "before": 32.9,
+      "after": 23.9,
+      "medianDiff": -9.1,
+      "lower": 2,
+      "higher": 1,
+      "equal": 0
+     },
+     "post.cpuTicks": {
+      "before": 61,
+      "after": 65,
+      "medianDiff": 4,
+      "lower": 1,
+      "higher": 2,
+      "equal": 0
+     },
+     "post.cpuTicksToVisible": {
+      "before": 60,
+      "after": 65,
+      "medianDiff": 5,
+      "lower": 1,
+      "higher": 2,
+      "equal": 0
+     },
+     "post.peakPssDeltaMiB": {
+      "before": 46.1,
+      "after": 54.2,
+      "medianDiff": 7.7,
+      "lower": 0,
+      "higher": 3,
+      "equal": 0
+     },
+     "post.peakPssAboveStartMiB": {
+      "before": 78.6,
+      "after": 77.2,
+      "medianDiff": -1.4,
+      "lower": 2,
+      "higher": 1,
+      "equal": 0
+     },
+     "total.cpuTicks": {
+      "before": 133,
+      "after": 109,
+      "medianDiff": -29,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "total.peakPssDeltaMiB": {
+      "before": 78.6,
+      "after": 77.2,
+      "medianDiff": -1.4,
+      "lower": 2,
+      "higher": 1,
+      "equal": 0
+     },
+     "displayMs": {
+      "before": 258,
+      "after": 281,
+      "medianDiff": 28,
+      "lower": 1,
+      "higher": 2,
+      "equal": 0
+     },
+     "hoverToDisplayMs": {
+      "before": 1316,
+      "after": 1342,
+      "medianDiff": 33,
+      "lower": 1,
+      "higher": 2,
+      "equal": 0
+     },
+     "actualDwellMs": {
+      "before": 1059,
+      "after": 1061,
+      "medianDiff": 2,
+      "lower": 1,
+      "higher": 2,
+      "equal": 0
+     },
+     "dispatchMs": {
+      "before": 43.1,
+      "after": 36.6,
+      "medianDiff": -6.4,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     }
+    },
+    "usedPrepared": {
+     "before": 0,
+     "after": 0
+    },
+    "fallback": {
+     "before": 0,
+     "after": 0
+    }
+   },
+   "firefox/symmetric-polynomial/300": {
+    "pairs": 3,
+    "metrics": {
+     "pre.cpuTicks": {
+      "before": 89,
+      "after": 33,
+      "medianDiff": -58,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "pre.peakPssDeltaMiB": {
+      "before": 75.3,
+      "after": 31.3,
+      "medianDiff": -44.3,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "pre.pssAtClickDeltaMiB": {
+      "before": 75.3,
+      "after": 31.3,
+      "medianDiff": -44.3,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "post.cpuTicks": {
+      "before": 200,
+      "after": 218,
+      "medianDiff": -1,
+      "lower": 2,
+      "higher": 1,
+      "equal": 0
+     },
+     "post.cpuTicksToVisible": {
+      "before": 197,
+      "after": 207,
+      "medianDiff": 11,
+      "lower": 1,
+      "higher": 2,
+      "equal": 0
+     },
+     "post.peakPssDeltaMiB": {
+      "before": 97.8,
+      "after": 127,
+      "medianDiff": 32.3,
+      "lower": 0,
+      "higher": 3,
+      "equal": 0
+     },
+     "post.peakPssAboveStartMiB": {
+      "before": 174.6,
+      "after": 158.7,
+      "medianDiff": -13.1,
+      "lower": 2,
+      "higher": 1,
+      "equal": 0
+     },
+     "total.cpuTicks": {
+      "before": 291,
+      "after": 249,
+      "medianDiff": -54,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "total.peakPssDeltaMiB": {
+      "before": 174.6,
+      "after": 158.7,
+      "medianDiff": -13.1,
+      "lower": 2,
+      "higher": 1,
+      "equal": 0
+     },
+     "displayMs": {
+      "before": 733,
+      "after": 811,
+      "medianDiff": 55,
+      "lower": 0,
+      "higher": 3,
+      "equal": 0
+     },
+     "hoverToDisplayMs": {
+      "before": 1158,
+      "after": 1153,
+      "medianDiff": 21,
+      "lower": 1,
+      "higher": 2,
+      "equal": 0
+     },
+     "actualDwellMs": {
+      "before": 406,
+      "after": 359,
+      "medianDiff": -34,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "dispatchMs": {
+      "before": 102.2,
+      "after": 32.2,
+      "medianDiff": -70,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     }
+    },
+    "usedPrepared": {
+     "before": 0,
+     "after": 0
+    },
+    "fallback": {
+     "before": 0,
+     "after": 0
+    }
+   },
+   "firefox/symmetric-polynomial/1000": {
+    "pairs": 3,
+    "metrics": {
+     "pre.cpuTicks": {
+      "before": 163,
+      "after": 37,
+      "medianDiff": -125,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "pre.peakPssDeltaMiB": {
+      "before": 88.1,
+      "after": 31.4,
+      "medianDiff": -57.6,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "pre.pssAtClickDeltaMiB": {
+      "before": 88.1,
+      "after": 27.1,
+      "medianDiff": -65.3,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "post.cpuTicks": {
+      "before": 233,
+      "after": 214,
+      "medianDiff": -19,
+      "lower": 2,
+      "higher": 1,
+      "equal": 0
+     },
+     "post.cpuTicksToVisible": {
+      "before": 230,
+      "after": 213,
+      "medianDiff": -17,
+      "lower": 2,
+      "higher": 1,
+      "equal": 0
+     },
+     "post.peakPssDeltaMiB": {
+      "before": 85.2,
+      "after": 120.7,
+      "medianDiff": 44.6,
+      "lower": 0,
+      "higher": 3,
+      "equal": 0
+     },
+     "post.peakPssAboveStartMiB": {
+      "before": 177.6,
+      "after": 139.5,
+      "medianDiff": -39.5,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "total.cpuTicks": {
+      "before": 397,
+      "after": 253,
+      "medianDiff": -144,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "total.peakPssDeltaMiB": {
+      "before": 177.6,
+      "after": 139.5,
+      "medianDiff": -39.5,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "displayMs": {
+      "before": 725,
+      "after": 828,
+      "medianDiff": 99,
+      "lower": 0,
+      "higher": 3,
+      "equal": 0
+     },
+     "hoverToDisplayMs": {
+      "before": 1950,
+      "after": 1886,
+      "medianDiff": -80,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "actualDwellMs": {
+      "before": 1228,
+      "after": 1073,
+      "medianDiff": -155,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     },
+     "dispatchMs": {
+      "before": 236,
+      "after": 32.1,
+      "medianDiff": -201.1,
+      "lower": 3,
+      "higher": 0,
+      "equal": 0
+     }
+    },
+    "usedPrepared": {
+     "before": 0,
+     "after": 0
+    },
+    "fallback": {
+     "before": 0,
+     "after": 0
+    }
+   }
+  }
+ }
+}
