@@ -31,18 +31,10 @@ function resourcesAllowPreparation(): boolean {
   return !hints.connection?.saveData && !(typeof hints.deviceMemory === "number" && hints.deviceMemory > 0 && hints.deviceMemory <= 2);
 }
 
-/** Measure the same CSS ruler used by the article's first-visit heuristic. */
+/** Only prepare readers for an explicit saved multi-column preference. */
 export function shouldPrepareMulti(): boolean {
   if (matchMedia("print").matches || !resourcesAllowPreparation()) return false;
-  const preference = currentPreference();
-  if (preference === "multi") return true;
-  if (preference === "single") return false;
-  const ruler = document.createElement("div");
-  ruler.className = "rm-ruler";
-  document.body.append(ruler);
-  const pitch = ruler.getBoundingClientRect().width + (parseFloat(getComputedStyle(ruler).marginRight) || 0);
-  ruler.remove();
-  return prefersMulti(preference, innerWidth, pitch);
+  return prefersMulti(currentPreference());
 }
 
 function canonicalUrl(input: string): string | null {

@@ -2,10 +2,13 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { prefersMulti } from '../src/scripts/reading-preference.ts';
 
-test('saved mode takes precedence over the first-visit width heuristic', () => {
-  assert.equal(prefersMulti('single', 2000, 600), false);
-  assert.equal(prefersMulti('multi', 320, 350), true);
-  assert.equal(prefersMulti(null, 1199, 600), false);
-  assert.equal(prefersMulti(null, 1200, 600), true);
-  assert.equal(prefersMulti('unexpected', 1200, 600), true);
+test('saved mode selects single or multi explicitly', () => {
+  assert.equal(prefersMulti('single'), false);
+  assert.equal(prefersMulti('multi'), true);
+});
+
+test('missing or invalid preferences default to single', () => {
+  assert.equal(prefersMulti(null), false);
+  assert.equal(prefersMulti('unexpected'), false);
+  assert.equal(prefersMulti(''), false);
 });

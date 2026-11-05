@@ -21,14 +21,17 @@ for (const [name, engine] of Object.entries({ chromium, firefox })) {
         localStorage.setItem('dispositif:reading-mode', 'multi');
         const multi = module.shouldPrepareMulti();
         localStorage.removeItem('dispositif:reading-mode');
-        const automatic = module.shouldPrepareMulti();
-        return { single, multi, automatic };
+        const defaultSingle = !module.shouldPrepareMulti();
+        const manager = new module.ReadingPreloader();
+        const unsetRejected = await manager.prepare(new URL('tips-python/', location.href).href) === null;
+        manager.dispose();
+        return { single, multi, defaultSingle, unsetRejected, frames: document.querySelectorAll('iframe').length };
       }, moduleUrl);
-      assert.deepEqual(choices, { single: false, multi: true, automatic: true });
+      assert.deepEqual(choices, { single: false, multi: true, defaultSingle: true, unsetRejected: true, frames: 0 });
       await page.setViewportSize({ width: 390, height: 844 });
       assert.equal(await page.evaluate(async url => (await import(url)).shouldPrepareMulti(), moduleUrl), false);
       await page.setViewportSize({ width: 1440, height: 900 });
-      await page.evaluate(() => localStorage.removeItem('dispositif:reading-mode'));
+      await page.evaluate(() => localStorage.setItem('dispositif:reading-mode', 'multi'));
       const before = await page.screenshot();
       const ready = await page.evaluate(async ({ moduleUrl, articleUrl }) => {
         const { ReadingPreloader } = await import(moduleUrl);

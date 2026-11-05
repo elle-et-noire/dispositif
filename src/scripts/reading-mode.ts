@@ -518,8 +518,7 @@ export function initializeReadingMode() {
 
   const applyDefault = () => {
     if (suspendedForPrint || printing.matches || root.classList.contains("rm-fallback")) return;
-    const p = ruler.getBoundingClientRect().width + (parseFloat(getComputedStyle(ruler).marginRight) || 0);
-    setEnabled(prefersMulti(preference, window.innerWidth, p));
+    setEnabled(prefersMulti(preference));
   };
 
   // The original normally lives inside the reader. Return it to the document
