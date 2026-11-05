@@ -511,6 +511,52 @@ for (const [name, engine] of engines) {
     } finally { await browser.close(); }
   });
 
+  test(`${name}: a started reader whose first frame is delayed keeps the saved mode`, { timeout: 120_000 }, async () => {
+    // Background tabs do not run animation frames, so the reader's first
+    // frame can come after the fallback timer. That is not a failed reader.
+    const browser = await engine.launch();
+    try {
+      for (const route of ['index', 'direct']) {
+        const context = await newContext(browser);
+        await setMode(context, 'multi');
+        await context.addInitScript(() => {
+          const originalTimeout = window.setTimeout;
+          window.setTimeout = (handler, delay, ...args) => originalTimeout(handler, delay === 10000 ? 1000 : delay, ...args);
+          const originalFrame = window.requestAnimationFrame.bind(window);
+          let held = null;
+          window.__holdFrames = () => { held = []; };
+          window.__releaseFrames = () => { const queued = held ?? []; held = null; for (const callback of queued) originalFrame(callback); };
+          window.requestAnimationFrame = (callback) => {
+            if (!held) return originalFrame(callback);
+            held.push(callback);
+            return -held.length;
+          };
+        });
+        const page = await context.newPage();
+        if (route === 'index') {
+          await page.goto(base);
+          await page.evaluate(() => document.addEventListener('astro:after-swap', () => window.__holdFrames(), { once: true }));
+          await page.locator('a[href$="tips-python/"]').click({ noWaitAfter: true });
+        } else {
+          await context.addInitScript(() => { if (location.pathname.endsWith('/tips-python/')) window.__holdFrames(); });
+          await page.goto(new URL('tips-python/', base).href, { waitUntil: 'commit' });
+        }
+        // Default polling uses animation frames, which are held here.
+        await page.waitForFunction(() => document.documentElement.classList.contains('rm-ready'), null, { polling: 50 });
+        // The shortened timer still leaves the reader time to start; then wait
+        // well past it while the first frame is held.
+        await page.waitForTimeout(1300);
+        assert.equal(await page.evaluate(() => document.documentElement.classList.contains('rm-fallback')), false, `${route}: no fallback while held`);
+        await page.evaluate(() => window.__releaseFrames());
+        await page.waitForFunction(() => !document.documentElement.classList.contains('rm-pending'));
+        await frames(page, 3);
+        assert.equal(await isMulti(page), true, `${route}: saved multi mode applied`);
+        assert.equal(await page.evaluate(() => document.documentElement.classList.contains('rm-fallback')), false, route);
+        await context.close();
+      }
+    } finally { await browser.close(); }
+  });
+
   test(`${name}: printing resumes the exact n-column point, including within a column`, { timeout: 120_000 }, async () => {
     const browser = await engine.launch();
     try {

@@ -8,6 +8,11 @@ import { ReadingMotion } from "./reading-motion";
 import { prefersMulti, READING_MODE_STORAGE_KEY } from "./reading-preference";
 
 let dispose: (() => void) | undefined;
+// Saves the active reader's current position; the single pagehide listener
+// below calls it before persisting so storage is written once per unload.
+let saveActiveReader: (() => void) | undefined;
+const sameLayout = (a: ReadingLayout, b: ReadingLayout) =>
+  (Object.keys(a) as (keyof ReadingLayout)[]).every((key) => a[key] === b[key]);
 type HistoryPosition = {
   mode: "single" | "multi"; position: number; point?: ReadingPoint; layout?: ReadingLayout;
   anchor?: { path: number[]; ratio: number; width: number };
@@ -16,14 +21,20 @@ type HistoryPosition = {
 const HISTORY_STORAGE_KEY = "dispositif:reading-history";
 const historyPositions = new Map<string, HistoryPosition>();
 const dirtyHistoryPositions = new Set<string>();
-try {
+// Throws when storage is unavailable; callers decide how to degrade.
+const readSavedHistory = () => {
+  const entries = new Map<string, HistoryPosition>();
   const saved: unknown = JSON.parse(sessionStorage.getItem(HISTORY_STORAGE_KEY) ?? "[]");
   if (Array.isArray(saved)) for (const item of saved) {
     if (Array.isArray(item) && typeof item[0] === "string" && item[1]
       && ["single", "multi"].includes(item[1].mode) && Number.isFinite(item[1].position)) {
-      historyPositions.set(item[0], item[1] as HistoryPosition);
+      entries.set(item[0], item[1] as HistoryPosition);
     }
   }
+  return entries;
+};
+try {
+  for (const [key, value] of readSavedHistory()) historyPositions.set(key, value);
 } catch { /* session storage is optional */ }
 const persistHistoryPositions = () => {
   if (!dirtyHistoryPositions.size) return;
@@ -31,14 +42,7 @@ const persistHistoryPositions = () => {
     // Other same-origin reader documents can save while this document is
     // alive. Merge only the entries changed here so neither overwrites the
     // other's newer positions with a stale in-memory copy.
-    const saved: unknown = JSON.parse(sessionStorage.getItem(HISTORY_STORAGE_KEY) ?? "[]");
-    const merged = new Map<string, HistoryPosition>();
-    if (Array.isArray(saved)) for (const item of saved) {
-      if (Array.isArray(item) && typeof item[0] === "string" && item[1]
-        && ["single", "multi"].includes(item[1].mode) && Number.isFinite(item[1].position)) {
-        merged.set(item[0], item[1] as HistoryPosition);
-      }
-    }
+    const merged = readSavedHistory();
     for (const key of dirtyHistoryPositions) {
       const value = historyPositions.get(key);
       if (value) { merged.delete(key); merged.set(key, value); }
@@ -47,7 +51,10 @@ const persistHistoryPositions = () => {
     dirtyHistoryPositions.clear();
   } catch { /* reading remains available without storage */ }
 };
-window.addEventListener("pagehide", persistHistoryPositions);
+window.addEventListener("pagehide", () => {
+  saveActiveReader?.();
+  persistHistoryPositions();
+});
 
 export function initializeReadingMode() {
   dispose?.();
@@ -68,6 +75,7 @@ export function initializeReadingMode() {
   // Astro preserves state properties on history traversal. Give each article
   // entry its own key; the positions stay in memory rather than writing to
   // history or storage on every scroll frame.
+  const restoringEntry = typeof history.state?.dispositifReadingKey === "string";
   const ensureHistoryKey = () => {
     const key: string = history.state?.dispositifReadingKey ?? `${Date.now()}-${Math.random()}`;
     if (history.state && !history.state.dispositifReadingKey) {
@@ -78,20 +86,17 @@ export function initializeReadingMode() {
   let entryKey = ensureHistoryKey();
   const articlePath = location.pathname + location.search;
   let historyIndex = Number.isFinite(history.state?.index) ? Number(history.state.index) : 0;
-  let savedHistoryPosition = historyPositions.get(entryKey);
-  if (!savedHistoryPosition) {
+  // A freshly generated key cannot have a saved entry. For an existing entry,
+  // another same-origin document may have stored a newer position since this
+  // module loaded; prefer storage unless this document changed the entry
+  // itself and has not persisted it yet.
+  if (restoringEntry && !dirtyHistoryPositions.has(entryKey)) {
     try {
-      const saved: unknown = JSON.parse(sessionStorage.getItem(HISTORY_STORAGE_KEY) ?? "[]");
-      if (Array.isArray(saved)) {
-        const item = saved.find((entry) => Array.isArray(entry) && entry[0] === entryKey);
-        const value = item?.[1];
-        if (value && ["single", "multi"].includes(value.mode) && Number.isFinite(value.position)) {
-          savedHistoryPosition = value as HistoryPosition;
-          historyPositions.set(entryKey, savedHistoryPosition);
-        }
-      }
+      const stored = readSavedHistory().get(entryKey);
+      if (stored) historyPositions.set(entryKey, stored);
     } catch { /* storage is optional */ }
   }
+  const savedHistoryPosition = historyPositions.get(entryKey);
   let historyReady = false;
 
   const sourceParent = source.parentNode!;
@@ -384,7 +389,7 @@ export function initializeReadingMode() {
     const layout = createLayout(w, gap, h, 0, l, viewport.clientWidth, edge);
     // Layout changes preserve the logical anchor; ordinary observations never
     // reconstruct application state from native positions.
-    if (reading && Object.keys(layout).every(key => layout[key as keyof typeof layout] === reading!.layout[key as keyof typeof layout])) {
+    if (reading && sameLayout(layout, reading.layout)) {
       present();
       return;
     }
@@ -537,10 +542,7 @@ export function initializeReadingMode() {
     suspendedForPrint = false;
     if (resumeAfterPrint) {
       setEnabled(true, printPosition);
-      const saved = printPoint;
-      if (saved && reading && (Object.keys(reading.layout) as (keyof ReadingLayout)[])
-        .every((key) => reading!.layout[key] === saved.layout[key])) {
-        reading.restorePoint(saved.point);
+      if (printPoint && restoreExactPoint(printPoint.point, printPoint.layout)) {
         present(true);
         saveHistoryPosition();
       }
@@ -670,17 +672,10 @@ export function initializeReadingMode() {
     event.preventDefault();
   }, { signal });
 
-  window.addEventListener("resize", () => { applyDefault(); scheduleMeasure(); }, { signal });
+  window.addEventListener("resize", scheduleMeasure, { signal });
   window.visualViewport?.addEventListener("resize", scheduleMeasure, { signal });
   window.addEventListener("beforeprint", suspendForPrint, { signal });
   window.addEventListener("afterprint", resumeFromPrint, { signal });
-  window.addEventListener("pagehide", () => {
-    if (enabled) syncPosition();
-    saveHistoryPosition();
-    saveHistoryDetails();
-    saveHistoryAnchor();
-    persistHistoryPositions();
-  }, { signal });
   printing.addEventListener("change", () => {
     if (printing.matches) suspendForPrint();
     else resumeFromPrint();
@@ -708,18 +703,21 @@ export function initializeReadingMode() {
     }
     return changed;
   };
+  // Restore an exact point only when the layout it was taken in still holds.
+  const restoreExactPoint = (point: ReadingPoint, layout: ReadingLayout) => {
+    if (!reading || !Number.isFinite(point.x) || !Number.isFinite(point.y) || !sameLayout(reading.layout, layout)) return false;
+    reading.restorePoint(point);
+    return true;
+  };
   const restoreHistoryPosition = (saved: HistoryPosition) => {
     const sameMode = saved.mode === (enabled ? "multi" : "single");
     const sameWidth = !saved.anchor || Math.abs(
       (parseFloat(getComputedStyle(source).width) || source.getBoundingClientRect().width)
         - saved.anchor.width) < 0.5;
     if (enabled && reading && sameMode) {
-      const savedLayout = saved.layout;
-      if (savedLayout && saved.point
-        && Number.isFinite(saved.point.x) && Number.isFinite(saved.point.y)
-        && (Object.keys(reading.layout) as (keyof ReadingLayout)[]).every((key) => reading!.layout[key] === savedLayout[key])) {
-        reading.restorePoint(saved.point);
-      } else reading.restore(fromCss(historyAnchorOffset(saved.anchor) ?? saved.position));
+      if (!saved.point || !saved.layout || !restoreExactPoint(saved.point, saved.layout)) {
+        reading.restore(fromCss(historyAnchorOffset(saved.anchor) ?? saved.position));
+      }
       present(true);
     } else if (!enabled && sameMode && sameWidth) articleScrollport.scrollTop = saved.position;
     else {
@@ -790,20 +788,30 @@ export function initializeReadingMode() {
   root.classList.add("rm-ready");
   // All astro:page-load handlers (including copy-button enhancement) finish first.
   const initialFrame = requestAnimationFrame(() => {
-    // Restore disclosure layout before measuring or applying a saved offset.
-    if (savedHistoryPosition) restoreDetails(savedHistoryPosition);
-    applyDefault();
-    if (savedHistoryPosition) restoreHistoryPosition(savedHistoryPosition);
-    else followHash();
-    historyReady = true;
-    saveHistoryPosition();
-    root.classList.remove("rm-pending");
+    try {
+      // Restore disclosure layout before measuring or applying a saved offset.
+      if (savedHistoryPosition) restoreDetails(savedHistoryPosition);
+      applyDefault();
+      if (savedHistoryPosition) restoreHistoryPosition(savedHistoryPosition);
+      else followHash();
+      historyReady = true;
+      saveHistoryPosition();
+    } finally {
+      // The layout fallback stands down once rm-ready is set, so never leave
+      // the article hidden if restoring throws.
+      root.classList.remove("rm-pending");
+    }
   });
-  dispose = () => {
+  const saveReaderState = () => {
     if (enabled) syncPosition();
     saveHistoryPosition();
     saveHistoryDetails();
     saveHistoryAnchor();
+  };
+  saveActiveReader = saveReaderState;
+  dispose = () => {
+    saveReaderState();
+    saveActiveReader = undefined;
     motion.reset();
     controller.abort();
     resizeObserver.disconnect();
