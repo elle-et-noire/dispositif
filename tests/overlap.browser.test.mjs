@@ -4,7 +4,7 @@ import test from "node:test";
 import { chromium } from "playwright-core";
 
 const ARTICLE_URL = new URL("symmetric-polynomial/",
-  process.env.RM_BASE_URL ?? "http://localhost:4323/dispositif/").href;
+  process.env.RM_BASE_URL ?? "http://localhost:4321/dispositif/").href;
 const settle = page => page.evaluate(async () => {
   for (let i = 0; i < 3; i++) await new Promise(requestAnimationFrame);
 });

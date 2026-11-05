@@ -7,15 +7,22 @@ import { chromium, firefox } from 'playwright-core';
 
 const base = process.env.RM_BASE_URL ?? 'http://localhost:4321/dispositif/';
 const KEY = 'dispositif:reading-mode';
+// The reader's own script: a hashed chunk in a build, an Astro module request
+// on the dev server.
+const READER_SCRIPT = /ReadingMode\.astro(?:_astro_type_script[^/]*\.js|\?astro&type=script)/;
 const selected = process.env.RM_ENGINES?.split(',');
 const engines = Object.entries({ chromium, firefox }).filter(([name]) => !selected || selected.includes(name));
 
 const frames = (page, count = 2) => page.evaluate(async (count) => {
   for (let i = 0; i < count; i++) await new Promise(requestAnimationFrame);
 }, count);
+// History traversal changes the URL before Astro swaps in the destination, so
+// the previous article (still ready) can briefly sit under the new path. Also
+// require that the destination itself has finished loading.
 const articleReady = (page, slug) => page.waitForFunction((slug) => {
   const root = document.documentElement;
-  return location.pathname.endsWith(`/${slug}/`) && root.dataset.pageKind === 'article'
+  return location.pathname.endsWith(`/${slug}/`) && window.rmLoadedPath?.endsWith(`/${slug}/`)
+    && root.dataset.pageKind === 'article'
     && root.classList.contains('rm-ready') && !root.classList.contains('rm-pending');
 }, slug);
 const indexReady = page => page.waitForFunction(() => document.documentElement.dataset.pageKind === 'index');
@@ -62,6 +69,9 @@ const watchFrames = context => context.addInitScript(() => {
 const newContext = async (browser, options = {}) => {
   const context = await browser.newContext({ viewport: { width: 900, height: 500 }, reducedMotion: 'reduce', ...options });
   context.errors = [];
+  await context.addInitScript(() => {
+    document.addEventListener('astro:page-load', () => { window.rmLoadedPath = location.pathname; });
+  });
   context.on('page', page => page.on('pageerror', error => context.errors.push(String(error))));
   return context;
 };
@@ -294,13 +304,22 @@ for (const [name, engine] of engines) {
         const context = await newContext(browser, { viewport: { width: 1920, height: 900 } });
         await context.addInitScript(([key, value]) => {
           const failure = () => new DOMException('storage disabled for test', 'SecurityError');
+          // Astro's dev toolbar reads storage without a guard. It only exists
+          // on the dev server, so leave its storage working and test ours.
+          const fromDevToolbar = () => /dev-toolbar/.test(new Error().stack ?? '');
           if (value === 'throw-getter') {
             for (const name of ['localStorage', 'sessionStorage']) {
-              Object.defineProperty(window, name, { configurable: true, get() { throw failure(); } });
+              let real;
+              try { real = window[name]; } catch { /* already unavailable */ }
+              Object.defineProperty(window, name, { configurable: true, get() {
+                if (real && fromDevToolbar()) return real;
+                throw failure();
+              } });
             }
           } else if (value === 'throw-getItem') {
-            Storage.prototype.getItem = () => { throw failure(); };
-            Storage.prototype.setItem = () => { throw failure(); };
+            const { getItem, setItem } = Storage.prototype;
+            Storage.prototype.getItem = function (...args) { if (fromDevToolbar()) return getItem.apply(this, args); throw failure(); };
+            Storage.prototype.setItem = function (...args) { if (fromDevToolbar()) return setItem.apply(this, args); throw failure(); };
           } else if (location.protocol === 'about:') return;
           else if (value === null) localStorage.removeItem(key);
           else localStorage.setItem(key, value);
@@ -475,7 +494,7 @@ for (const [name, engine] of engines) {
       {
         const context = await newContext(browser);
         await prepare(context);
-        await context.route(/ReadingMode\.astro_astro_type_script.*\.js(?:\?|$)/, route => route.abort());
+        await context.route(READER_SCRIPT, route => route.abort());
         const page = await context.newPage();
         await page.goto(base);
         await page.locator('a[href$="tips-python/"]').click({ noWaitAfter: true });
@@ -488,7 +507,7 @@ for (const [name, engine] of engines) {
         await prepare(context);
         let released;
         const gate = new Promise(resolve => { released = resolve; });
-        await context.route(/ReadingMode\.astro_astro_type_script.*\.js(?:\?|$)/, async request => { await gate; await request.continue(); });
+        await context.route(READER_SCRIPT, async request => { await gate; await request.continue(); });
         const page = await context.newPage();
         if (route === 'index') {
           await page.goto(base);
