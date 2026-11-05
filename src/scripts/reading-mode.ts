@@ -6,6 +6,7 @@ import { ReadingViewport } from "./reading-viewport";
 import { ReadingFragments } from "./reading-fragments";
 import { ReadingMotion } from "./reading-motion";
 import { prefersMulti, READING_MODE_STORAGE_KEY } from "./reading-preference";
+import { type HistoryPosition, HISTORY_STORAGE_KEY, parseSavedHistory, mergeHistory, resolveHistoryEntry } from "./reading-history";
 
 let dispose: (() => void) | undefined;
 // Saves the active reader's current position; the single pagehide listener
@@ -13,41 +14,18 @@ let dispose: (() => void) | undefined;
 let saveActiveReader: (() => void) | undefined;
 const sameLayout = (a: ReadingLayout, b: ReadingLayout) =>
   (Object.keys(a) as (keyof ReadingLayout)[]).every((key) => a[key] === b[key]);
-type HistoryPosition = {
-  mode: "single" | "multi"; position: number; point?: ReadingPoint; layout?: ReadingLayout;
-  anchor?: { path: number[]; ratio: number; width: number };
-  details?: boolean[];
-};
-const HISTORY_STORAGE_KEY = "dispositif:reading-history";
 const historyPositions = new Map<string, HistoryPosition>();
 const dirtyHistoryPositions = new Set<string>();
 // Throws when storage is unavailable; callers decide how to degrade.
-const readSavedHistory = () => {
-  const entries = new Map<string, HistoryPosition>();
-  const saved: unknown = JSON.parse(sessionStorage.getItem(HISTORY_STORAGE_KEY) ?? "[]");
-  if (Array.isArray(saved)) for (const item of saved) {
-    if (Array.isArray(item) && typeof item[0] === "string" && item[1]
-      && ["single", "multi"].includes(item[1].mode) && Number.isFinite(item[1].position)) {
-      entries.set(item[0], item[1] as HistoryPosition);
-    }
-  }
-  return entries;
-};
+const readSavedHistory = () => parseSavedHistory(sessionStorage.getItem(HISTORY_STORAGE_KEY));
 try {
   for (const [key, value] of readSavedHistory()) historyPositions.set(key, value);
 } catch { /* session storage is optional */ }
 const persistHistoryPositions = () => {
   if (!dirtyHistoryPositions.size) return;
   try {
-    // Other same-origin reader documents can save while this document is
-    // alive. Merge only the entries changed here so neither overwrites the
-    // other's newer positions with a stale in-memory copy.
-    const merged = readSavedHistory();
-    for (const key of dirtyHistoryPositions) {
-      const value = historyPositions.get(key);
-      if (value) { merged.delete(key); merged.set(key, value); }
-    }
-    sessionStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify([...merged].slice(-100)));
+    const merged = mergeHistory(readSavedHistory(), historyPositions, dirtyHistoryPositions);
+    sessionStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(merged));
     dirtyHistoryPositions.clear();
   } catch { /* reading remains available without storage */ }
 };
@@ -86,15 +64,14 @@ export function initializeReadingMode() {
   let entryKey = ensureHistoryKey();
   const articlePath = location.pathname + location.search;
   let historyIndex = Number.isFinite(history.state?.index) ? Number(history.state.index) : 0;
-  // A freshly generated key cannot have a saved entry. For an existing entry,
-  // another same-origin document may have stored a newer position since this
-  // module loaded; prefer storage unless this document changed the entry
-  // itself and has not persisted it yet.
-  if (restoringEntry && !dirtyHistoryPositions.has(entryKey)) {
-    try {
-      const stored = readSavedHistory().get(entryKey);
-      if (stored) historyPositions.set(entryKey, stored);
-    } catch { /* storage is optional */ }
+  // A freshly generated key cannot have a saved entry, so skip the storage
+  // read on ordinary navigations.
+  if (restoringEntry) {
+    const changedLocally = dirtyHistoryPositions.has(entryKey);
+    let stored: HistoryPosition | undefined;
+    if (!changedLocally) try { stored = readSavedHistory().get(entryKey); } catch { /* storage is optional */ }
+    const resolved = resolveHistoryEntry(historyPositions.get(entryKey), stored, changedLocally);
+    if (resolved) historyPositions.set(entryKey, resolved);
   }
   const savedHistoryPosition = historyPositions.get(entryKey);
   let historyReady = false;
