@@ -1,5 +1,15 @@
 # 段組み先読みの調査メモ
 
+> **スクリプトと生データの所在**
+> この調査で使った計測スクリプト、実験パッチ、生データ（`scripts/experiments/`、`scripts/reading-*-experiment.mjs`、`docs/reading-*.json`、`docs/reading-*.jsonl`）は作業ツリーから削除した。本文で名前を挙げるこれらのファイルは、タグ `reading-preload-investigation-20261105`（コミット `8c74629`）に残っている。再現するときは次のいずれかで取り出す。
+>
+> ```sh
+> git show reading-preload-investigation-20261105:scripts/experiments/reading-candidate-benchmark.mjs
+> git checkout reading-preload-investigation-20261105 -- scripts/experiments scripts/reading-preload-experiment.mjs docs/reading-no-iframe-summary-pinned-20261105.json
+> ```
+>
+> 本文のコマンドは、取り出したファイルがリポジトリ内の元の位置にある前提で書いている。
+
 ## 変更前の計測（2026-11-05）
 
 `npm run build` 後に `node scripts/reading-preload-experiment.mjs` を実行。Playwright のヘッドレス Chromium / Firefox、1440×900、モーション軽減、`symmetric-polynomial`、前回設定は n 段。静的ファイルをローカル配信し、リンクに 700 ms ホバーしてから開く。各 3 回で、クリックによる `astro:before-preparation` から `rm-active` までの時間は次の通り（ms）。
@@ -253,9 +263,9 @@ RM_BASE_URL=http://127.0.0.1:4597/dispositif/ RM_PRELOAD_MODULE_URL=http://127.0
 
 ### バージョン管理する調査成果物
 
-結論の根拠として、最終クリック比較の Chromium 24 件（`reading-visible-candidate-click-exclusive.jsonl`）と Firefox 24 件（`reading-visible-candidate-click-firefox.jsonl`）、中止比較 48 件（`reading-visible-candidate-leave.jsonl`）、実 PDF 比較の結果 4 ファイル、環境情報、検証の集計、再現スクリプト、実験パッチをバージョン管理する。Firefox の抽出は記事・待ち時間・方式・実行番号の全条件を残しており、成功した試行だけを選別したものではない。
+結論の根拠として、最終クリック比較の Chromium 24 件（`reading-visible-candidate-click-exclusive.jsonl`）と Firefox 24 件（`reading-visible-candidate-click-firefox.jsonl`）、中止比較 48 件（`reading-visible-candidate-leave.jsonl`）、実 PDF 比較の結果 4 ファイル、環境情報、検証の集計、再現スクリプト、実験パッチを、冒頭のタグのコミットに保存した。Firefox の抽出は記事・待ち時間・方式・実行番号の全条件を残しており、成功した試行だけを選別したものではない。
 
-過去の `reading-dwell-*.jsonl`、重複する一次計測 `reading-visible-candidate-click.jsonl`、TAP ログはローカルに残し、commit には含めない。本文中のこれらの名前は当時のローカル資料の識別子で、リポジトリに同梱したファイルへのリンクではない。`reading-visible-validation.json` の `localLog` と PDF 比較の `a` / `b` もローカル実行時の出力先を示す。PDF・ラスタ画像本体は生成物として同梱せず、上記コマンドで再生成する。検証の集計は実行当時の記録であり、TAP の完全な出力を同梱するものではない。
+過去の `reading-dwell-*.jsonl`、重複する一次計測 `reading-visible-candidate-click.jsonl`、TAP ログはローカルに残し、commit には含めない。本文中のこれらの名前は当時のローカル資料の識別子で、冒頭のタグにも含まれていない。`reading-visible-validation.json` の `localLog` と PDF 比較の `a` / `b` もローカル実行時の出力先を示す。PDF・ラスタ画像本体は生成物として同梱せず、上記コマンドで再生成する。検証の集計は実行当時の記録であり、TAP の完全な出力を同梱するものではない。
 
 ## 初回表示の方針変更（2026-11-05）
 
@@ -461,7 +471,7 @@ main 判断は保留。今回の比較はクリック後のみの PSS ピーク�
 #### 旧比較と今回の比較が示す範囲
 
 - `reading-candidate-benchmark.mjs` 等の旧比較（元マシン）: iframe なし条件だけ routing で HTTP キャッシュを無効にしている交絡があり、停止単独の効果は示さない。値は当時の記録として残す。
-- `reading-no-iframe-comparison-20261105.jsonl`（元マシン、WSL2、コミット済み）: routing のない別々の本番ビルドで、停止によりクリック前の CPU と PSS の概算が減り、クリックから表示までの時間が条件により変わることを示す。PSS のクリック後だけのピークは記録しておらず、外乱も記録していない。150 ms 間隔である。同じ記録で数式記事・1000 ms の Firefox の表示まで約 8.6〜9.2 s という値は、この環境の同条件の約 0.7〜0.8 s（条件全体では 0.24〜0.83 s）と大きく異なる。環境への依存が大きい。
+- `reading-no-iframe-comparison-20261105.jsonl`（元マシン、WSL2、冒頭のタグに保存）: routing のない別々の本番ビルドで、停止によりクリック前の CPU と PSS の概算が減り、クリックから表示までの時間が条件により変わることを示す。PSS のクリック後だけのピークは記録しておらず、外乱も記録していない。150 ms 間隔である。同じ記録で数式記事・1000 ms の Firefox の表示まで約 8.6〜9.2 s という値は、この環境の同条件の約 0.7〜0.8 s（条件全体では 0.24〜0.83 s）と大きく異なる。環境への依存が大きい。
 - 今回（この環境）: 同じ 48 試行の設計で、外乱を試行ごとに記録し、コアを固定して、クリック前とクリック後を分けた。次の 3 点を、2 記事、1440×900、multi 設定、headless の Chromium 156 / Firefox 157、温まった OS キャッシュという範囲で示す。
   - 停止によりクリック前の負荷が両エンジンで一貫して下がる。
   - クリック後は記事の構築分の PSS がクリック時点から増えるが、S0 からのピークは下がる。
@@ -485,7 +495,7 @@ main 判断は保留。今回の比較はクリック後のみの PSS ピーク�
 - `reading-motion` の段送りアニメーション試験は負荷下で不安定になる。
 - `astro preview` 配信時に Chromium の印刷で起きる 2 つの差（数式フォントの代替、同じ URL へ戻った直後の 1 ページ化）は既存の現象で、原因は未特定。本番配信（GitHub Pages）の挙動はこの環境では確認していない。
 - 実 PDF は headless の自動化経由（`page.pdf()`、Marionette）で、対話式の印刷ダイアログは確認していない。
-- `scripts/experiments/` の旧 iframe 試験（`reading-preload*.browser.test.mjs` 等）は削除済みモジュールを前提にした過去の記録で、現在のコードでは動かない。
+- `scripts/experiments/` の旧 iframe 試験（`reading-preload*.browser.test.mjs` 等、冒頭のタグに保存）は削除済みモジュールを前提にした過去の記録で、現在のコードでは動かない。
 
 #### 再現手順
 
