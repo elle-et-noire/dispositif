@@ -27,6 +27,28 @@ const {
 <html lang="ja" class="antialiased" data-page-kind={article ? "article" : "index"} transition:animate="none">
   <head>
     <meta charset="UTF-8" />
+    <script is:inline>
+      (() => {
+      // With JavaScript enabled, keep the article out of the first paint until
+      // the reader has selected its initial mode and restored its position.
+      if (document.documentElement.dataset.pageKind === "article" && !document.documentElement.classList.contains("rm-ready")) {
+        document.documentElement.classList.add("rm-pending");
+      }
+      // If the reader bundle fails or stalls, leave a usable single-column
+      // article instead of keeping the content hidden indefinitely.
+      const armReaderFallback = () => {
+        const root = document.documentElement;
+        if (!root.classList.contains("rm-pending")) return;
+        setTimeout(() => {
+          if (root !== document.documentElement || !root.classList.contains("rm-pending")) return;
+          root.classList.add("rm-fallback");
+          root.classList.remove("rm-pending");
+        }, 10000);
+      };
+      armReaderFallback();
+      document.addEventListener("astro:after-swap", armReaderFallback);
+      })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="generator" content={Astro.generator} />
     <meta name="description" content={description} />

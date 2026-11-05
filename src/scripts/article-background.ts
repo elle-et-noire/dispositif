@@ -36,7 +36,10 @@ document.addEventListener("astro:before-preparation", () => {
   saveIndexPosition();
 });
 
-document.addEventListener("astro:before-swap", () => {
+document.addEventListener("astro:before-swap", (event) => {
+  // Inline head scripts do not run while Astro parses its destination document.
+  const destination = (event as Event & { newDocument: Document }).newDocument;
+  if (destination.documentElement.dataset.pageKind === "article") destination.documentElement.classList.add("rm-pending");
   returningToIndex = isArticle();
   // Include scrolling that happened while the destination was being fetched.
   saveIndexPosition();

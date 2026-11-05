@@ -1,0 +1,9 @@
+--- a/src/components/ArticleIndex.astro
++++ b/src/components/ArticleIndex.astro
+@@ -15,4 +15,6 @@
+ 
+ <script>
+   import "../scripts/article-background";
++  import { navigate } from "astro:transitions/client";
++  (window as any).__rmExperimentalNavigate = navigate;
+ </script>

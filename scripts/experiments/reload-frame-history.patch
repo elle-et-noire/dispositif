@@ -1,0 +1,24 @@
+--- a/src/scripts/reading-mode.ts
++++ b/src/scripts/reading-mode.ts
+@@ -59,7 +59,20 @@
+   let entryKey = ensureHistoryKey();
+   const articlePath = location.pathname + location.search;
+   let historyIndex = Number.isFinite(history.state?.index) ? Number(history.state.index) : 0;
+-  const savedHistoryPosition = historyPositions.get(entryKey);
++  let savedHistoryPosition = historyPositions.get(entryKey);
++  if (!savedHistoryPosition) {
++    try {
++      const saved: unknown = JSON.parse(sessionStorage.getItem(HISTORY_STORAGE_KEY) ?? "[]");
++      if (Array.isArray(saved)) {
++        const entry = saved.find((item) => Array.isArray(item) && item[0] === entryKey);
++        const value = entry?.[1];
++        if (value && ["single", "multi"].includes(value.mode) && Number.isFinite(value.position)) {
++          savedHistoryPosition = value as HistoryPosition;
++          historyPositions.set(entryKey, savedHistoryPosition);
++        }
++      }
++    } catch { /* storage is optional */ }
++  }
+   let historyReady = false;
+ 
+   const sourceParent = source.parentNode!;

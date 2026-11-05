@@ -5,8 +5,8 @@ import { createLayout, fromCss, toCss, ticks, zero, paperWindow, slotColumns, vi
 import { ReadingViewport } from "./reading-viewport";
 import { ReadingFragments } from "./reading-fragments";
 import { ReadingMotion } from "./reading-motion";
+import { prefersMulti, READING_MODE_STORAGE_KEY } from "./reading-preference";
 
-const STORAGE_KEY = "dispositif:reading-mode";
 let dispose: (() => void) | undefined;
 type HistoryPosition = {
   mode: "single" | "multi"; position: number; point?: ReadingPoint; layout?: ReadingLayout;
@@ -15,6 +15,10 @@ type HistoryPosition = {
 };
 const HISTORY_STORAGE_KEY = "dispositif:reading-history";
 const historyPositions = new Map<string, HistoryPosition>();
+const dirtyHistoryPositions = new Set<string>();
+// Retain the element reference: Firefox may detach it before pagehide runs.
+let speculativeFrame: Element | null = null;
+try { speculativeFrame = window.frameElement; } catch { /* Cross-origin embedding may deny access. */ }
 try {
   const saved: unknown = JSON.parse(sessionStorage.getItem(HISTORY_STORAGE_KEY) ?? "[]");
   if (Array.isArray(saved)) for (const item of saved) {
@@ -25,8 +29,26 @@ try {
   }
 } catch { /* session storage is optional */ }
 const persistHistoryPositions = () => {
-  try { sessionStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify([...historyPositions].slice(-100))); }
-  catch { /* reading remains available without storage */ }
+  if (!dirtyHistoryPositions.size || speculativeFrame?.hasAttribute("data-rm-preparing")) return;
+  try {
+    // Other same-origin reader documents can save while this document is
+    // alive. Merge only the entries changed here so neither overwrites the
+    // other's newer positions with a stale in-memory copy.
+    const saved: unknown = JSON.parse(sessionStorage.getItem(HISTORY_STORAGE_KEY) ?? "[]");
+    const merged = new Map<string, HistoryPosition>();
+    if (Array.isArray(saved)) for (const item of saved) {
+      if (Array.isArray(item) && typeof item[0] === "string" && item[1]
+        && ["single", "multi"].includes(item[1].mode) && Number.isFinite(item[1].position)) {
+        merged.set(item[0], item[1] as HistoryPosition);
+      }
+    }
+    for (const key of dirtyHistoryPositions) {
+      const value = historyPositions.get(key);
+      if (value) { merged.delete(key); merged.set(key, value); }
+    }
+    sessionStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify([...merged].slice(-100)));
+    dirtyHistoryPositions.clear();
+  } catch { /* reading remains available without storage */ }
 };
 window.addEventListener("pagehide", persistHistoryPositions);
 
@@ -59,8 +81,22 @@ export function initializeReadingMode() {
   let entryKey = ensureHistoryKey();
   const articlePath = location.pathname + location.search;
   let historyIndex = Number.isFinite(history.state?.index) ? Number(history.state.index) : 0;
-  const savedHistoryPosition = historyPositions.get(entryKey);
+  let savedHistoryPosition = historyPositions.get(entryKey);
+  if (!savedHistoryPosition) {
+    try {
+      const saved: unknown = JSON.parse(sessionStorage.getItem(HISTORY_STORAGE_KEY) ?? "[]");
+      if (Array.isArray(saved)) {
+        const item = saved.find((entry) => Array.isArray(entry) && entry[0] === entryKey);
+        const value = item?.[1];
+        if (value && ["single", "multi"].includes(value.mode) && Number.isFinite(value.position)) {
+          savedHistoryPosition = value as HistoryPosition;
+          historyPositions.set(entryKey, savedHistoryPosition);
+        }
+      }
+    } catch { /* storage is optional */ }
+  }
   let historyReady = false;
+  let pendingPreloadHistory: HistoryPosition | undefined;
 
   const sourceParent = source.parentNode!;
   const sourceNextSibling = source.nextSibling;
@@ -69,7 +105,7 @@ export function initializeReadingMode() {
   const printing = window.matchMedia("print");
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   let preference: string | null = null;
-  try { preference = localStorage.getItem(STORAGE_KEY); } catch { /* storage is optional */ }
+  try { preference = localStorage.getItem(READING_MODE_STORAGE_KEY); } catch { /* storage is optional */ }
   let enabled = false;
   let suspendedForPrint = false;
   let resumeAfterPrint = false;
@@ -129,20 +165,24 @@ export function initializeReadingMode() {
     const inset = 1.5 * (parseFloat(getComputedStyle(root).fontSize) || 16);
     const offset = offsetOverride ?? (enabled ? position : Math.max(0, inset - source.getBoundingClientRect().top));
     const anchor = offset > 0 ? captureAnchor(offset) : undefined;
-    if (!anchor) { delete entry.anchor; return; }
+    if (!anchor) { delete entry.anchor; dirtyHistoryPositions.add(entryKey); return; }
     const path: number[] = [];
     let element: Element = anchor.element;
     while (element !== source && element.parentElement) {
       path.unshift(Array.prototype.indexOf.call(element.parentElement.children, element));
       element = element.parentElement;
     }
-    if (element === source) entry.anchor = { path, ratio: anchor.ratio,
-      width: parseFloat(getComputedStyle(source).width) || source.getBoundingClientRect().width };
+    if (element === source) {
+      entry.anchor = { path, ratio: anchor.ratio,
+        width: parseFloat(getComputedStyle(source).width) || source.getBoundingClientRect().width };
+      dirtyHistoryPositions.add(entryKey);
+    }
   };
   const saveHistoryDetails = () => {
     const entry = historyPositions.get(entryKey);
     if (!entry || suspendedForPrint) return;
     entry.details = Array.from(source.querySelectorAll<HTMLDetailsElement>("details"), (details) => details.open);
+    dirtyHistoryPositions.add(entryKey);
   };
   const historyAnchorOffset = (anchor: HistoryPosition["anchor"]) => {
     if (!anchor || !Array.isArray(anchor.path) || !Number.isFinite(anchor.ratio)) return undefined;
@@ -306,6 +346,7 @@ export function initializeReadingMode() {
     historyPositions.set(entryKey, enabled
       ? { mode: "multi", position, point: reading?.point, layout: reading?.layout, details }
       : { mode: "single", position: articleScrollport!.scrollTop, details });
+    dirtyHistoryPositions.add(entryKey);
   }
 
   const goToEdge = (end: boolean) => {
@@ -476,9 +517,9 @@ export function initializeReadingMode() {
   };
 
   const applyDefault = () => {
-    if (suspendedForPrint || printing.matches) return;
+    if (suspendedForPrint || printing.matches || root.classList.contains("rm-fallback")) return;
     const p = ruler.getBoundingClientRect().width + (parseFloat(getComputedStyle(ruler).marginRight) || 0);
-    setEnabled(preference === "multi" || (preference !== "single" && window.innerWidth >= 2 * p));
+    setEnabled(prefersMulti(preference, window.innerWidth, p));
   };
 
   // The original normally lives inside the reader. Return it to the document
@@ -501,8 +542,9 @@ export function initializeReadingMode() {
   };
 
   toggle.addEventListener("click", () => {
+    root.classList.remove("rm-fallback");
     preference = enabled ? "single" : "multi";
-    try { localStorage.setItem(STORAGE_KEY, preference); } catch { /* storage is optional */ }
+    try { localStorage.setItem(READING_MODE_STORAGE_KEY, preference); } catch { /* storage is optional */ }
     setEnabled(!enabled);
   }, { signal });
 
@@ -746,12 +788,19 @@ export function initializeReadingMode() {
     else followHash();
     historyReady = true;
     saveHistoryPosition();
+    root.classList.remove("rm-pending");
   });
   dispose = () => {
-    if (enabled) syncPosition();
-    saveHistoryPosition();
-    saveHistoryDetails();
-    saveHistoryAnchor();
+    if (pendingPreloadHistory) {
+      historyPositions.set(entryKey, pendingPreloadHistory);
+      dirtyHistoryPositions.add(entryKey);
+      pendingPreloadHistory = undefined;
+    } else {
+      if (enabled) syncPosition();
+      saveHistoryPosition();
+      saveHistoryDetails();
+      saveHistoryAnchor();
+    }
     motion.reset();
     controller.abort();
     resizeObserver.disconnect();
@@ -765,4 +814,26 @@ export function initializeReadingMode() {
     plane.replaceChildren();
   };
   document.addEventListener("astro:before-swap", () => { dispose?.(); dispose = undefined; }, { once: true, signal });
+  document.addEventListener("rm:preload-save", () => {
+    if (pendingPreloadHistory) return;
+    if (enabled) syncPosition();
+    saveHistoryPosition();
+    saveHistoryDetails();
+    saveHistoryAnchor();
+    const saved = historyPositions.get(entryKey);
+    if (saved) pendingPreloadHistory = {
+      ...saved,
+      point: saved.point && { ...saved.point },
+      layout: saved.layout && { ...saved.layout },
+      anchor: saved.anchor && { ...saved.anchor, path: [...saved.anchor.path] },
+      details: saved.details && [...saved.details],
+    };
+    persistHistoryPositions();
+  }, { signal });
+  document.addEventListener("rm:preload-cancel-save", () => { pendingPreloadHistory = undefined; }, { signal });
+  document.addEventListener("rm:preload-dispose", () => {
+    dispose?.();
+    dispose = undefined;
+    persistHistoryPositions();
+  }, { once: true, signal });
 }

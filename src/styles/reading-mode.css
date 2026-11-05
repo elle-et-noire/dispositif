@@ -71,6 +71,8 @@
 }
 
 @media screen {
+  /* Avoid painting the single-column source before the initial mode is known. */
+  html.rm-pending .rm-article-scrollport { visibility: hidden; }
   html[data-page-kind="article"],
   html[data-page-kind="article"] body { overflow: hidden; }
 

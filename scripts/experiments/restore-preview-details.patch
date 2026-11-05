@@ -1,0 +1,31 @@
+--- a/src/scripts/reading-mode.ts
++++ b/src/scripts/reading-mode.ts
+@@ -381,6 +381,28 @@
+     });
+   };
+ 
++  // Experimental handoff only; matching URLs, content revisions, fonts,
++  // image sizes, focus, controls and navigation still need validation.
++  document.addEventListener("rm:experiment-restore", (event) => {
++    if (!enabled || !reading) return;
++    const { x, y, details, layout } = (event as CustomEvent<{
++      x: number; y: number; details: boolean[]; layout: string[];
++    }>).detail;
++    const originals = [...source.querySelectorAll<HTMLDetailsElement>("details")];
++    if (!Number.isSafeInteger(x) || !Number.isSafeInteger(y) || !Array.isArray(details)
++      || details.length !== originals.length || !Array.isArray(layout)) return;
++    originals.forEach((element, index) => { element.open = details[index]; });
++    syncDetails();
++    dirty = true;
++    cancelAnimationFrame(measuring);
++    measure();
++    const current = ["w", "p", "h", "step", "l", "edge"].map(key => plane.style.getPropertyValue(`--rm-${key}`));
++    current.push(String(viewport.clientWidth));
++    if (!reading || current.some((value, i) => value !== layout[i])) return;
++    reading.restorePoint({ x: ticks(x), y: ticks(y) });
++    present(true);
++  }, { signal });
++
+   const navigate = (target: HTMLElement) => {
+     if (!enabled || !geometry) return;
+     syncPosition();
