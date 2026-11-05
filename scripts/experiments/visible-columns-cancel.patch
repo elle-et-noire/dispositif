@@ -1,0 +1,32 @@
+diff --git a/src/scripts/reading-mode.ts b/src/scripts/reading-mode.ts
+index 2a48657..5af62f3 100644
+--- a/src/scripts/reading-mode.ts
++++ b/src/scripts/reading-mode.ts
+@@ -206,7 +206,13 @@ export function initializeReadingMode() {
+ 
+   const updateSlots = () => {
+     if (!geometry || !reading) return;
+-    const { start, count } = slotColumns(reading.point, reading.layout);
++    const range = slotColumns(reading.point, reading.layout);
++    const start = range.start;
++    // Experiment: build only columns intersecting the viewport. The source and
++    // whole article measurements remain available for scrolling and printing.
++    const end = Math.ceil((toCss(reading.point.x) + toCss(reading.layout.viewportWidth)
++      - toCss(reading.layout.edge)) / toCss(reading.layout.p));
++    const count = Math.max(1, Math.min(range.count, end - start));
+     // Read native geometry before any DOM edits. Reading scrollTop inside the
+     // slot loop used to force layout after inserting each new math fragment.
+     const nativeY = viewport.scrollTop;
+diff --git a/src/scripts/reading-preload-navigation.ts b/src/scripts/reading-preload-navigation.ts
+index be9b2ef..013d980 100644
+--- a/src/scripts/reading-preload-navigation.ts
++++ b/src/scripts/reading-preload-navigation.ts
+@@ -46,7 +46,7 @@ function install(): void {
+     clearTimeout(hoverTimer);
+     scheduled = "";
+     clearTimeout(leaveTimer);
+-    leaveTimer = window.setTimeout(() => preloader.cancel(), 1000);
++    leaveTimer = window.setTimeout(() => preloader.cancel(), 0);
+   }, { passive: true });
+   document.addEventListener("focusin", (event) => {
+     const link = indexLink(event.target);

@@ -2,9 +2,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { chromium, firefox } from 'playwright-core';
 
-// This test exercises the coordinator directly; it is not yet wired into navigation.
+// Exercise the coordinator directly, separately from navigation integration.
 const base = process.env.RM_BASE_URL ?? 'http://127.0.0.1:4321/dispositif/';
-const moduleUrl = new URL('src/scripts/reading-preload.ts', base).href;
+// A bundled module URL also lets this run against a production snapshot.
+const moduleUrl = process.env.RM_PRELOAD_MODULE_URL ?? new URL('src/scripts/reading-preload.ts', base).href;
 const articleUrl = new URL('tips-python/', base).href;
 for (const [name, engine] of Object.entries({ chromium, firefox })) {
   test(`${name}: reader preload respects preference, cancellation and ownership`, { timeout: 120_000 }, async () => {
