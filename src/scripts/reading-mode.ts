@@ -16,9 +16,6 @@ type HistoryPosition = {
 const HISTORY_STORAGE_KEY = "dispositif:reading-history";
 const historyPositions = new Map<string, HistoryPosition>();
 const dirtyHistoryPositions = new Set<string>();
-// Retain the element reference: Firefox may detach it before pagehide runs.
-let speculativeFrame: Element | null = null;
-try { speculativeFrame = window.frameElement; } catch { /* Cross-origin embedding may deny access. */ }
 try {
   const saved: unknown = JSON.parse(sessionStorage.getItem(HISTORY_STORAGE_KEY) ?? "[]");
   if (Array.isArray(saved)) for (const item of saved) {
@@ -29,7 +26,7 @@ try {
   }
 } catch { /* session storage is optional */ }
 const persistHistoryPositions = () => {
-  if (!dirtyHistoryPositions.size || speculativeFrame?.hasAttribute("data-rm-preparing")) return;
+  if (!dirtyHistoryPositions.size) return;
   try {
     // Other same-origin reader documents can save while this document is
     // alive. Merge only the entries changed here so neither overwrites the
@@ -96,7 +93,6 @@ export function initializeReadingMode() {
     } catch { /* storage is optional */ }
   }
   let historyReady = false;
-  let pendingPreloadHistory: HistoryPosition | undefined;
 
   const sourceParent = source.parentNode!;
   const sourceNextSibling = source.nextSibling;
@@ -110,6 +106,7 @@ export function initializeReadingMode() {
   let suspendedForPrint = false;
   let resumeAfterPrint = false;
   let printPosition = 0;
+  let printPoint: { point: ReadingPoint; layout: ReadingLayout } | undefined;
   let geometry: ReadingGeometry | undefined;
   let position = 0;
   let measuring = 0;
@@ -530,13 +527,26 @@ export function initializeReadingMode() {
     // By the media change event the hidden viewport can already have lost its
     // native offsets. Keep the last logical position instead of reading it now.
     printPosition = position;
+    // The anchor alone drops a horizontal offset within a column (native
+    // scrolling or an interrupted column step). Keep the exact point as well.
+    printPoint = reading ? { point: { ...reading.point }, layout: reading.layout } : undefined;
     setEnabled(false);
   };
   const resumeFromPrint = () => {
     if (!suspendedForPrint || printing.matches) return;
     suspendedForPrint = false;
-    if (resumeAfterPrint) setEnabled(true, printPosition);
+    if (resumeAfterPrint) {
+      setEnabled(true, printPosition);
+      const saved = printPoint;
+      if (saved && reading && (Object.keys(reading.layout) as (keyof ReadingLayout)[])
+        .every((key) => reading!.layout[key] === saved.layout[key])) {
+        reading.restorePoint(saved.point);
+        present(true);
+        saveHistoryPosition();
+      }
+    }
     resumeAfterPrint = false;
+    printPoint = undefined;
     scheduleMeasure();
   };
 
@@ -790,16 +800,10 @@ export function initializeReadingMode() {
     root.classList.remove("rm-pending");
   });
   dispose = () => {
-    if (pendingPreloadHistory) {
-      historyPositions.set(entryKey, pendingPreloadHistory);
-      dirtyHistoryPositions.add(entryKey);
-      pendingPreloadHistory = undefined;
-    } else {
-      if (enabled) syncPosition();
-      saveHistoryPosition();
-      saveHistoryDetails();
-      saveHistoryAnchor();
-    }
+    if (enabled) syncPosition();
+    saveHistoryPosition();
+    saveHistoryDetails();
+    saveHistoryAnchor();
     motion.reset();
     controller.abort();
     resizeObserver.disconnect();
@@ -813,26 +817,4 @@ export function initializeReadingMode() {
     plane.replaceChildren();
   };
   document.addEventListener("astro:before-swap", () => { dispose?.(); dispose = undefined; }, { once: true, signal });
-  document.addEventListener("rm:preload-save", () => {
-    if (pendingPreloadHistory) return;
-    if (enabled) syncPosition();
-    saveHistoryPosition();
-    saveHistoryDetails();
-    saveHistoryAnchor();
-    const saved = historyPositions.get(entryKey);
-    if (saved) pendingPreloadHistory = {
-      ...saved,
-      point: saved.point && { ...saved.point },
-      layout: saved.layout && { ...saved.layout },
-      anchor: saved.anchor && { ...saved.anchor, path: [...saved.anchor.path] },
-      details: saved.details && [...saved.details],
-    };
-    persistHistoryPositions();
-  }, { signal });
-  document.addEventListener("rm:preload-cancel-save", () => { pendingPreloadHistory = undefined; }, { signal });
-  document.addEventListener("rm:preload-dispose", () => {
-    dispose?.();
-    dispose = undefined;
-    persistHistoryPositions();
-  }, { once: true, signal });
 }
