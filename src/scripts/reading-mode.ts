@@ -80,14 +80,15 @@ export function initializeReadingMode() {
   const savedHistoryPosition = historyPositions.get(entryKey);
   let historyReady = false;
 
-  // After a client-side navigation with n段 stored, Layout.astro has already
-  // put the original in the first column, so that its first layout is at the
-  // column width. Adopt that slot instead of mounting the original again.
+  // With n段 stored, Layout.astro has already put the original in the first
+  // column (at astro:before-swap, or while a full load parses it), so that its
+  // first layout is at the column width. Adopt that slot instead of mounting
+  // the original again.
   let premounted = source.parentElement?.matches(".rm-plane > .rm-track > .rm-slot")
     ? source.parentElement : undefined;
-  // The pre-mounted original came from just before the reader.
+  // The pre-mounted original came from just after the reader.
   const sourceParent = premounted ? reader.parentNode! : source.parentNode!;
-  const sourceNextSibling = premounted ? reader : source.nextSibling;
+  const sourceNextSibling = premounted ? reader.nextSibling : source.nextSibling;
   const controller = new AbortController();
   const { signal } = controller;
   const printing = window.matchMedia("print");

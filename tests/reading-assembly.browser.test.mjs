@@ -119,6 +119,83 @@ const checkPremount = async (engine) => {
   } finally { await browser.close(); }
 };
 
+// The same on a direct load and a reload: an inline script at the start of the
+// original puts it in the first column while the HTML is parsed. A
+// ResizeObserver attached as soon as the original is parsed reports every size
+// it is rendered at, from the first frame on. A frame can be rendered before
+// that script runs, while the original is still empty (seen in Firefox).
+const checkDirectPremount = async (engine) => {
+  const browser = await engine.launch();
+  try {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    await context.addInitScript(() => {
+      if (location.protocol === 'about:') return;
+      localStorage.setItem('dispositif:reading-mode', 'multi');
+      window.rmWidths = [];
+      const watch = new MutationObserver(() => {
+        const source = document.querySelector('.rm-source');
+        if (!source) return;
+        watch.disconnect();
+        new ResizeObserver((entries) => {
+          for (const entry of entries) window.rmWidths.push({ width: entry.borderBoxSize[0].inlineSize,
+            // The text parsed so far, laid out in this frame.
+            text: entry.target.childElementCount - entry.target.querySelectorAll(':scope > script').length,
+            inColumn: Boolean(entry.target.closest('.rm-slot')) });
+        }).observe(source);
+      });
+      // Chromium runs init scripts before <html> exists.
+      watch.observe(document, { childList: true, subtree: true });
+    });
+    const errors = [];
+    const page = await context.newPage();
+    page.on('pageerror', (error) => errors.push(String(error)));
+    const frames = () => page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    const shown = async (label) => {
+      await page.waitForFunction(() => document.documentElement.classList.contains('rm-active')
+        && !document.documentElement.classList.contains('rm-pending'));
+      await frames();
+      const { widths, final, count } = await page.evaluate(() => ({ widths: window.rmWidths.filter((entry) => entry.text > 0),
+        final: parseFloat(document.querySelector('.rm-plane .rm-source')?.style.width),
+        count: document.querySelectorAll('.rm-source').length }));
+      assert.equal(count, 1, label);
+      assert.equal(final, 608, label);
+      assert.ok(widths.length > 0 && widths[0].inColumn, `${label}: ${JSON.stringify(widths)}`);
+      assert.deepEqual(widths.filter((entry) => Math.abs(entry.width - final) > 0.01), [], `${label}: ${JSON.stringify(widths)}`);
+      assert.equal(await page.evaluate(() => document.documentElement.classList.contains('rm-premount')), false, label);
+    };
+    const position = () => page.evaluate(() => {
+      const { rmXTicks, rmYTicks } = document.querySelector('.rm-plane').dataset;
+      return [rmXTicks, rmYTicks];
+    });
+    const article = new URL('symmetric-polynomial/', base).href;
+    await page.goto(article);
+    await shown('direct');
+    // A reload restores the saved reading position after the same premount.
+    await page.locator('.rm-viewport').evaluate((viewport) => { viewport.scrollLeft += 700; viewport.scrollTop += 150; });
+    await frames();
+    const before = await position();
+    assert.notDeepEqual(before, ['0', '0']);
+    await page.reload();
+    await shown('reload');
+    assert.deepEqual(await position(), before, 'reload');
+    // A fragment in the address is followed from the premounted column.
+    await page.goto(`${article}#${encodeURIComponent('cauchy和公式')}`);
+    await shown('hash');
+    assert.notDeepEqual(await position(), ['0', '0'], 'hash');
+    // Astro runs inline scripts again after swapping a page in. There the
+    // navigation has already premounted the article.
+    await page.locator('.rm-close:visible').click();
+    await page.waitForSelector('html[data-page-kind="index"]');
+    await page.locator('a[href$="symmetric-polynomial/"]').first().click();
+    await page.waitForFunction(() => document.documentElement.classList.contains('rm-active')
+      && !document.documentElement.classList.contains('rm-pending'));
+    assert.equal(await page.locator('.rm-source').count(), 1);
+    assert.equal(await page.locator('.rm-plane .rm-source').count(), 1);
+    assert.deepEqual(errors, []);
+    await context.close();
+  } finally { await browser.close(); }
+};
+
 for (const [name, engine] of engines) {
   test(`${name}: 一覧から開くn段の本文は、差し替えの時点で段の幅にある`, { timeout: 120_000 }, async () => {
     try {
@@ -126,6 +203,15 @@ for (const [name, engine] of engines) {
     } catch (error) {
       if (!/Execution context was destroyed/.test(String(error))) throw error;
       await checkPremount(engine);
+    }
+  });
+
+  test(`${name}: 直接開く・再読み込みするn段の本文は、最初のレイアウトから段の幅にある`, { timeout: 120_000 }, async () => {
+    try {
+      await checkDirectPremount(engine);
+    } catch (error) {
+      if (!/Execution context was destroyed/.test(String(error))) throw error;
+      await checkDirectPremount(engine);
     }
   });
 

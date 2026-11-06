@@ -85,14 +85,20 @@ const headings = getHeadings(content);
             </div>
           </div>
         </aside>
-        <div class="rm-source min-w-0 w-full font-noto-sans">
-          <h1 class="mb-1 text-lg font-semibold text-[#101828] sm:text-3xl md:mb-3 md:text-4xl">
-            {data.title}
-          </h1>
-          <DateInfo data={data} class="text-xs sm:text-base" />
-          <div class="post" set:html={html} />
-        </div>
-        <ReadingMode />
+        {/* The script at the start of .rm-source moves it into the reader's first
+            column before the rest of the text is parsed when n段 is stored
+            (Layout.astro). It removes itself; client-side navigations remove
+            it at astro:before-swap. */}
+        <ReadingMode>
+          <div class="rm-source min-w-0 w-full font-noto-sans">
+            <script is:inline data-rm-premount>document.currentScript.remove(); if (document.readyState === "loading") window.dispositifPremountColumn?.(document);</script>
+            <h1 class="mb-1 text-lg font-semibold text-[#101828] sm:text-3xl md:mb-3 md:text-4xl">
+              {data.title}
+            </h1>
+            <DateInfo data={data} class="text-xs sm:text-base" />
+            <div class="post" set:html={html} />
+          </div>
+        </ReadingMode>
       </div>
     </article>
   </div>

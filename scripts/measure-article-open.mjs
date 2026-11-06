@@ -7,10 +7,15 @@
 // multi, "cold" (fresh context) and "warm" (another article with the same kind
 // of content opened first), 1440x900, 300 ms hover before the click.
 //
+// NAV=direct measures a direct load instead (address bar, reload): from the
+// navigation start to the article being visible, with the same criterion.
+// "cold" is a fresh context; "warm" loads the other article first, directly.
+//
 // Usage (against a production build served by `astro preview`):
 //   node scripts/measure-article-open.mjs http://localhost:4321/dispositif/ 3 > out.jsonl
-// Environment: ENGINES=chromium,firefox  ARTICLES=…  MODES=…  CACHES=…  TRACE=0 (disable the Chromium trace;
-// tracing adds overhead, so compare wall-clock times with TRACE=0).
+// Environment: ENGINES=chromium,firefox  ARTICLES=…  MODES=…  CACHES=…  NAV=click|direct
+// TRACE=0 (disable the Chromium trace; tracing adds overhead, so compare
+// wall-clock times with TRACE=0).
 import { chromium, firefox } from 'playwright-core';
 
 const base = process.argv[2] ?? 'http://localhost:4321/dispositif/';
@@ -20,6 +25,7 @@ const articles = only('ARTICLES', ['tips-python', 'symmetric-polynomial']);
 const modes = only('MODES', ['single', 'multi']);
 const caches = only('CACHES', ['cold', 'warm']);
 const engines = Object.entries({ chromium, firefox }).filter(([n]) => !process.env.ENGINES || process.env.ENGINES.split(',').includes(n));
+const direct = process.env.NAV === 'direct';
 
 const probe = () => {
   const t = (name) => {
@@ -71,7 +77,11 @@ function summarizeTrace(json) {
   if (!main) return { error: 'no main thread' };
   const marks = Object.fromEntries(events.filter(e => e.pid === main.pid && e.name?.startsWith?.('rm:') && e.ph !== 'e')
     .map(e => [e.name.slice(3), e.ts]));
-  const order = ['click', 'after-swap', 'page-load', 'visible'].filter(k => marks[k] !== undefined);
+  // The direct load's document starts at its navigationStart mark (the last one).
+  const navigation = events.filter(e => e.pid === main.pid && e.name === 'navigationStart').at(-1);
+  if (navigation) marks.navigation = navigation.ts;
+  const order = (marks.click !== undefined ? ['click', 'after-swap', 'page-load', 'visible'] : ['navigation', 'ready', 'visible'])
+    .filter(k => marks[k] !== undefined);
   const spans = order.slice(1).map((k, i) => [`${order[i]}→${k}`, marks[order[i]], marks[k]]);
   const xs = events.filter(e => e.pid === main.pid && e.tid === main.tid && e.ph === 'X' && e.dur)
     .sort((a, b) => a.ts - b.ts || b.dur - a.dur);
@@ -94,6 +104,8 @@ function summarizeTrace(json) {
       const cat = categorize(e.name);
       if (cat === 'other' && (e.name === 'RunTask' || e.name === 'ThreadControllerImpl::RunTask')) { bucket.task = (bucket.task ?? 0) + own / 1000; continue; }
       bucket[cat] = (bucket[cat] ?? 0) + own / 1000;
+      if (e.name === 'Layout' && e.dur >= 5000 && e.ts >= from) (bucket.layouts ??= []).push(
+        [Math.round(e.dur / 1000), e.args?.beginData?.dirtyObjects ?? null, e.args?.beginData?.totalObjects ?? null]);
       if (cat === 'other') (bucket.otherNames ??= {})[e.name] = ((bucket.otherNames ??= {})[e.name] ?? 0) + own / 1000;
     }
     for (const k of Object.keys(bucket)) if (typeof bucket[k] === 'number') bucket[k] = Math.round(bucket[k]);
@@ -112,7 +124,42 @@ for (const [engineName, engine] of engines) {
       if (location.protocol !== 'about:') localStorage.setItem('dispositif:reading-mode', mode);
     }, [mode]);
     await context.addInitScript(probe);
+    const tracing = engineName === 'chromium' && process.env.TRACE !== '0';
     const page = await context.newPage();
+    if (direct) {
+      const url = (name) => new URL(`${name}/`, base).href;
+      const shown = () => page.waitForFunction(() => window.rmT?.visible, null, { timeout: 30_000 });
+      if (cache === 'warm') {
+        // The other article of the same kind, loaded directly, primes the HTTP cache.
+        await page.goto(url(article === 'tips-python' ? 'tips-wsl' : 'tips-julia'));
+        await shown();
+        await page.evaluate(() => document.fonts.ready);
+      }
+      if (tracing) {
+        await context.addInitScript(() => { window.rmTracing = true; });
+        await browser.startTracing(page, { categories: ['devtools.timeline', 'disabled-by-default-devtools.timeline', 'blink.user_timing', 'loading', 'v8', 'disabled-by-default-v8.gc'] });
+      }
+      await page.goto(url(article));
+      await shown();
+      await page.waitForTimeout(500);
+      const trace = tracing ? summarizeTrace(JSON.parse((await browser.stopTracing()).toString())) : undefined;
+      // performance.now() counts from this document's navigation start.
+      const data = await page.evaluate(() => {
+        const [nav] = performance.getEntriesByType('navigation');
+        return { t: window.rmT, fonts: window.rmFonts, loaf: window.rmLoaf,
+          nav: nav && { responseEnd: nav.responseEnd, dcl: nav.domContentLoadedEventEnd, load: nav.loadEventEnd },
+          resources: performance.getEntriesByType('resource').map(r => ({
+            name: r.name.split('/').slice(-2).join('/'), type: r.initiatorType, start: r.startTime, end: r.responseEnd,
+            transfer: r.transferSize, body: r.decodedBodySize })) };
+      });
+      const round = (o) => Object.fromEntries(Object.entries(o ?? {}).map(([k, v]) => [k, Math.round(v)]));
+      out({ engine: engineName, nav: 'direct', run, article, mode, cache, rel: round(data.t), navTiming: round(data.nav), trace,
+        fonts: data.fonts.map(([t, f]) => [Math.round(t), f]),
+        resources: data.resources.map(r => ({ ...r, start: Math.round(r.start), end: Math.round(r.end) })),
+        loaf: data.loaf.map(l => ({ ...l, start: Math.round(l.start) })) });
+      await context.close();
+      continue;
+    }
     if (cache === 'warm') {
       // Load another article directly first so shared fonts/CSS/JS are cached.
       const other = article === 'tips-python' ? 'tips-wsl' : 'tips-julia';
@@ -126,7 +173,6 @@ for (const [engineName, engine] of engines) {
     await link.scrollIntoViewIfNeeded();
     await link.hover();
     await page.waitForTimeout(300);
-    const tracing = engineName === 'chromium' && process.env.TRACE !== '0';
     if (tracing) await browser.startTracing(page, { categories: ['devtools.timeline', 'disabled-by-default-devtools.timeline', 'blink.user_timing', 'v8', 'disabled-by-default-v8.gc'] });
     const clickAt = await page.evaluate((tracing) => {
       window.rmT = {}; window.rmLoaf = []; window.rmFonts = []; window.rmTracing = tracing;
