@@ -1,0 +1,86 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { chromium, firefox } from 'playwright-core';
+
+const base = process.env.RM_BASE_URL ?? 'http://localhost:4321/dispositif/';
+const selected = process.env.RM_ENGINES?.split(',');
+const engines = Object.entries({ chromium, firefox }).filter(([name]) => !selected || selected.includes(name));
+
+const mathFontRequests = page => page.evaluate(() => performance.getEntriesByType('resource')
+  .map(entry => new URL(entry.name).pathname).filter(path => path.includes('/fonts/mjx/')).sort());
+
+for (const [name, engine] of engines) {
+  test(`${name}: hovering an article link loads exactly its math fonts`, { timeout: 120_000 }, async () => {
+    const browser = await engine.launch();
+    try {
+      const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+      const errors = [];
+      context.on('page', page => page.on('pageerror', error => errors.push(String(error))));
+      const page = await context.newPage();
+      await page.goto(base);
+      await page.evaluate(() => document.fonts.ready);
+      const familiesBefore = await page.evaluate(() => [...document.fonts].filter(face => face.status === 'loaded').map(face => face.family));
+
+      // An article without math has no list and loads nothing.
+      const plain = page.locator('a[href$="tips-python/"]');
+      assert.equal(await plain.getAttribute('data-math-fonts'), null);
+      await plain.hover();
+      await page.waitForTimeout(300);
+      assert.deepEqual(await mathFontRequests(page), []);
+
+      // A finger resting on a card (before a scroll) is not a hover.
+      const math = page.locator('a[href$="symmetric-polynomial/"]');
+      await math.dispatchEvent('pointerover', { pointerType: 'touch', bubbles: true });
+      await page.waitForTimeout(300);
+      assert.deepEqual(await mathFontRequests(page), [], 'a touch should not prefetch');
+
+      // Passing over a math link for less than the hover delay loads nothing.
+      await math.hover();
+      await page.mouse.move(2, 2);
+      await page.waitForTimeout(300);
+      assert.deepEqual(await mathFontRequests(page), [], 'a brief pass should not prefetch');
+
+      const fonts = JSON.parse(await math.getAttribute('data-math-fonts'));
+      const expected = fonts.map(([, url]) => new URL(url, base).pathname).sort();
+      assert.ok(expected.length > 0 && expected.every(path => path.endsWith('.woff2')));
+      assert.ok(fonts.every(([family]) => family.startsWith('MJX-')), JSON.stringify(fonts));
+      await math.hover();
+      await page.waitForFunction(count => performance.getEntriesByType('resource')
+        .filter(entry => entry.name.includes('/fonts/mjx/')).length >= count, expected.length);
+      await page.waitForTimeout(200);
+      assert.deepEqual(await mathFontRequests(page), expected);
+      // The loaded faces wait outside the index's font set until a swap.
+      assert.deepEqual(await page.evaluate(() => [...document.fonts].filter(face => face.status === 'loaded')
+        .map(face => face.family)), familiesBefore);
+
+      // Hovering again or focusing the link does not request the fonts twice.
+      await page.mouse.move(2, 2);
+      await math.hover();
+      await math.focus();
+      await page.waitForTimeout(300);
+      assert.equal((await mathFontRequests(page)).length, expected.length);
+
+      const clickedAt = await page.evaluate(() => performance.now());
+      await math.click();
+      await page.waitForFunction(() => document.documentElement.classList.contains('rm-ready')
+        && !document.documentElement.classList.contains('rm-pending') && location.pathname.endsWith('/symmetric-polynomial/'));
+      assert.equal(await page.evaluate(() => document.querySelectorAll('mjx-container').length > 0), true);
+      // The article uses the loaded faces instead of loading its own copies.
+      // Only the file its <link rel="preload"> names may be requested again
+      // (revalidated on the dev server), and Firefox still loads the 1 KB
+      // MJX-TEX-ZERO face from the article's stylesheet.
+      await page.evaluate(() => document.fonts.ready);
+      const { reloaded, preloaded } = await page.evaluate(clickedAt => ({
+        reloaded: performance.getEntriesByType('resource')
+          .filter(entry => entry.startTime >= clickedAt && entry.name.includes('/fonts/mjx/'))
+          .map(entry => new URL(entry.name).pathname.split('/').pop()),
+        preloaded: [...document.querySelectorAll('link[rel="preload"][as="font"]')]
+          .map(link => new URL(link.href).pathname.split('/').pop()),
+      }), clickedAt);
+      const allowed = new Set([...preloaded, 'mjx-tex-zero.woff2']);
+      assert.deepEqual(reloaded.filter(file => !allowed.has(file)), [], JSON.stringify({ reloaded, preloaded }));
+      assert.deepEqual(errors, []);
+      await context.close();
+    } finally { await browser.close(); }
+  });
+}
