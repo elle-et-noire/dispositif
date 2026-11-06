@@ -490,6 +490,10 @@ for (const [name, engine] of engines) {
         await page.waitForFunction(() => document.documentElement.classList.contains('rm-fallback'));
         assert.equal(await page.locator('.rm-article-scrollport').evaluate(el => getComputedStyle(el).visibility), 'visible', label);
         assert.equal(await isMulti(page), false, label);
+        // A column mounted before the swap is returned to the single article.
+        assert.equal(await page.locator('.rm-plane .rm-source, .rm-plane > *').count(), 0, label);
+        assert.equal(await page.locator('.rm-reader').evaluate(el => el.hidden), true, label);
+        assert.ok(await page.locator('.rm-source').evaluate(el => !el.style.width && el.getBoundingClientRect().height > 0), label);
       };
       {
         const context = await newContext(browser);
