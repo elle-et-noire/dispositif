@@ -194,10 +194,15 @@ test("ノート外の左右・上下の背景でも標準のホイール操作�
           await page.mouse.move(x, y);
           await page.mouse.wheel(0, delta);
           // Poll from Node so this also works when browser JS callbacks are disabled.
+          // With page JS disabled, headless Chromium occasionally drops a
+          // synthetic wheel entirely (about 1 in 6 gestures, at positions that
+          // scroll on other attempts). Resend it a few times; an inert region
+          // still never scrolls, so the check keeps its meaning.
           let movement = 0;
           for (let attempt = 0; attempt < 50; attempt++) {
             movement = (await scroller.evaluate((el) => el.scrollTop) - before) * Math.sign(delta);
             if (movement > 100) break;
+            if (attempt === 10 || attempt === 20) await page.mouse.wheel(0, delta);
             await page.waitForTimeout(50);
           }
           assert.ok(movement > 100, `背景でスクロールしない: ${width}, JS=${javaScriptEnabled}, ${x}, ${y}`);

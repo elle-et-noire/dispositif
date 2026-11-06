@@ -104,15 +104,22 @@ test("左右キーは途中の位置を通り、連打を合成し、逆入力�
         const v = document.querySelector(".rm-viewport"), plane = document.querySelector(".rm-plane");
         const p = parseFloat(plane.style.getPropertyValue("--rm-p"));
         window.motionFrames.push({ x: v.scrollLeft + Number(plane.dataset.rmOriginColumn) * p - Number(plane.dataset.rmLeading),
-          y: v.scrollTop + Number(plane.dataset.rmOriginY) });
+          y: v.scrollTop + Number(plane.dataset.rmOriginY), t: performance.now() });
         if (window.motionFrames.length < 30) requestAnimationFrame(record);
       };
       requestAnimationFrame(record);
+      document.addEventListener("keydown", () => { window.motionStart = performance.now(); }, { once: true, capture: true });
     });
     await page.keyboard.press("ArrowRight");
     await animationDone(page);
-    const frames = await page.evaluate(() => window.motionFrames);
-    assert.ok(frames.filter((s) => s.x > before.x + 2 && s.x < before.x + before.p - 2).length >= 3, "段送りが瞬間移動になった");
+    const { frames, start } = await page.evaluate(() => ({ frames: window.motionFrames, start: window.motionStart }));
+    // The step eases over 180 ms. Under load frames can be 50-100 ms apart, so
+    // count of intermediate frames varies; a jump instead lands on the first
+    // frame after the key press. Require a passed-through position and an
+    // arrival no earlier than the animation allows.
+    const arrival = frames.find((s) => Math.abs(s.x - before.x - before.p) < 2);
+    assert.ok(frames.some((s) => s.x > before.x + 2 && s.x < before.x + before.p - 2), "段送りが瞬間移動になった");
+    assert.ok(arrival && arrival.t - start >= 150, `段送りが短すぎる: ${arrival ? Math.round(arrival.t - start) : "未到達"} ms`);
     assert.ok(frames.every((s) => Math.abs(s.y - before.y) < 1), "段送りで縦位置が変わった");
     const after = await state(page);
     assert.ok(Math.abs(after.x - before.x - before.p) < 2);

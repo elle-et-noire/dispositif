@@ -27,6 +27,40 @@ const {
 <html lang="ja" class="antialiased" data-page-kind={article ? "article" : "index"} transition:animate="none">
   <head>
     <meta charset="UTF-8" />
+    <script is:inline>
+      (() => {
+      // With JavaScript enabled, keep the article out of the first paint until
+      // the reader has selected its initial mode and restored its position.
+      // This script runs once per full load; client-side navigations mark the
+      // destination before Astro swaps it in, since inline head scripts do not
+      // run while Astro parses that document.
+      const markPending = (root) => {
+        if (root.dataset.pageKind === "article") root.classList.add("rm-pending");
+      };
+      markPending(document.documentElement);
+      document.addEventListener("astro:before-swap", (event) => markPending(event.newDocument.documentElement));
+      // If the reader bundle fails or stalls, leave a usable single-column
+      // article instead of keeping the content hidden indefinitely.
+      // Only one navigation can be pending, so a newer arm replaces the timer
+      // left by an earlier one. Once the reader has started (rm-ready), it
+      // owns clearing rm-pending: its first frame may be delayed for longer
+      // than this timeout in a background tab, which is not a failure.
+      let fallbackTimer;
+      const armReaderFallback = () => {
+        clearTimeout(fallbackTimer);
+        const root = document.documentElement;
+        if (!root.classList.contains("rm-pending")) return;
+        fallbackTimer = setTimeout(() => {
+          if (root !== document.documentElement || !root.classList.contains("rm-pending")
+            || root.classList.contains("rm-ready")) return;
+          root.classList.add("rm-fallback");
+          root.classList.remove("rm-pending");
+        }, 10000);
+      };
+      armReaderFallback();
+      document.addEventListener("astro:after-swap", armReaderFallback);
+      })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="generator" content={Astro.generator} />
     <meta name="description" content={description} />
