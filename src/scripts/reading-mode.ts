@@ -23,8 +23,11 @@ try {
 } catch { /* session storage is optional */ }
 const persistHistoryPositions = () => {
   if (!dirtyHistoryPositions.size) return;
+  // A damaged stored copy must not stop every later save in this tab.
+  let stored = new Map<string, HistoryPosition>();
+  try { stored = readSavedHistory(); } catch { /* replaced below */ }
   try {
-    const merged = mergeHistory(readSavedHistory(), historyPositions, dirtyHistoryPositions);
+    const merged = mergeHistory(stored, historyPositions, dirtyHistoryPositions);
     sessionStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(merged));
     dirtyHistoryPositions.clear();
   } catch { /* reading remains available without storage */ }
@@ -780,6 +783,9 @@ export function initializeReadingMode() {
     }
   });
   const saveReaderState = () => {
+    // Before the first frame the entry has not been restored yet; saving now
+    // would replace its saved disclosures and anchor with the defaults.
+    if (!historyReady) return;
     if (enabled) syncPosition();
     saveHistoryPosition();
     saveHistoryDetails();
