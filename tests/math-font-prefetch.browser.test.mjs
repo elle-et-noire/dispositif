@@ -28,8 +28,13 @@ for (const [name, engine] of engines) {
       await page.waitForTimeout(300);
       assert.deepEqual(await mathFontRequests(page), []);
 
-      // Passing over a math link for less than the hover delay loads nothing.
+      // A finger resting on a card (before a scroll) is not a hover.
       const math = page.locator('a[href$="symmetric-polynomial/"]');
+      await math.dispatchEvent('pointerover', { pointerType: 'touch', bubbles: true });
+      await page.waitForTimeout(300);
+      assert.deepEqual(await mathFontRequests(page), [], 'a touch should not prefetch');
+
+      // Passing over a math link for less than the hover delay loads nothing.
       await math.hover();
       await page.mouse.move(2, 2);
       await page.waitForTimeout(300);

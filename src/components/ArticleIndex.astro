@@ -4,7 +4,9 @@ import { getAllPosts } from "@lib/post";
 import { articleMathFonts } from "@lib/convert";
 
 const posts = getAllPosts();
-const mathFonts = await Promise.all(posts.map((post) => articleMathFonts(post.content)));
+// Every page renders this index. A post that fails to convert breaks only its
+// own page (and the build); here it just goes without a font prefetch.
+const mathFonts = await Promise.all(posts.map((post) => articleMathFonts(post.content).catch(() => [])));
 ---
 
 <div

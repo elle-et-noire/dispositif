@@ -4,8 +4,9 @@
 //
 // The list per link comes from the build (data-math-fonts, lib/math-fonts.ts):
 // a JSON array of [family, url] pairs.
-// Timing and conditions follow Astro's "hover" strategy: 80 ms of hover or
-// focus, cancelled on leave, skipped offline or on a slow connection.
+// Timing and conditions follow Astro's "hover" strategy: 80 ms of mouse hover
+// or focus, cancelled on leave, skipped offline or on a slow connection. Touch
+// is ignored: a finger resting on a card before scrolling is not a hover.
 
 const HOVER_DELAY = 80;
 const requested = new Set<string>();
@@ -74,6 +75,7 @@ const cancel = () => {
 };
 
 document.addEventListener("pointerover", (event) => {
+  if (event.pointerType === "touch") return;
   const anchor = fontLink(event.target);
   if (anchor) schedule(anchor);
 }, { passive: true });
