@@ -106,7 +106,7 @@
      route wheel input to the document instead of this article scrollport. */
   .rm-dismiss { grid-area: 1 / 1; align-self: stretch; }
   .rm-article { grid-area: 1 / 1; margin-bottom: 3rem; }
-  .rm-active .rm-article-scrollport { overflow: hidden; }
+  :is(.rm-active, .rm-premount) .rm-article-scrollport { overflow: hidden; }
 
   .rm-layout { grid-template-rows: 3rem auto; }
   .rm-source { grid-column: 1; grid-row: 2; }
@@ -133,7 +133,7 @@
     max-height: none;
   }
 
-  .rm-active :is(.rm-sidebar, .rm-mobile-toc) { display: none; }
+  :is(.rm-active, .rm-premount) :is(.rm-sidebar, .rm-mobile-toc) { display: none; }
 
   html.rm-active,
   .rm-active body { overflow: hidden; }
@@ -154,7 +154,8 @@
     flex: none;
     padding: 0 1rem 0 0;
   }
-  .rm-active .rm-article {
+  /* .rm-premount: the n段 article before the reader starts (Layout.astro). */
+  :is(.rm-active, .rm-premount) .rm-article {
     position: fixed;
     inset: var(--rm-header-height, 3rem) 0 0;
     display: flex;
@@ -168,7 +169,7 @@
     box-shadow: none;
   }
 
-  .rm-active .rm-layout {
+  :is(.rm-active, .rm-premount) .rm-layout {
     flex: 1;
     min-height: 0;
     grid-template-rows: minmax(0, 1fr);
@@ -177,12 +178,14 @@
 
   /* Measure and display the same padded box, including MathJax's available
      line width. Keep vertical space outside the shared scrolling window so
-     no lines are covered at the transition between adjacent columns. */
-  .rm-active :is(.rm-source, .rm-content) {
+     no lines are covered at the transition between adjacent columns.
+     These do not depend on .rm-active: a column mounted before the swap
+     (Layout.astro) must already have the reader's styles. */
+  .rm-plane .rm-content {
     padding-inline: var(--rm-column-padding);
   }
 
-  .rm-active :is(.rm-source, .rm-content) > h1 {
+  .rm-plane .rm-content > h1 {
     margin-top: var(--rm-column-padding);
   }
 

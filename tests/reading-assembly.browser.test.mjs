@@ -74,7 +74,61 @@ const check = async (engine) => {
   } finally { await browser.close(); }
 };
 
+// With n段 stored, opening an article from the index lays the text out only at
+// the column width: at the swap, the original already sits in the first column.
+const checkPremount = async (engine) => {
+  const browser = await engine.launch();
+  try {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    await context.addInitScript(() => {
+      if (location.protocol !== 'about:') localStorage.setItem('dispositif:reading-mode', 'multi');
+    });
+    const errors = [];
+    const page = await context.newPage();
+    page.on('pageerror', (error) => errors.push(String(error)));
+    await page.goto(base);
+    await page.evaluate(() => {
+      window.rmWidths = [];
+      document.addEventListener('astro:after-swap', () => {
+        const source = document.querySelector('.rm-source');
+        // Force the first layout after the swap, wherever the text is now,
+        // then record every later size the text is laid out at.
+        window.rmWidths.push({ at: 'swap', width: source.getBoundingClientRect().width,
+          inColumn: Boolean(source.closest('.rm-slot')) });
+        new ResizeObserver((entries) => {
+          for (const entry of entries) window.rmWidths.push({ at: 'resize', width: entry.borderBoxSize[0].inlineSize });
+        }).observe(source);
+      }, { once: true });
+    });
+    await page.locator('a[href$="symmetric-polynomial/"]').click();
+    await page.waitForFunction(() => document.documentElement.classList.contains('rm-active')
+      && !document.documentElement.classList.contains('rm-pending'));
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    const { widths, final, inColumn } = await page.evaluate(() => {
+      const source = document.querySelector('.rm-source');
+      return { widths: window.rmWidths, final: parseFloat(source.style.width), inColumn: Boolean(source.closest('.rm-slot')) };
+    });
+    assert.ok(inColumn);
+    assert.equal(final, 608);
+    assert.equal(widths[0].at, 'swap');
+    assert.ok(widths[0].inColumn, JSON.stringify(widths));
+    assert.deepEqual(widths.filter((entry) => Math.abs(entry.width - final) > 0.01), [], JSON.stringify(widths));
+    assert.equal(await page.locator('.rm-plane .rm-source').count(), 1);
+    assert.deepEqual(errors, []);
+    await context.close();
+  } finally { await browser.close(); }
+};
+
 for (const [name, engine] of engines) {
+  test(`${name}: 一覧から開くn段の本文は、差し替えの時点で段の幅にある`, { timeout: 120_000 }, async () => {
+    try {
+      await checkPremount(engine);
+    } catch (error) {
+      if (!/Execution context was destroyed/.test(String(error))) throw error;
+      await checkPremount(engine);
+    }
+  });
+
   test(`${name}: n段の組み立ては本文全体を再計算させず、画面外の列は表示後に埋める`, { timeout: 120_000 }, async () => {
     try {
       await check(engine);
