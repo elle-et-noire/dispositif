@@ -1,4 +1,4 @@
-// 記事の数式表示で実際に使われる MathJax フォント（woff2）の URL を、ビルド時に求める。
+// 記事の数式表示で実際に使われる MathJax フォント（woff2）の名前と URL を、ビルド時に求める。
 //
 // CHTML のスタイルシートには、使わないものも含めて全フォントの @font-face が入る。
 // ブラウザーがダウンロードするのは、本文の要素に当たる規則が参照するフォントだけである。
@@ -53,8 +53,10 @@ function targets(selector: string, classes: Set<string>, tags: Set<string>) {
   });
 }
 
-/** URLs of the math fonts that the article's HTML uses, in stylesheet order. */
-export function mathFontUrls(html: string, css: string): string[] {
+export type MathFont = { family: string; url: string };
+
+/** The math fonts that the article's HTML uses, in stylesheet order. */
+export function mathFontFaces(html: string, css: string): MathFont[] {
   if (!css) return [];
   const { faces, rules } = parse(css);
   if (!faces.size) return [];
@@ -69,5 +71,5 @@ export function mathFontUrls(html: string, css: string): string[] {
     if (!targets(rule.selector, classes, tags)) continue;
     for (const family of rule.families) if (faces.has(family)) used.add(family);
   }
-  return [...faces].filter(([family]) => used.has(family)).map(([, url]) => url);
+  return [...faces].filter(([family]) => used.has(family)).map(([family, url]) => ({ family, url }));
 }

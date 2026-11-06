@@ -2,7 +2,8 @@
 // HTML. Without this, MathJax fonts are discovered one by one during the first
 // layout after the swap, and each arrival lays the article out again.
 //
-// The list per link comes from the build (data-math-fonts, lib/math-fonts.ts).
+// The list per link comes from the build (data-math-fonts, lib/math-fonts.ts):
+// a JSON array of [family, url] pairs.
 // Timing and conditions follow Astro's "hover" strategy: 80 ms of hover or
 // focus, cancelled on leave, skipped offline or on a slow connection.
 
@@ -16,23 +17,42 @@ const slowConnection = () => {
   return Boolean(connection && (connection.saveData || /2g/.test(connection.effectiveType ?? "")));
 };
 
-// Astro swaps the page inside the same document. A font already loaded here is
-// reused from memory when the article's @font-face names the same URL, while
-// an HTTP-cache prefetch alone still leaves each font to arrive (and re-lay out
-// the article) after the swap. Load under a private family name and keep the
-// faces out of document.fonts, so nothing on the index changes.
-const loaded: FontFace[] = [];
+// Astro swaps the page inside the same document, so a font loaded here can
+// serve the article without being fetched and decoded again after the swap.
+// Chromium reuses a loaded font for any @font-face with the same URL. Firefox
+// only uses a face in the document's font set under the same family name, so
+// each face takes the name the article's @font-face gives it and joins the set
+// at the swap (not on hover, so the index's own fonts stay as they are).
+// MathJax declares each face with a name and URL only, so the article renders
+// with the same font either way.
+const loaded = new Set<FontFace>();
+document.addEventListener("astro:after-swap", () => {
+  for (const face of loaded) if (!document.fonts.has(face)) document.fonts.add(face);
+});
+
+function parseFonts(anchor: HTMLAnchorElement): [family: string, url: string][] {
+  try {
+    const fonts: unknown = JSON.parse(anchor.dataset.mathFonts ?? "[]");
+    return Array.isArray(fonts)
+      ? fonts.filter((font): font is [string, string] => Array.isArray(font)
+        && typeof font[0] === "string" && typeof font[1] === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}
 
 function prefetchFonts(anchor: HTMLAnchorElement) {
   if (!navigator.onLine || slowConnection() || typeof FontFace === "undefined") return;
-  for (const url of anchor.dataset.mathFonts?.split(/\s+/) ?? []) {
-    if (!url || requested.has(url)) continue;
+  for (const [family, url] of parseFonts(anchor)) {
+    if (requested.has(url)) continue;
     requested.add(url);
-    const face = new FontFace(`rm-prefetch-${requested.size}`, `url("${url}") format("woff2")`);
-    loaded.push(face);
+    const face = new FontFace(family, `url("${url}") format("woff2")`);
+    loaded.add(face);
     face.load().catch(() => {
       requested.delete(url);
-      loaded.splice(loaded.indexOf(face), 1);
+      loaded.delete(face);
+      document.fonts.delete(face);
     });
   }
 }

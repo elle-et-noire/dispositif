@@ -13,7 +13,7 @@ import type { Root, Element } from "hast";
 
 import { preprocessMarkdown } from "./preprocess";
 import { renderArticleMath } from "./mathjax";
-import { mathFontUrls } from "./math-fonts";
+import { mathFontFaces, type MathFont } from "./math-fonts";
 import { withBase } from "./base";
 
 // 本文リンクの安全化。Next 版の component/safelink.tsx と同じ方針：
@@ -111,10 +111,10 @@ export const markdownToHtml = (text: string): Promise<Converted> => {
   return result;
 };
 
-/** この記事の数式表示で読み込まれるフォントの URL（数式がなければ空）。 */
-export const articleMathFonts = async (text: string): Promise<string[]> => {
+/** この記事の数式表示で読み込まれるフォント（数式がなければ空）。 */
+export const articleMathFonts = async (text: string): Promise<MathFont[]> => {
   const { html, css } = await markdownToHtml(text);
-  return mathFontUrls(html, css);
+  return mathFontFaces(html, css);
 };
 
 const convert = async (text: string): Promise<Converted> => {
