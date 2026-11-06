@@ -1,3 +1,16 @@
+/* The reader sets these from JS on .rm-plane and .rm-article. A change to an
+   inherited custom property restyles every element below it, about 100 ms for
+   the whole of a math article, so they do not inherit. The few elements that
+   use them take them from their parent explicitly. */
+@property --rm-w { syntax: "*"; inherits: false; }
+@property --rm-h { syntax: "*"; inherits: false; }
+@property --rm-p { syntax: "*"; inherits: false; }
+@property --rm-l { syntax: "*"; inherits: false; }
+@property --rm-step { syntax: "*"; inherits: false; }
+@property --rm-edge { syntax: "*"; inherits: false; }
+@property --rm-overlap { syntax: "*"; inherits: false; }
+@property --rm-header-height { syntax: "*"; inherits: false; }
+
 :root {
   --rm-column-width: min(38em, calc(100vw - 2rem));
   --rm-gap: 1rem;
@@ -173,19 +186,6 @@
     margin-top: var(--rm-column-padding);
   }
 
-  /* Measure the original at exactly W before mounting it as a visible column.
-     It keeps its IDs and accessibility tree, including while being measured. */
-  .rm-active .rm-source:not(.rm-content) {
-    position: fixed;
-    top: 0;
-    left: 0;
-    display: flow-root;
-    max-width: none;
-    margin: 0;
-    clip-path: inset(50%);
-    pointer-events: none;
-  }
-
   .rm-reader {
     position: relative;
     grid-column: 1;
@@ -264,6 +264,9 @@
     top: 0;
     /* left is set only when recycling a slot or rebasing the native plane. */
     left: 0;
+    --rm-w: inherit;
+    --rm-h: inherit;
+    --rm-overlap: inherit;
     width: var(--rm-w);
     height: 100%;
     /* Clip on the rail, which moves with the native scroll plane. A clip on
@@ -273,6 +276,9 @@
   }
 
   .rm-slot {
+    --rm-w: inherit;
+    --rm-h: inherit;
+    --rm-overlap: inherit;
     position: sticky;
     top: 0;
     width: var(--rm-w);
@@ -295,6 +301,7 @@
   }
 
   .rm-content {
+    --rm-w: inherit;
     position: fixed;
     top: 0;
     left: 0;
@@ -307,6 +314,7 @@
 
   /* Clip overlap shading to the same paper bounds, including tiny tails. */
   .rm-shade {
+    --rm-overlap: inherit;
     position: absolute;
     left: 0;
     width: 100%;
@@ -318,6 +326,7 @@
 
   .rm-shade::before,
   .rm-shade::after {
+    --rm-overlap: inherit;
     position: absolute;
     right: 0;
     left: 0;

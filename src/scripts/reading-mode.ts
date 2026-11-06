@@ -48,6 +48,7 @@ export function initializeReadingMode() {
   const ruler = document.querySelector<HTMLElement>(".rm-ruler");
   const toggle = document.querySelector<HTMLButtonElement>(".rm-toggle");
   const header = document.querySelector<HTMLElement>("[data-site-header]");
+  const article = document.querySelector<HTMLElement>(".rm-article") ?? root;
   const toolbar = document.querySelector<HTMLElement>(".rm-toolbar");
   const toolbarParent = toolbar?.parentNode;
   const toolbarNextSibling = toolbar?.nextSibling ?? null;
@@ -186,12 +187,37 @@ export function initializeReadingMode() {
     document.dispatchEvent(new CustomEvent("rm:heading", { detail: { id } }));
   };
 
-  const updateSlots = () => {
+  const mountSlot = (content: HTMLElement) => {
+    content.classList.add("rm-content");
+    const track = document.createElement("div");
+    track.className = "rm-track";
+    const slot = document.createElement("div");
+    slot.className = "rm-slot";
+    if (content !== source) slot.setAttribute("aria-hidden", "true");
+    slot.appendChild(content);
+    const shade = document.createElement("div");
+    shade.className = "rm-shade";
+    shade.setAttribute("aria-hidden", "true");
+    slot.appendChild(shade);
+    const paper = document.createElement("div");
+    paper.className = "rm-paper";
+    paper.setAttribute("aria-hidden", "true");
+    slot.appendChild(paper);
+    track.appendChild(slot);
+    plane.appendChild(track);
+    slots.push(slot);
+  };
+
+  // Columns entirely outside the viewport are filled a frame later, so their
+  // copies are not styled and laid out before the visible ones are painted.
+  let offscreenFrame = 0;
+  const updateSlots = (includeOffscreen = false) => {
     if (!geometry || !reading) return;
     const { start, count } = slotColumns(reading.point, reading.layout);
     // Read native geometry before any DOM edits. Reading scrollTop inside the
     // slot loop used to force layout after inserting each new math fragment.
     const nativeY = viewport.scrollTop;
+    const nativeX = viewport.scrollLeft, viewportWidth = viewport.clientWidth;
     if (start !== rangeStart || slots.length !== count || dirty) {
       const wanted = new Set(Array.from({ length: count }, (_, i) => start + i));
       // Retain existing frames/rasterized content when the pool changes size.
@@ -208,27 +234,7 @@ export function initializeReadingMode() {
         }
         return true;
       });
-      while (slots.length < count) {
-        const content: HTMLElement = slots.length === 0 ? source : fragments.createContent();
-        content.classList.add("rm-content");
-        const track = document.createElement("div");
-        track.className = "rm-track";
-        const slot = document.createElement("div");
-        slot.className = "rm-slot";
-        if (content !== source) slot.setAttribute("aria-hidden", "true");
-        slot.appendChild(content);
-        const shade = document.createElement("div");
-        shade.className = "rm-shade";
-        shade.setAttribute("aria-hidden", "true");
-        slot.appendChild(shade);
-        const paper = document.createElement("div");
-        paper.className = "rm-paper";
-        paper.setAttribute("aria-hidden", "true");
-        slot.appendChild(paper);
-        track.appendChild(slot);
-        plane.appendChild(track);
-        slots.push(slot);
-      }
+      while (slots.length < count) mountSlot(slots.length === 0 ? source : fragments.createContent());
       const retained = new Set(slots.map((slot) => Number(slot.dataset.rmK)));
       const missing = [...wanted].filter((k) => !retained.has(k));
       for (const slot of slots) {
@@ -287,7 +293,12 @@ export function initializeReadingMode() {
       // Slots outside the article have no visible paper. Keep their existing
       // fragments until they become visible instead of cloning/removing blocks
       // that would immediately be clipped away.
-      if (content !== source && paperHeight > 0) fragments.render(content, toCss(fromTicks - surface.shift), geometry.h, geometry.l);
+      if (content === source || paperHeight === 0) continue;
+      if (includeOffscreen || (left < nativeX + viewportWidth && left + geometry.w > nativeX)) {
+        fragments.render(content, toCss(fromTicks - surface.shift), geometry.h, geometry.l);
+      } else if (!offscreenFrame) {
+        offscreenFrame = requestAnimationFrame(() => { offscreenFrame = 0; updateSlots(true); });
+      }
     }
   };
 
@@ -342,12 +353,15 @@ export function initializeReadingMode() {
   const measure = () => {
     measuring = 0;
     if (!enabled || printing.matches) return;
+    // On enabling, detach the original while reading the page's new geometry,
+    // so it is not laid out at an intermediate width before its column.
+    if (!slots.length) source.remove();
     const anchor = fromCss(position);
     const oldPoint = reading?.point;
     const oldEnd = reading && endPoint(reading.layout);
     const wasEnd = oldPoint && oldEnd && oldPoint.x === oldEnd.x && oldPoint.y === oldEnd.y;
     const wasHome = oldPoint?.x === 0 && oldPoint?.y === 0;
-    root.style.setProperty("--rm-header-height", `${header?.getBoundingClientRect().height ?? 0}px`);
+    article.style.setProperty("--rm-header-height", `${header?.getBoundingClientRect().height ?? 0}px`);
     const gap = Math.max(0, parseFloat(getComputedStyle(ruler).marginRight) || 0);
     const edge = Math.max(0, parseFloat(getComputedStyle(ruler).paddingRight) || 0);
     // DPR alone is insufficient: browser zoom and device emulation can round
@@ -360,6 +374,10 @@ export function initializeReadingMode() {
     const w = toCss(fromCss(Math.min(parseFloat(getComputedStyle(ruler).width), Math.max(1, viewport.clientWidth - 2 * edge))));
     source.style.width = `${w}px`;
     const h = Math.max(1, viewport.clientHeight);
+    plane.style.setProperty("--rm-w", `${w}px`);
+    plane.style.setProperty("--rm-h", `${h}px`);
+    // Lay the original out once, at W and in its column.
+    if (!slots.length) mountSlot(source);
     const sourceBox = source.getBoundingClientRect();
     const scale = sourceBox.width / (parseFloat(getComputedStyle(source).width) || sourceBox.width);
     const l = Math.max(1, Math.ceil(sourceBox.height / scale));
@@ -376,9 +394,7 @@ export function initializeReadingMode() {
     if (geometry?.w !== w) dirty = true;
     navigationHeading = undefined;
     motion.reset();
-    plane.style.setProperty("--rm-w", `${w}px`);
     plane.style.setProperty("--rm-p", `${toCss(layout.p)}px`);
-    plane.style.setProperty("--rm-h", `${h}px`);
     plane.style.setProperty("--rm-step", `${h}px`);
     plane.style.setProperty("--rm-overlap", "0px");
     plane.style.setProperty("--rm-l", `${l}px`);
@@ -799,9 +815,9 @@ export function initializeReadingMode() {
     controller.abort();
     resizeObserver.disconnect();
     mutationObserver.disconnect();
-    [initialFrame, measuring, scrolling].forEach(cancelAnimationFrame);
+    [initialFrame, measuring, scrolling, offscreenFrame].forEach(cancelAnimationFrame);
     root.classList.remove("rm-active", "rm-ready");
-    root.style.removeProperty("--rm-header-height");
+    article.style.removeProperty("--rm-header-height");
     if (toolbar) toolbarParent?.insertBefore(toolbar, toolbarNextSibling);
     restoreSource();
     reader.hidden = true;
