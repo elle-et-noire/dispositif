@@ -346,7 +346,7 @@ main 判断は保留。今回の比較はクリック後のみの PSS ピーク�
 
 #### 差分の監査と製品コードの修正
 
-`551776a` で削除した `reading-preload.ts`、`reading-preload-frame.ts`、`reading-preload-navigation.ts` は、準備済み iframe を使うときだけ働く。通常遷移の経路（クリックで準備済みがなければ何もしない、`astro:before-swap` で候補を破棄するだけ）に必要な処理は含まれていなかった。通常遷移に必要な処理は残っている。具体的には、`article-background.ts` による遷移先の `rm-pending` 付与と一覧の位置・フォーカス復元、`Layout.astro` の 10 秒の退避、`reading-mode.ts` の履歴位置の sessionStorage 保存（別文書との統合を含む）、`prefersMulti` による保存設定の優先である。
+`551776a` で削除した `reading-preload.ts`、`reading-preload-frame.ts`、`reading-preload-navigation.ts` は、準備済み iframe を使うときだけ働く。通常遷移の経路（クリックで準備済みがなければ何もしない、`astro:before-swap` で候補を破棄するだけ）に必要な処理は含まれていなかった。通常遷移に必要な処理は残っている。具体的には、`Layout.astro` の head スクリプトによる遷移先の `rm-pending` 付与（当初は `article-background.ts` が付けていたが、`1cf3018` で一本化した）と 10 秒の退避、`article-background.ts` による一覧の位置・フォーカス復元、`reading-mode.ts` の履歴位置の sessionStorage 保存（別文書との統合を含む）、`prefersMulti` による保存設定の優先である。
 
 一方、`reading-mode.ts` には iframe の子文書側の処理が残っていた。`window.frameElement` の `data-rm-preparing` 判定、`rm:preload-save` / `rm:preload-cancel-save` / `rm:preload-dispose` の受信、`pendingPreloadHistory` である。これらを発火させる親側はすでに削除されており、最上位の文書では常に無効だったので除去した。通常遷移での保存は、従来どおり `astro:before-swap` と `pagehide` で行う。`reading-preference.ts` のコメントも先読み管理器への言及を除いた。
 

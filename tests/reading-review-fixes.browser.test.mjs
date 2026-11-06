@@ -330,3 +330,74 @@ test("目次で選んだ見出しと、閉じた詳細の見出しに表示位�
     assert.ok(rect.x >= 0 && rect.x < 1280 && rect.y >= 0 && rect.y < 900);
   } finally { await browser.close(); }
 });
+
+test("最初のフレームより前に記事を離れても、その履歴項目の折りたたみとアンカーを上書きしない", { timeout: 45_000 }, async () => {
+  const browser = await chromium.launch({ executablePath: process.env.RM_BROWSER_PATH || undefined });
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  try {
+    await page.addInitScript(() => {
+      if (location.protocol === "about:") return;
+      localStorage.setItem("dispositif:reading-mode", "single");
+      // Hold animation frames on demand, as a background tab does.
+      const request = window.requestAnimationFrame.bind(window);
+      const cancel = window.cancelAnimationFrame.bind(window);
+      let held = null;
+      window.__holdFrames = () => { held = new Map(); };
+      window.__releaseFrames = () => { const queued = held ?? new Map(); held = null; for (const callback of queued.values()) request(callback); };
+      let next = 0;
+      window.requestAnimationFrame = (callback) => {
+        if (!held) return request(callback);
+        held.set(--next, callback);
+        return next;
+      };
+      window.cancelAnimationFrame = (id) => { if (held?.delete(id)) return; cancel(id); };
+    });
+    await page.goto(new URL("nextjs-mdx/", BASE).href);
+    await page.waitForSelector(".rm-ready");
+    await page.evaluate(() => document.fonts.ready);
+    await page.locator(".rm-source details summary").first().click();
+    await page.locator(".rm-article-scrollport").evaluate((v) => { v.scrollTop = 1500; });
+    await settle(page);
+    const key = await page.evaluate(() => history.state.dispositifReadingKey);
+    await page.locator(".rm-close:visible").click();
+    await page.waitForSelector('html[data-page-kind="index"]');
+
+    // Return to the entry, and leave it again while its first frame is held.
+    await page.evaluate(() => document.addEventListener("astro:after-swap", () => window.__holdFrames(), { once: true }));
+    await page.goBack();
+    await page.waitForFunction(() => document.documentElement.dataset.pageKind === "article"
+      && document.documentElement.classList.contains("rm-ready"), null, { polling: 50 });
+    await page.evaluate(() => document.addEventListener("astro:after-swap", () => window.__releaseFrames(), { once: true }));
+    await page.goForward();
+    await page.waitForFunction(() => document.documentElement.dataset.pageKind === "index", null, { polling: 50 });
+
+    // A full load hides the page and writes the positions to session storage.
+    await page.goto(BASE);
+    const saved = await page.evaluate((key) => new Map(JSON.parse(sessionStorage.getItem("dispositif:reading-history"))).get(key), key);
+    assert.equal(saved?.details?.[0], true, JSON.stringify(saved));
+    assert.ok(saved?.anchor, JSON.stringify(saved));
+  } finally { await browser.close(); }
+});
+
+test("保存済みの履歴が壊れていても、新しい読書位置を保存する", { timeout: 45_000 }, async () => {
+  const browser = await chromium.launch({ executablePath: process.env.RM_BROWSER_PATH || undefined });
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  try {
+    await page.addInitScript(() => {
+      if (location.protocol === "about:") return;
+      localStorage.setItem("dispositif:reading-mode", "single");
+      if (sessionStorage.getItem("rm-test-damaged")) return;
+      sessionStorage.setItem("rm-test-damaged", "1");
+      sessionStorage.setItem("dispositif:reading-history", "{damaged");
+    });
+    await page.goto(ARTICLE);
+    await page.waitForSelector(".rm-ready");
+    await settle(page);
+    await page.locator(".rm-article-scrollport").evaluate((v) => { v.scrollTop = 1200; });
+    await settle(page);
+    const key = await page.evaluate(() => history.state.dispositifReadingKey);
+    await page.goto(BASE);
+    const saved = await page.evaluate((key) => new Map(JSON.parse(sessionStorage.getItem("dispositif:reading-history"))).get(key), key);
+    assert.equal(saved?.position, 1200, JSON.stringify(saved));
+  } finally { await browser.close(); }
+});
