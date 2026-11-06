@@ -20,6 +20,11 @@ const fontFamilies = (body: string) => {
   return match[1].replace(/!important/g, "").split(",").map(unquote).filter(Boolean);
 };
 
+const faceOf = (body: string) => ({
+  family: fontFamilies(body)[0],
+  url: /url\(\s*["']?([^"')]+)["']?\s*\)/.exec(body)?.[1],
+});
+
 function parse(css: string) {
   const faces = new Map<string, string>();
   const rules: Rule[] = [];
@@ -29,8 +34,7 @@ function parse(css: string) {
     const selector = match[1].trim();
     const body = match[2];
     if (selector === "@font-face") {
-      const family = fontFamilies(body)[0];
-      const url = /url\(\s*["']?([^"')]+)["']?\s*\)/.exec(body)?.[1];
+      const { family, url } = faceOf(body);
       if (family && url) faces.set(family, url);
     } else {
       const families = fontFamilies(body);
@@ -72,4 +76,34 @@ export function mathFontFaces(html: string, css: string): MathFont[] {
     for (const family of rule.families) if (faces.has(family)) used.add(family);
   }
   return [...faces].filter(([family]) => used.has(family)).map(([family, url]) => ({ family, url }));
+}
+
+export type MathFontFaceRule = MathFont & { rule: string };
+
+// One @font-face rule as MathJax writes it, with the comment it puts between
+// "@font-face" and "{", and the whitespace after it.
+const FONT_FACE_RULE = /@font-face\s*(?:\/\*[\s\S]*?\*\/\s*)*\{([^{}]*)\}\s*/g;
+
+/**
+ * Takes the @font-face rules of the given fonts (mathFontFaces of the same
+ * article) out of the stylesheet, one rule per font, and returns the rest of
+ * the stylesheet unchanged.
+ *
+ * The article page puts each rule in its own <style> element marked with the
+ * family and URL. When the index has already loaded that font on hover, the
+ * client drops the element before the swap so that the article uses the loaded
+ * face instead of loading its own copy after the first layout
+ * (src/scripts/math-font-prefetch.ts). Only rules whose family and URL match a
+ * font of the list move, so the marks always agree with data-math-fonts.
+ */
+export function separateMathFontFaces(css: string, fonts: MathFont[]): { css: string; faces: MathFontFaceRule[] } {
+  const wanted = new Map(fonts.map(({ family, url }) => [family, url]));
+  const faces: MathFontFaceRule[] = [];
+  const rest = css.replace(FONT_FACE_RULE, (rule, body: string) => {
+    const { family, url } = faceOf(body);
+    if (!family || !url || wanted.get(family) !== url || faces.some((face) => face.family === family)) return rule;
+    faces.push({ family, url, rule: rule.trim() });
+    return "";
+  });
+  return { css: rest, faces };
 }
