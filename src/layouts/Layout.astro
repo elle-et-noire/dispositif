@@ -38,7 +38,56 @@ const {
         if (root.dataset.pageKind === "article") root.classList.add("rm-pending");
       };
       markPending(document.documentElement);
-      document.addEventListener("astro:before-swap", (event) => markPending(event.newDocument.documentElement));
+      // With n段 stored, put the article text in the reader's first column
+      // before the swap, at the column width. Its first layout, during which
+      // the math fonts are found, is then the one the reader measures, instead
+      // of a single-column layout that the reader would repeat at the column
+      // width. The new document is not rendered yet, so moving it is free.
+      // Full page loads keep the single-column placement until the reader runs.
+      const premountColumn = (doc) => {
+        let multi = false;
+        try { multi = localStorage.getItem("dispositif:reading-mode") === "multi"; } catch { /* storage is optional */ }
+        if (!multi || doc.documentElement.dataset.pageKind !== "article" || matchMedia("print").matches) return;
+        const source = doc.querySelector(".rm-source");
+        const reader = doc.querySelector(".rm-reader");
+        const plane = reader?.querySelector(".rm-plane");
+        if (!source || !plane || plane.firstChild || source.nextElementSibling !== reader) return;
+        // The same structure as the reader's mountSlot().
+        const part = (name) => {
+          const element = doc.createElement("div");
+          element.className = name;
+          return element;
+        };
+        const track = part("rm-track"), slot = part("rm-slot"), shade = part("rm-shade"), paper = part("rm-paper");
+        shade.setAttribute("aria-hidden", "true");
+        paper.setAttribute("aria-hidden", "true");
+        source.classList.add("rm-content");
+        // The reader replaces this with the same width in px.
+        source.style.width = "var(--rm-column-width)";
+        slot.append(source, shade, paper);
+        track.append(slot);
+        plane.append(track);
+        reader.hidden = false;
+        // The article's n段 layout too (not the header's, which is visible):
+        // Firefox rebuilds the text's boxes when its ancestors change position.
+        doc.documentElement.classList.add("rm-premount");
+      };
+      // Undo premountColumn() for the single-column fallback below.
+      const unmountColumn = () => {
+        const source = document.querySelector(".rm-plane .rm-source");
+        const reader = document.querySelector(".rm-reader");
+        document.documentElement.classList.remove("rm-premount");
+        if (!source || !reader) return;
+        reader.before(source);
+        source.classList.remove("rm-content");
+        source.style.removeProperty("width");
+        reader.querySelector(".rm-plane").replaceChildren();
+        reader.hidden = true;
+      };
+      document.addEventListener("astro:before-swap", (event) => {
+        markPending(event.newDocument.documentElement);
+        premountColumn(event.newDocument);
+      });
       // If the reader bundle fails or stalls, leave a usable single-column
       // article instead of keeping the content hidden indefinitely.
       // Only one navigation can be pending, so a newer arm replaces the timer
@@ -53,6 +102,7 @@ const {
         fallbackTimer = setTimeout(() => {
           if (root !== document.documentElement || !root.classList.contains("rm-pending")
             || root.classList.contains("rm-ready")) return;
+          unmountColumn();
           root.classList.add("rm-fallback");
           root.classList.remove("rm-pending");
         }, 10000);

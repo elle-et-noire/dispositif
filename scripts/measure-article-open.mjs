@@ -9,15 +9,16 @@
 //
 // Usage (against a production build served by `astro preview`):
 //   node scripts/measure-article-open.mjs http://localhost:4321/dispositif/ 3 > out.jsonl
-// Environment: ENGINES=chromium,firefox  TRACE=0 (disable the Chromium trace;
+// Environment: ENGINES=chromium,firefox  ARTICLES=…  MODES=…  CACHES=…  TRACE=0 (disable the Chromium trace;
 // tracing adds overhead, so compare wall-clock times with TRACE=0).
 import { chromium, firefox } from 'playwright-core';
 
 const base = process.argv[2] ?? 'http://localhost:4321/dispositif/';
 const runs = Number(process.argv[3] ?? 3);
-const articles = ['tips-python', 'symmetric-polynomial'];
-const modes = ['single', 'multi'];
-const caches = ['cold', 'warm'];
+const only = (name, all) => process.env[name] ? all.filter((value) => process.env[name].split(',').includes(value)) : all;
+const articles = only('ARTICLES', ['tips-python', 'symmetric-polynomial']);
+const modes = only('MODES', ['single', 'multi']);
+const caches = only('CACHES', ['cold', 'warm']);
 const engines = Object.entries({ chromium, firefox }).filter(([n]) => !process.env.ENGINES || process.env.ENGINES.split(',').includes(n));
 
 const probe = () => {

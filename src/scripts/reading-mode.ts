@@ -80,8 +80,14 @@ export function initializeReadingMode() {
   const savedHistoryPosition = historyPositions.get(entryKey);
   let historyReady = false;
 
-  const sourceParent = source.parentNode!;
-  const sourceNextSibling = source.nextSibling;
+  // After a client-side navigation with n段 stored, Layout.astro has already
+  // put the original in the first column, so that its first layout is at the
+  // column width. Adopt that slot instead of mounting the original again.
+  let premounted = source.parentElement?.matches(".rm-plane > .rm-track > .rm-slot")
+    ? source.parentElement : undefined;
+  // The pre-mounted original came from just before the reader.
+  const sourceParent = premounted ? reader.parentNode! : source.parentNode!;
+  const sourceNextSibling = premounted ? reader : source.nextSibling;
   const controller = new AbortController();
   const { signal } = controller;
   const printing = window.matchMedia("print");
@@ -355,7 +361,7 @@ export function initializeReadingMode() {
     if (!enabled || printing.matches) return;
     // On enabling, detach the original while reading the page's new geometry,
     // so it is not laid out at an intermediate width before its column.
-    if (!slots.length) source.remove();
+    if (!slots.length && !premounted) source.remove();
     const anchor = fromCss(position);
     const oldPoint = reading?.point;
     const oldEnd = reading && endPoint(reading.layout);
@@ -376,8 +382,12 @@ export function initializeReadingMode() {
     const h = Math.max(1, viewport.clientHeight);
     plane.style.setProperty("--rm-w", `${w}px`);
     plane.style.setProperty("--rm-h", `${h}px`);
-    // Lay the original out once, at W and in its column.
-    if (!slots.length) mountSlot(source);
+    // Lay the original out once, at W and in its column. A pre-mounted
+    // original was laid out there already, at the same width unless the
+    // column width differs from the CSS estimate (then once more here).
+    if (!slots.length) {
+      if (premounted) { slots.push(premounted); premounted = undefined; } else mountSlot(source);
+    }
     const sourceBox = source.getBoundingClientRect();
     const scale = sourceBox.width / (parseFloat(getComputedStyle(source).width) || sourceBox.width);
     const l = Math.max(1, Math.ceil(sourceBox.height / scale));
@@ -460,6 +470,8 @@ export function initializeReadingMode() {
   };
 
   const restoreSource = () => {
+    premounted = undefined;
+    root.classList.remove("rm-premount");
     sourceParent.insertBefore(source, sourceNextSibling);
     source.classList.remove("rm-content");
     for (const property of ["width", "left", "translate"]) source.style.removeProperty(property);
@@ -474,10 +486,13 @@ export function initializeReadingMode() {
     // header's height. At the beginning keep the card at its normal position.
     const readingInset = 1.5 * (parseFloat(getComputedStyle(root).fontSize) || 16);
     if (enabled) syncPosition();
-    if (next) position = anchor ?? Math.max(0, readingInset - source.getBoundingClientRect().top);
+    // A pre-mounted original has no single-column position; it starts at the top.
+    if (next) position = anchor ?? (premounted ? 0 : Math.max(0, readingInset - source.getBoundingClientRect().top));
     const contentAnchor = !suspendedForPrint && anchor === undefined && position > 0 ? captureAnchor(position) : undefined;
     enabled = next;
     root.classList.toggle("rm-active", enabled);
+    // The pre-mounted layout (Layout.astro) is now the reader's own.
+    root.classList.remove("rm-premount");
     articleScrollport.tabIndex = enabled ? -1 : 0;
     if (toolbar) {
       if (enabled && header) header.appendChild(toolbar);
@@ -514,6 +529,15 @@ export function initializeReadingMode() {
     saveHistoryPosition();
   };
 
+  // Return a pre-mounted original to the single-column article when the
+  // reader does not start in n段 (print, a changed preference, the fallback).
+  const releasePremounted = () => {
+    if (!premounted || enabled) return;
+    restoreSource();
+    plane.replaceChildren();
+    reader.hidden = true;
+  };
+
   const applyDefault = () => {
     if (suspendedForPrint || printing.matches || root.classList.contains("rm-fallback")) return;
     setEnabled(prefersMulti(preference));
@@ -532,6 +556,7 @@ export function initializeReadingMode() {
     // scrolling or an interrupted column step). Keep the exact point as well.
     printPoint = reading ? { point: { ...reading.point }, layout: reading.layout } : undefined;
     setEnabled(false);
+    releasePremounted();
   };
   const resumeFromPrint = () => {
     if (!suspendedForPrint || printing.matches) return;
@@ -788,6 +813,7 @@ export function initializeReadingMode() {
       // Restore disclosure layout before measuring or applying a saved offset.
       if (savedHistoryPosition) restoreDetails(savedHistoryPosition);
       applyDefault();
+      releasePremounted();
       if (savedHistoryPosition) restoreHistoryPosition(savedHistoryPosition);
       else followHash();
       historyReady = true;
