@@ -1,3 +1,8 @@
+---
+// The article text (.rm-source) goes in the slot, directly after the reader's
+// markup: with n段 stored, Layout.astro moves it into the reader's first
+// column as soon as the parser attaches it.
+---
 <div class="rm-reader" hidden>
   <div
     class="rm-viewport"
@@ -8,6 +13,7 @@
     <div class="rm-plane"></div>
   </div>
 </div>
+<slot />
 <div class="rm-ruler" aria-hidden="true"><div></div></div>
 
 <script>

@@ -85,14 +85,15 @@ const headings = getHeadings(content);
             </div>
           </div>
         </aside>
-        <div class="rm-source min-w-0 w-full font-noto-sans">
-          <h1 class="mb-1 text-lg font-semibold text-[#101828] sm:text-3xl md:mb-3 md:text-4xl">
-            {data.title}
-          </h1>
-          <DateInfo data={data} class="text-xs sm:text-base" />
-          <div class="post" set:html={html} />
-        </div>
-        <ReadingMode />
+        <ReadingMode>
+          <div class="rm-source min-w-0 w-full font-noto-sans">
+            <h1 class="mb-1 text-lg font-semibold text-[#101828] sm:text-3xl md:mb-3 md:text-4xl">
+              {data.title}
+            </h1>
+            <DateInfo data={data} class="text-xs sm:text-base" />
+            <div class="post" set:html={html} />
+          </div>
+        </ReadingMode>
       </div>
     </article>
   </div>
