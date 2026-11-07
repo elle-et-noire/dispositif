@@ -661,3 +661,57 @@ Chromium のトレースで、数式記事・n段の Layout イベントを見�
 | Firefox・tips-python・warm | 165 | 169 | +5 |
 
 Chromium の数式記事・cold は回によって変更前の値が大きく揺れたので、この条件だけ交互に 12 回ずつ計測し直した（load average 9〜10）。中央値は変更前 561、変更後 465 ms で、読み込み完了から表示までは 178 → 126 ms だった。数式記事の短縮は主に、リーダーの最初のフレームで本文をレイアウトし直さなくなった分である。別に 6 回ずつ区間を分けて計測すると、読み込み完了から表示までは 4 条件とも 60〜105 ms 短くなった。差し替えから読み込み完了までは、Chromium で 4〜40 ms 短く、Firefox で 8〜75 ms 長くなり、一定しなかった。Firefox の cold で最初のレイアウトが重くなっている可能性は残るが、クリック→表示では Firefox の cold も短くなっている。数式のない記事は本文のレイアウトが軽いので、差は計測の揺れの範囲である。1 段は交互に 4 回ずつ計測し、8 条件で一定の向きの差はなかった。
+
+## 差し替え直後の 2 回目のレイアウト：数式フォントの二重定義（2026-11-06）
+
+上の節で調べずに残した、差し替え直後の 2 回目の本文全体のレイアウトの原因を調べて取り除いた。
+
+### 原因
+
+記事のインラインの MathJax CSS には MJX-TEX-* の `@font-face` がある。一覧はホバー時に同じ名前・同じ URL の `FontFace` を読み込み、差し替え時に `document.fonts` に加える（「Firefox でのフォントの使い回し」）。そのため差し替え後の文書には、同じ名前のフォントが 2 つずつある。読み込み済みのホバー時のフォントと、まだ読み込んでいない記事の `@font-face` のフォントである。
+
+MathJax のフォント指定はどれも `font-family: MJX-TEX-ZERO, MJX-TEX-N` のように MJX-TEX-ZERO から始まる。MJX-TEX-ZERO は 1 KB でグリフをほとんど持たない。最初のレイアウトでは、読み込み済みの ZERO にない文字について、同じ名前の未読み込みの ZERO（記事の `@font-face`）も候補になる。ブラウザーはそれを読み込み始め、届いた時点でフォントが変わったとして本文全体をレイアウトし直す。
+
+Chromium のトレースでは、差し替えの約 110〜140 ms 後に `mjx-tex-zero` の `RemoteFontLoaded` があり、その直後に本文全体（約 1 万 2 千 5 百オブジェクト）のレイアウト約 47 ms と、フォントによるスタイル計算約 15 ms があった。その間のレイアウトの無効化は約 1 万 2 千件で、理由はすべて "Fonts changed" だった。Firefox の cold でも、差し替えの約 125 ms 後に `mjx-tex-zero.woff2` を要求し、届いた直後に 40〜47 ms の Reflow があった。Firefox の warm では、先に直接開いた別の数式記事で ZERO を読み込んだ状態なので、要求も Reflow もなかった。
+
+### 試して効かなかった案
+
+- MathJax のフォント指定から MJX-TEX-ZERO を外す：同じことが MJX-TEX-N で起きた。
+- ホバー時のフォントを `document.fonts` に加えない：記事の `@font-face` のフォントはやはり最初のレイアウトの後に読み込まれ、Firefox での使い回しもなくなる。
+- 差し替え時に記事の `@font-face` のフォントに `.load()` を呼ぶ：最初のレイアウトには間に合わない。
+- ZERO の読み込みを遅らせる：レイアウトし直しの時期が後ろにずれるだけだった。
+
+記事の `@font-face` のうち、ホバー時に読み込んだ名前の規則を最初のスタイル計算の前に消すと、Chromium で差し替え後の本文全体のレイアウトが 1 回になり、Firefox でも Reflow が増えなかった。
+
+### 変更
+
+1. ビルド時（`[slug].astro`）に、一覧の `data-math-fonts` と同じ一覧（`mathFontFaces`）にあるフォントの `@font-face` を CSS から取り出し、1 規則ずつ `<style data-math-font="名前" data-math-font-url="URL">` に入れる（`lib/math-fonts.ts` の `separateMathFontFaces`）。名前と URL の両方が一覧と一致する規則だけを取り出し、残りの CSS は元のまま `<style>` に入れる。`<link rel="preload">` には `data-math-font-preload` を付けた。
+2. `math-font-prefetch.ts` は `astro:before-swap` で、ホバー時のフォントを `document.fonts` に加え、まだ描画されていない新しい文書から、状態が `loaded` のフォントと名前・URL が一致する `<style data-math-font>` と、URL が一致する preload を消す。読み込み中・失敗・未ホバーのフォントの規則は残るので、直接のアクセス、タッチ、ホバーなしのクリック、遅い回線では従来どおりになる。
+3. フォントを加える時期を `astro:after-swap` から `astro:before-swap` にした。Astro は差し替えと `astro:after-swap` の間でスクロール位置を戻し、履歴の移動ではそこでレイアウトが起きる。そのときに記事の規則がなく、ホバー時のフォントもまだ加わっていないと、代わりのフォントでレイアウトしてしまう。
+
+MathJax の `@font-face` は名前と URL だけを持つので、ホバー時のフォントは消した規則と同じフォントになる。Firefox での使い回しも同じ前提に立っている。
+
+印刷は、Chromium（`page.pdf()`）と Firefox（WebDriver BiDi の `browsingContext.print`）で、ホバーしてから開いた数式記事を PDF にし、埋め込まれたフォントが変更前と同じ（mjx-tex-n、-so、-lo、-s3、-s4 など）であることを `pdffonts` で確かめた。`document.fonts` に加えたフォントは印刷でも使われる。
+
+### 確認
+
+`tests/math-font-prefetch.browser.test.mjs` に 2 つの試験を加えた。1 つ目は、ホバーして読み込みが終わってから数式記事を開き（n段・1段）、クリック後に数式フォントの要求（Resource Timing）と `loadingdone` がないこと、各フォント名の `FontFace` が 1 つずつで `loaded` であること、∑ が MJX-TEX-N の幅で描かれることを確かめる。変更前のビルドでは両エンジンで失敗する（mjx-tex-n と mjx-tex-zero を要求し、各名前の未読み込みのフォントが残る）。2 つ目は、フォントの応答を 1.5 秒遅らせてホバー直後に開くと記事の規則が残ること、一覧へ戻って進むと規則と preload が消えること、別の数式記事（tips-julia）では読み込み済みでない名前の規則だけが残ることを確かめる。既存の試験の「差し替え後に要求し直してよいのは preload のファイルと MJX-TEX-ZERO だけ」は「何も要求しない」に改めた。
+
+Chromium のトレース（各条件 3 回）で、差し替え後の本文全体のレイアウトは変更前が 2 回（2 回目 47〜50 ms）、変更後が 1 回で、`mjx-tex-zero` の `RemoteFontLoaded` もなくなった。n段・1段、cold・warm の 4 条件で同じだった。Firefox の Gecko プロファイル（cold、n段・1段）では、`mjx-tex-zero.woff2` と `mjx-tex-n.woff2` の要求と、その直後の 40〜47 ms の Reflow がなくなった。差し替えの約 220〜240 ms 後の 45〜55 ms の Reflow は変更前からあり、今回の変更とは関係しない。
+
+### 結果
+
+本番ビルドを `astro preview` で 2 つ配信し、変更前（`feat/premount-column`）と変更後を交互に 12 回ずつ計測した中央値（ms、`TRACE=0`）。計測中は他の処理が動いていた（load average 15〜36、中央値 17）。
+
+| 数式記事 | クリック→表示 変更前 | 変更後 | 差 | 変更後が速かった回 |
+| --- | --- | --- | --- | --- |
+| Chromium・n段・cold | 418 | 337 | −81 | 12/12 |
+| Chromium・n段・warm | 399 | 306 | −93 | 12/12 |
+| Chromium・1段・cold | 404 | 300 | −104 | 12/12 |
+| Chromium・1段・warm | 342 | 261 | −81 | 12/12 |
+| Firefox・n段・cold | 446 | 422 | −24 | 9/12 |
+| Firefox・n段・warm | 406 | 410 | +4 | 4/12 |
+| Firefox・1段・cold | 318 | 291 | −27 | 9/12 |
+| Firefox・1段・warm | 277 | 265 | −13 | 5/12 |
+
+Chromium では数式記事の表示が 80〜100 ms 短くなり、すべての回で変更後が速かった。2 回目のレイアウトとフォントによるスタイル計算（約 60 ms）より大きく短くなった。残りの内訳は調べていないが、リーダーが ZERO の到着とその後のレイアウトを待たなくなった分と考えられる。Firefox は cold で 25 ms ほど短くなった。warm はもともと ZERO を要求していなかったので変わらない。Firefox の cold には、新しいブラウザーで 1 回だけ起きるシステムフォント一覧の作成（約 100 ms）が含まれるが、これは今回の変更と関係しない。tips-python（数式なし）の 8 条件の差は −13〜+7 ms で、計測の揺れの範囲だった。

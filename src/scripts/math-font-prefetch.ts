@@ -24,11 +24,39 @@ const slowConnection = () => {
 // only uses a face in the document's font set under the same family name, so
 // each face takes the name the article's @font-face gives it and joins the set
 // at the swap (not on hover, so the index's own fonts stay as they are).
-// MathJax declares each face with a name and URL only, so the article renders
-// with the same font either way.
-const loaded = new Set<FontFace>();
-document.addEventListener("astro:after-swap", () => {
-  for (const face of loaded) if (!document.fonts.has(face)) document.fonts.add(face);
+//
+// The article's own @font-face for a family must not stay next to the loaded
+// face, though. MathJax's font stacks start with MJX-TEX-ZERO, a 1 KB face
+// with almost no glyphs: in the first layout, characters missing from the
+// loaded face fall through to the article's face of the same family, which is
+// still unloaded, so it loads after that layout and the whole article is laid
+// out again. The article page therefore puts each prefetched family's
+// @font-face in its own <style data-math-font> (lib/math-fonts.ts), and before
+// the swap we drop those whose face here has loaded. A face still loading or
+// never prefetched keeps the article's rule, as on a direct load.
+//
+// This relies on MathJax declaring each face with a family and URL only (no
+// weight, style, unicode-range...), so the loaded face is the same font as the
+// rule it replaces. The Firefox reuse above relies on the same.
+const loaded = new Map<FontFace, { family: string; url: string }>();
+const resolve = (url: string) => new URL(url, location.href).href;
+
+document.addEventListener("astro:before-swap", (event) => {
+  // Before the swap rather than after: Astro may scroll (and so lay out) the
+  // new page between the swap and astro:after-swap, as on history traversal.
+  for (const face of loaded.keys()) if (!document.fonts.has(face)) document.fonts.add(face);
+  const ready = [...loaded].filter(([face]) => face.status === "loaded").map(([, font]) => font);
+  if (!ready.length) return;
+  const head = event.newDocument.head;
+  for (const style of head.querySelectorAll<HTMLStyleElement>("style[data-math-font]")) {
+    const { mathFont: family, mathFontUrl: url = "" } = style.dataset;
+    if (ready.some((font) => font.family === family && resolve(font.url) === resolve(url))) style.remove();
+  }
+  // Nothing is left to preload once its face has loaded here.
+  for (const link of head.querySelectorAll<HTMLLinkElement>("link[data-math-font-preload]")) {
+    const href = resolve(link.getAttribute("href") ?? "");
+    if (ready.some((font) => resolve(font.url) === href)) link.remove();
+  }
 });
 
 function parseFonts(anchor: HTMLAnchorElement): [family: string, url: string][] {
@@ -49,7 +77,7 @@ function prefetchFonts(anchor: HTMLAnchorElement) {
     if (requested.has(url)) continue;
     requested.add(url);
     const face = new FontFace(family, `url("${url}") format("woff2")`);
-    loaded.add(face);
+    loaded.set(face, { family, url });
     face.load().catch(() => {
       requested.delete(url);
       loaded.delete(face);

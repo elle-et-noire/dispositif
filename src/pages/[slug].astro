@@ -8,6 +8,7 @@ import ReadingMultiIcon from "../icons/reading-multi.svg";
 import Toc from "@components/Toc.astro";
 import { markdownToHtml } from "@lib/convert";
 import { MATH_FONT_PRELOAD_HREF } from "@lib/mathjax";
+import { mathFontFaces, separateMathFontFaces } from "@lib/math-fonts";
 import { getAllSlugs, getPostBySlug } from "@lib/post";
 import { getHeadings } from "@lib/toc";
 import { withBase } from "@lib/base";
@@ -20,15 +21,20 @@ export function getStaticPaths() {
 }
 
 const { content, data } = Astro.props;
-const { html, css } = await markdownToHtml(content);
+const { html, css: mathCss } = await markdownToHtml(content);
+// The @font-face rules of the fonts the index prefetches on hover (the same
+// list as its data-math-fonts) each get their own marked <style>, so that
+// math-font-prefetch.ts can drop the ones it has already loaded before the swap.
+const { css, faces: mathFaces } = separateMathFontFaces(mathCss, mathFontFaces(html, mathCss));
 const headings = getHeadings(content);
 ---
 
 <Layout title={data.title} headings={headings} article>
   {
-    css && (
+    mathCss && (
       <Fragment slot="head">
         <link
+          data-math-font-preload
           rel="preload"
           as="font"
           type="font/woff2"
@@ -36,6 +42,9 @@ const headings = getHeadings(content);
           crossorigin="anonymous"
         />
         <style is:inline set:html={css} />
+        {mathFaces.map(({ family, url, rule }) => (
+          <style is:inline data-math-font={family} data-math-font-url={url} set:html={rule} />
+        ))}
       </Fragment>
     )
   }
