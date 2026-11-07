@@ -43,14 +43,15 @@ const {
       // the math fonts are found, is then the one the reader measures, instead
       // of a single-column layout that the reader would repeat at the column
       // width. The new document is not rendered yet, so moving it is free.
-      // On a full page load, an inline script at the start of .rm-source
-      // ([slug].astro) calls this while the article is being parsed: the parser
-      // keeps appending the rest of the text to the moved element, so even a
-      // frame rendered before the end of the HTML lays it out in its column.
-      const premountColumn = (doc) => {
+      // On a full page load, the observer below does the same while the article
+      // is being parsed.
+      const wantsColumn = (doc) => {
         let multi = false;
         try { multi = localStorage.getItem("dispositif:reading-mode") === "multi"; } catch { /* storage is optional */ }
-        if (!multi || doc.documentElement.dataset.pageKind !== "article" || matchMedia("print").matches) return;
+        return multi && doc.documentElement.dataset.pageKind === "article" && !matchMedia("print").matches;
+      };
+      const premountColumn = (doc) => {
+        if (!wantsColumn(doc)) return;
         const source = doc.querySelector(".rm-source");
         const reader = doc.querySelector(".rm-reader");
         const plane = reader?.querySelector(".rm-plane");
@@ -75,8 +76,21 @@ const {
         // Firefox rebuilds the text's boxes when its ancestors change position.
         doc.documentElement.classList.add("rm-premount");
       };
-      // The one global, for that inline script.
-      window.dispositifPremountColumn = premountColumn;
+      // On a full page load, move .rm-source as soon as the parser attaches it
+      // (right after .rm-reader, ReadingMode.astro). The parser keeps appending
+      // the rest of the text to the moved element, so the frames rendered
+      // during the parse lay it out in its column. Mutation callbacks run at
+      // the microtask checkpoint after the parser task that inserted it, before
+      // the next rendering opportunity. In 1段 nothing is observed.
+      if (wantsColumn(document)) {
+        const observer = new MutationObserver(() => {
+          if (!document.querySelector(".rm-source")) return;
+          observer.disconnect();
+          premountColumn(document);
+        });
+        observer.observe(document, { childList: true, subtree: true });
+        document.addEventListener("DOMContentLoaded", () => observer.disconnect(), { once: true });
+      }
       // Undo premountColumn() for the single-column fallback below.
       const unmountColumn = () => {
         const source = document.querySelector(".rm-plane .rm-source");
@@ -90,8 +104,6 @@ const {
         reader.hidden = true;
       };
       document.addEventListener("astro:before-swap", (event) => {
-        // Astro would run the full-load call again after the swap.
-        event.newDocument.querySelector("script[data-rm-premount]")?.remove();
         markPending(event.newDocument.documentElement);
         premountColumn(event.newDocument);
       });

@@ -119,11 +119,11 @@ const checkPremount = async (engine) => {
   } finally { await browser.close(); }
 };
 
-// The same on a direct load and a reload: an inline script at the start of the
-// original puts it in the first column while the HTML is parsed. A
-// ResizeObserver attached as soon as the original is parsed reports every size
-// it is rendered at, from the first frame on. A frame can be rendered before
-// that script runs, while the original is still empty (seen in Firefox).
+// The same on a direct load and a reload: the head script moves the original
+// into the first column as soon as the parser attaches it. A ResizeObserver
+// attached as soon as the original is parsed reports every size it is rendered
+// at, from the first frame on. Frames of the original while it is still empty
+// are ignored.
 const checkDirectPremount = async (engine) => {
   const browser = await engine.launch();
   try {
