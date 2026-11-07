@@ -102,6 +102,9 @@ function summarizeTrace(json) {
   const spans = order.slice(1).map((k, i) => [`${order[i]}→${k}`, marks[order[i]], marks[k]]);
   const xs = events.filter(e => e.pid === main.pid && e.tid === main.tid && e.ph === 'X' && e.dur)
     .sort((a, b) => a.ts - b.ts || b.dur - a.dur);
+  // The rest of the trace (500 ms after visible): work the opening still
+  // causes after the first frame, such as the end of the view transition.
+  if (marks.painted !== undefined) spans.push(['painted→end', marks.painted, Math.max(...xs.map(e => e.ts + e.dur))]);
   // Self time: subtract direct children.
   const self = new Map();
   const stack = [];
