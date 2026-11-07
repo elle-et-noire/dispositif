@@ -13,7 +13,14 @@
 //
 // Usage (against a production build served by `astro preview`):
 //   node scripts/measure-article-open.mjs http://localhost:4321/dispositif/ 3 > out.jsonl
-// Environment: ENGINES=chromium,firefox  ARTICLES=…  MODES=…  CACHES=…  NAV=click|direct
+// Browser warm-up: after launching each browser, a math article (tips-julia)
+// is opened once in a throwaway context, closed before any measured context.
+// Firefox rebuilds its system font list once per browser session, triggered by
+// the first math page (PContent::Msg_RebuildFontList); without the warm-up this
+// adds ~90 ms at a variable time to the first measured "cold" runs. It is not a
+// site cost. WARMUP=0 disables it.
+//
+// Environment: ENGINES=chromium,firefox  ARTICLES=…  MODES=…  CACHES=…  NAV=click|direct  WARMUP=0
 // TRACE=0 (disable the Chromium trace; tracing adds overhead, so compare
 // wall-clock times with TRACE=0).
 import { chromium, firefox } from 'playwright-core';
@@ -118,6 +125,15 @@ function summarizeTrace(json) {
 const out = (row) => process.stdout.write(JSON.stringify(row) + '\n');
 for (const [engineName, engine] of engines) {
   const browser = await engine.launch();
+  if (process.env.WARMUP !== '0') {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    const page = await context.newPage();
+    await page.goto(new URL('tips-julia/', base).href);
+    await page.waitForFunction(() => document.documentElement.classList.contains('rm-ready')
+      && !document.documentElement.classList.contains('rm-pending'), null, { timeout: 30_000 });
+    await page.evaluate(() => document.fonts.ready);
+    await context.close();
+  }
   for (let run = 0; run < runs; run++) for (const article of articles) for (const mode of modes) for (const cache of caches) {
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     await context.addInitScript(([mode]) => {
