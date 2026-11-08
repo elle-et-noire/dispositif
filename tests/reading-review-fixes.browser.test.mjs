@@ -432,7 +432,28 @@ test("n段表示で折りたたみをクリックしても表示位置を動か�
       await page.locator(".rm-viewport").evaluate((v, left) => v.scrollTo({ left, behavior: "instant" }), left);
       await settle(page);
       const [target] = await summaries();
-      assert.ok(target, `${left}: 見えている折りたたみがない`);
+      if (!target) {
+        // Report the reader's state: this has failed only on CI.
+        const state = await page.evaluate(() => {
+          const v = document.querySelector(".rm-viewport");
+          const describe = (e) => e ? `${e.tagName.toLowerCase()}.${[...e.classList].join(".")}` : null;
+          return {
+            html: document.documentElement.className,
+            viewport: { left: v.scrollLeft, top: v.scrollTop, width: v.scrollWidth, height: v.scrollHeight, client: [v.clientWidth, v.clientHeight] },
+            slots: [...document.querySelectorAll(".rm-slot")].map((slot) => {
+              const r = slot.getBoundingClientRect();
+              return { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height),
+                source: Boolean(slot.querySelector(".rm-source")), fragmented: Boolean(slot.querySelector("[data-rm-fragmented]")),
+                summaries: slot.querySelectorAll("summary").length };
+            }),
+            summaries: [...document.querySelectorAll(".rm-slot summary")].map((summary) => {
+              const r = summary.getBoundingClientRect();
+              return [Math.round(r.left), Math.round(r.top), describe(document.elementFromPoint(r.left + 5, r.top + 10))];
+            }).filter(([x, y]) => x > -100 && x < 1380),
+          };
+        });
+        assert.fail(`${left}: 見えている折りたたみがない ${JSON.stringify(state)}`);
+      }
       kinds.add(target.source);
       const isOpen = (i) => page.evaluate((i) => document.querySelectorAll(".rm-source details")[i].open, i);
       assert.equal(await isOpen(target.index), false);

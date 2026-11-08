@@ -204,3 +204,30 @@ test("表示外の折りたたみがあっても開閉・コードコピー・�
     assert.equal(await page.locator("#fragment-hash-target").count(), 1);
   } finally { await page.close(); await browser.close(); }
 });
+
+test("n段ではコードを段幅で折り返し、1段では折り返さない", { timeout: 60_000 }, async () => {
+  const browser = await chromium.launch({ executablePath: process.env.RM_BROWSER_PATH || undefined });
+  const page = await browser.newPage({ viewport: { width: 390, height: 900 } });
+  try {
+    await open(page, "tips-rust");
+    const overflowing = (selector) => page.evaluate((selector) =>
+      [...document.querySelectorAll(selector)].filter((pre) => pre.scrollWidth > pre.clientWidth + 1).length, selector);
+    assert.ok(await page.locator(".rm-source pre").count() > 0);
+    assert.equal(await overflowing(".rm-source pre"), 0);
+    assert.equal(await overflowing("[data-rm-fragmented] pre"), 0);
+    const indent = await page.locator(".rm-source pre code > [data-line]").first().evaluate((line) => {
+      const range = document.createRange();
+      range.selectNodeContents(line);
+      const rects = [...range.getClientRects()];
+      const left = line.getBoundingClientRect().left;
+      const first = rects.find((rect) => rect.width > 0 && rect.left - left > 1);
+      const wrapped = rects.filter((rect) => rect.width > 0 && rect.top > first.bottom - 1);
+      return { first: first.left - left, wrapped: wrapped.length ? wrapped[0].left - left : null };
+    });
+    assert.ok(indent.wrapped !== null, "先頭行が折り返されていない");
+    assert.ok(Math.abs(indent.wrapped - indent.first) < 1, `折り返し行が本文の開始位置にそろわない: ${JSON.stringify(indent)}`);
+    await toggleReadingMode(page);
+    await page.waitForFunction(() => !document.documentElement.classList.contains("rm-active"));
+    assert.ok(await overflowing(".rm-source pre") > 0);
+  } finally { await page.close(); await browser.close(); }
+});
