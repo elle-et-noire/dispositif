@@ -64,13 +64,20 @@ const {
       // width. The new document is not rendered yet, so moving it is free.
       // On a full page load, the observer below does the same while the article
       // is being parsed.
-      const wantsColumn = (doc) => {
-        let multi = false;
-        try { multi = localStorage.getItem("dispositif:reading-mode") === "multi"; } catch { /* storage is optional */ }
+      // ?view=multi or ?view=single in the destination URL wins over the
+      // stored mode (opensMulti() in reading-preference.ts). After a reader
+      // toggles such a page, reloading it keeps the toggled mode, which this
+      // guess ignores; the reader then undoes the premount (releasePremounted).
+      const wantsColumn = (doc, url) => {
+        const view = new URLSearchParams(url.search).get("view");
+        let multi = view === "multi";
+        if (view !== "multi" && view !== "single") {
+          try { multi = localStorage.getItem("dispositif:reading-mode") === "multi"; } catch { /* storage is optional */ }
+        }
         return multi && doc.documentElement.dataset.pageKind === "article" && !matchMedia("print").matches;
       };
-      const premountColumn = (doc) => {
-        if (!wantsColumn(doc)) return;
+      const premountColumn = (doc, url) => {
+        if (!wantsColumn(doc, url)) return;
         const source = doc.querySelector(".rm-source");
         const reader = doc.querySelector(".rm-reader");
         const plane = reader?.querySelector(".rm-plane");
@@ -107,12 +114,12 @@ const {
       // would block the parser and cost Firefox a style pass.)
       if (document.documentElement.classList.contains("rm-pending")) {
         let hidden = false;
-        let column = wantsColumn(document);
+        let column = wantsColumn(document, location);
         const observer = new MutationObserver(() => {
           if (!hidden) hidden = hideArticle(document);
           if (column && document.querySelector(".rm-source")) {
             column = false;
-            premountColumn(document);
+            premountColumn(document, location);
           }
           if (hidden && !column) observer.disconnect();
         });
@@ -134,7 +141,8 @@ const {
       document.addEventListener("astro:before-swap", (event) => {
         markPending(event.newDocument.documentElement);
         if (event.newDocument.documentElement.classList.contains("rm-pending")) hideArticle(event.newDocument);
-        premountColumn(event.newDocument);
+        // The address bar still shows the old page here.
+        premountColumn(event.newDocument, event.to);
       });
       // If the reader bundle fails or stalls, leave a usable single-column
       // article instead of keeping the content hidden indefinitely.
@@ -164,6 +172,8 @@ const {
     <meta name="generator" content={Astro.generator} />
     <meta name="description" content={description} />
     <link rel="icon" href={withBase("favicon.ico")} />
+    <!-- The same page with ?view= (reading mode) is not another page. -->
+    <link rel="canonical" href={new URL(Astro.url.pathname, Astro.site)} />
     <title>{title}</title>
     <ClientRouter />
     <slot name="head" />
