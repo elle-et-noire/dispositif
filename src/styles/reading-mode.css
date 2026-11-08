@@ -197,6 +197,26 @@
     margin-top: var(--rm-column-padding);
   }
 
+  /* Wrap code inside the column: a horizontal scroller nested in the
+     horizontally scrolling reader would catch swipes meant for the columns.
+     Continuation lines hang after the line number (up to two digits). */
+  .rm-plane .rm-content pre code { min-width: 0; }
+  .rm-plane .rm-content pre code > [data-line] {
+    --rm-code-number: calc(2ch + 0.75rem);
+    padding-inline-start: var(--rm-code-number);
+    text-indent: calc(-1 * var(--rm-code-number));
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .rm-plane .rm-content pre code > [data-line]::before {
+    min-width: 2ch;
+    text-indent: 0;
+  }
+  .rm-plane .rm-content pre code[data-show-line-numbers="false"] > [data-line],
+  .rm-plane .rm-content pre code:not([data-show-line-numbers]) > [data-line] {
+    --rm-code-number: 0px;
+  }
+
   .rm-reader {
     position: relative;
     grid-column: 1;
