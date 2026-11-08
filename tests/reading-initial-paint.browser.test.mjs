@@ -116,6 +116,26 @@ for (const [name, engine] of Object.entries({ chromium, firefox })) {
       assert.deepEqual(await failedBundle.locator('.rm-article-scrollport').evaluate(shown), ['none', null]);
       assert.deepEqual(await failedBundle.evaluate(() => window.ariaHidden), [null, 'true']);
       await failedBundle.close();
+      // While pending, Tab does not move focus into the hidden article (the
+      // scrollport, the close button, the TOC and the text's links); after the
+      // fallback shows it, Tab reaches it again.
+      const stalled = await browser.newPage();
+      await stalled.addInitScript(() => {
+        const original = window.setTimeout;
+        window.setTimeout = (handler, delay, ...args) => original(handler, delay === 10000 ? 2000 : delay, ...args);
+      });
+      await stalled.route(/\.(?:m?js)(?:\?|$)/, route => route.abort());
+      await stalled.goto(new URL('symmetric-polynomial/', base).href, { waitUntil: 'domcontentloaded' });
+      const focusInArticle = () => stalled.evaluate(() => document.querySelector('.rm-article-scrollport').contains(document.activeElement));
+      for (const key of ['Tab', 'Tab', 'Tab', 'Shift+Tab', 'Tab']) {
+        await stalled.keyboard.press(key);
+        assert.equal(await stalled.evaluate(() => document.documentElement.classList.contains('rm-pending')), true);
+        assert.equal(await focusInArticle(), false, `${key} moved focus into the pending article`);
+      }
+      await stalled.waitForFunction(() => document.documentElement.classList.contains('rm-fallback'));
+      for (let i = 0; i < 3 && !await focusInArticle(); i++) await stalled.keyboard.press('Tab');
+      assert.equal(await focusInArticle(), true);
+      await stalled.close();
     } finally { await browser.close(); }
   });
 }
