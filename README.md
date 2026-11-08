@@ -1,12 +1,13 @@
 # [Dispositif](https://elle-et-noire.github.io/dispositif/)
 
-Astroベースの記事サイトです。記事はビルド時にMarkdownからHTMLへ変換し、数式はMathJax v4のCHTMLとして出力します。ブラウザ側ではMathJaxを実行せず、数式フォントも同一オリジンから配信します。支援技術には、各数式をTeXのソースで読ませます（`role="img"` と `aria-label`。理由は `ROADMAP.md` の 2.3）。
+Astroベースの記事サイトです。記事はビルド時にMarkdownからHTMLへ変換し、数式はMathJax v4のCHTMLとして出力します。ブラウザ側ではMathJaxを実行せず、数式フォントも同一オリジンから配信します。支援技術には、各数式をTeXのソースで読ませます（`role="img"` と `aria-label`。理由は `docs/math-accessibility.md`）。
 
 ## 構成
 
 ```text
 /
 ├── docs/
+│   ├── math-accessibility.md             # 数式の読み上げ方式の決定記録
 │   └── reading-preload-investigation.md  # 記事を開くまでの時間の調査記録
 ├── lib/                    # 記事取得、Markdown前処理、MathJax変換、単体テスト（*.test.ts）
 ├── post/                   # Markdown記事
