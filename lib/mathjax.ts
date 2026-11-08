@@ -225,7 +225,7 @@ export function renderArticleMath(texList: string[]): Promise<RenderedMath> {
   return result;
 }
 
-// 支援技術向けに、数式を TeX のソースで読ませる（ROADMAP 2.3、方式 B）。
+// 支援技術向けに、数式を TeX のソースで読ませる（docs/math-accessibility.md）。
 //
 // CHTML の字形の箱（mjx-c）には 𝑎 や + などの文字が入っているので、そのままだと
 // 支援技術は構造のない文字の並び（x^2 が「x2」）として読む。MathJax の見えない
