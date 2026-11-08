@@ -330,7 +330,7 @@ for (const [name, engine] of engines) {
             await page.setViewportSize({ width, height: 900 });
             await frames(page, 3);
             assert.equal(await isMulti(page), false, `${label} ${where} ${width}px`);
-            assert.equal(await page.locator('.rm-article-scrollport').evaluate(el => getComputedStyle(el).visibility), 'visible', `${label} ${where}`);
+            assert.deepEqual(await page.locator('.rm-article-scrollport').evaluate(el => [getComputedStyle(el).clipPath, el.getAttribute('aria-hidden')]), ['none', null], `${label} ${where}`);
           }
         };
         await page.goto(base);
@@ -397,7 +397,7 @@ for (const [name, engine] of engines) {
           const record = () => {
             const article = document.querySelector('.rm-article-scrollport');
             if (article && document.documentElement.dataset.pageKind === 'article') window.rmPaints.push({
-              visible: getComputedStyle(article).visibility === 'visible',
+              visible: getComputedStyle(article).clipPath === 'none',
               active: document.documentElement.classList.contains('rm-active'),
               fallback: document.documentElement.classList.contains('rm-fallback'),
             });
@@ -488,7 +488,7 @@ for (const [name, engine] of engines) {
       };
       const visibleFallback = async (page, label) => {
         await page.waitForFunction(() => document.documentElement.classList.contains('rm-fallback'));
-        assert.equal(await page.locator('.rm-article-scrollport').evaluate(el => getComputedStyle(el).visibility), 'visible', label);
+        assert.deepEqual(await page.locator('.rm-article-scrollport').evaluate(el => [getComputedStyle(el).clipPath, el.getAttribute('aria-hidden')]), ['none', null], label);
         assert.equal(await isMulti(page), false, label);
         // A column mounted before the swap is returned to the single article.
         assert.equal(await page.locator('.rm-plane .rm-source, .rm-plane > *').count(), 0, label);

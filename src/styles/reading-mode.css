@@ -85,7 +85,11 @@
 
 @media screen {
   /* Avoid painting the single-column source before the initial mode is known. */
-  html.rm-pending .rm-article-scrollport { visibility: hidden; }
+  /* clip-path is not inherited: visibility (or anything inherited) would
+     restyle every element of the article when rm-pending is removed. It
+     also clips the fixed n段 article inside. Layout.astro hides the
+     scrollport from assistive technology for the same span (aria-hidden). */
+  html.rm-pending .rm-article-scrollport { clip-path: inset(50%); }
   html[data-page-kind="article"],
   html[data-page-kind="article"] body { overflow: hidden; }
 
@@ -146,7 +150,11 @@
     min-height: 3.5rem;
     padding: 0;
   }
-  .rm-active [data-site-header] > :not(.rm-toolbar) { flex: 1; min-width: 0; }
+  /* Unscoped: with .rm-active in front, a compound without a class or tag on
+     the right makes Chromium restyle the whole document when rm-active is
+     set on <html>. Outside n段 the header is not a flex container, so these
+     have no effect there. */
+  [data-site-header] > :not(.rm-toolbar) { flex: 1; min-width: 0; }
   .rm-active [data-site-header] > .rm-toolbar {
     position: relative;
     top: auto;

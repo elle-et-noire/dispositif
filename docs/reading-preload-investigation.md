@@ -779,3 +779,66 @@ main（PR #4 と #5 の後）、A、B の本番ビルドを同じ静的サーバ
 ### 判断
 
 B を採用する。n段の短縮は A と同じかそれ以上で、1 段ではパース中に何も実行しないので、A が Firefox で払っていたスタイル計算がない。B では、移す時点で本文の一部がすでに `.rm-source` に入っている。この費用は Chromium のトレースにも Firefox のプロファイルにも現れなかった。ただし、パーサーのタスクの区切りはブラウザーと回線の速さで変わるので、試験はフレームごとの幅で確かめている。
+
+## 記事を開くときの文書全体のスタイル計算（2026-11-08）
+
+記事を開くあいだに、`<html>` のクラスは何度か変わる（`rm-pending`、`rm-premount`、`rm-active`、`rm-ready`）。Chromium のトレースでは、そのたびに文書全体（約 1 万 1 千要素）のスタイル計算が 35〜55 ms かかっていた。Firefox でも `rm-pending` を外すときに本文全体のスタイルを計算し直していた。
+
+### 原因
+
+1. `@tailwindcss/typography` は `.prose :where(p):not(:where([class~=not-prose],[class~=not-prose] *))` のように、`not-prose` の中を除く条件を `class` 属性のセレクターと全称の子孫で書く。Chromium はこの形があると、どの要素の `class` が変わっても、その下の全要素のスタイルを計算し直す。`<html>` のクラスが変わると文書全体になる。調査時のトレースでは `rm-ready`、ビュー遷移の終わり、`rm-pending` を外すときの 3 回が 35〜55 ms だった。プラグインにこの書き方を変える設定はない。
+2. `reading-mode.css` の `.rm-active [data-site-header] > :not(.rm-toolbar)` は、右端の複合セレクターにクラス、ID、タグがない。Chromium は `<html>` に `rm-active` が付くと全要素を調べ直す。`rm-active` はn段のときだけ付く。
+3. `html.rm-pending .rm-article-scrollport { visibility: hidden; }` の `visibility` は継承されるので、`rm-pending` を外すと本文の全要素のスタイルが変わる。Chromium と Firefox の両方で起きる。`opacity: 0` も試したが、Firefox では直らなかった。
+
+### 変更
+
+1. `astro.config.mjs` に Vite のプラグインを加え、Tailwind が CSS を生成した直後（どちらも `enforce: 'pre'`）に `[class~=not-prose]` と引用符付きの `[class~="not-prose"]` を `.not-prose` に書き換える。`:where()` の中なので詳細度は 0 のままで、一致する要素も変わらない。開発サーバーとビルドの両方に効く。ビルドした `dist/_astro/*.css` に `[class~=not-prose]` は残っていない（`.not-prose` が 172 か所、残る `class~=` は `[class~=lead]` だけで、これは右端にあるので対象の要素だけが調べ直される）。
+2. 見出しの規則から `.rm-active` を外し、`[data-site-header] > :not(.rm-toolbar) { flex: 1; min-width: 0; }` にした。ヘッダーが flex になるのは `.rm-active` のときだけなので、ほかの場面では効かない。一覧、1 段とn段の数式記事、n段の tips-python を 390 px と 1440 px の両エンジンで main と比べ、ヘッダーとその子孫の位置と大きさはすべて同じで、ヘッダーのスクリーンショットも 1 バイトも違わなかった。違うのは計算値の `flex-grow` だけである。
+3. 待機中の本文を `clip-path: inset(50%)` で隠す。`clip-path` は継承されないので、外しても子孫のスタイルは変わらない。n段の `position: fixed` の本文も切り取られ、ヒットテストからも外れる。
+4. `visibility: hidden` は本文をアクセシビリティツリーからも外していたが、`clip-path` は外さない。そこで待機中は `.rm-article-scrollport` に `aria-hidden="true"` を付ける（`inert` は使わない）。
+   - 一覧からの遷移では、head のスクリプトが `astro:before-swap` で `rm-pending` を付けるときに、新しい文書のスクロールポートにも付ける。
+   - 直接の読み込みでは、head のスクリプトが動く時点でスクロールポートはまだない。PR #6 の MutationObserver をすべての記事の読み込みで付けるようにし、パーサーがスクロールポートを文書に入れたらその場で付ける。n段では従来どおり `.rm-source` も段へ移す。どちらも本文より前にあるので、監視はすぐ終わる。本文の中にインラインスクリプトは置かない（パーサーを止めるスクリプトで Firefox にスタイル計算が入ったため）。
+   - 外すのは `rm-pending` を外す 2 か所である。リーダーの最初のフレーム（例外のときの `finally` を含む）と、Layout.astro の 10 秒の fallback。
+   - JavaScript がないときは何も付かない（HTML に `aria-hidden` は書かない）。CSS に `aria-hidden` のセレクターはないので、付け外しでスタイル計算は起きない。トレースでも、最初のフレームのスタイル計算は 0〜1 ms だった。
+
+待機中もスクロールポートは `tabindex="0"` のままフォーカスできる。`visibility: hidden` のときはフォーカスできなかった。待機は通常 1 フレームから数百 ms なので、そのままにした。
+
+`scripts/measure-article-open.mjs` に `painted` を加えた。`visible` は `rm-pending` を外した時点で、リーダーの最初のフレームの中にある。そのフレームのスタイル計算、レイアウト、描画はどの区間にも入っていなかった。`visible` の時点で投げたタスクが動いた時刻を `painted` とし、トレースに `visible→painted` と、その後の 500 ms（`painted→end`）の区間を加えた。
+
+### 確認
+
+`tests/reading-initial-paint.browser.test.mjs` は、本文の計算値の `visibility === 'hidden'` を確かめていた。これを、リーダーの最初のフレームより前のすべてのフレームで、計算値の `clip-path` が `inset(50%)` であること、画面中央のヒットテストが本文に当たらないこと、`aria-hidden="true"` であることに改めた。一覧からの遷移と直接の読み込みの両方で、1 段、n段、保存なしの 3 通りを調べる。従来はn段以外のフレームを調べていなかったが、すべてのモードで調べるようにした。表示後は `clip-path: none`、`aria-hidden` なし、中央が本文に当たることを確かめる。JavaScript なしでは `clip-path: none` で `aria-hidden` もないこと、fallback では `aria-hidden` が付いてから外れること（MutationObserver の古い値が `[null, 'true']`）も確かめる。main のビルドでは両エンジンで失敗する。`reading-ordinary-navigation.browser.test.mjs` の `visibility` の比較も `clip-path` と `aria-hidden` に改めた。
+
+### 結果
+
+本番ビルドを `astro preview` で 2 つ（main と変更後）配信し、交互に計測した数式記事（symmetric-polynomial）の中央値（ms）。差は同じ回の差の中央値、括弧内は変更後が速かった回数である。計測中の load average は 3.5〜7 だった。
+
+Chromium のトレース（一覧からのクリック、12 回ずつ）の、クリックから `painted→end` までのメインスレッドの合計：
+
+| Chromium・クリック | スタイル main | 変更後 | 差 | レイアウト main | 変更後 |
+| --- | --- | --- | --- | --- | --- |
+| n段・cold | 178 | 60 | −112（12/12） | 123 | 109 |
+| n段・warm | 150 | 54 | −94（12/12） | 97 | 89 |
+| 1段・cold | 100 | 39 | −60（12/12） | 104 | 110 |
+| 1段・warm | 104 | 34 | −69（12/12） | 92 | 61 |
+
+区間ごとでは、`visible→painted` のスタイル計算が 35〜44 ms から 0〜1 ms に、`page-load→visible` がn段で 61〜89 ms から 11〜15 ms、1 段で 28〜29 ms から 1〜2 ms になった。`after-swap→page-load` の約 31 ms は変わらない。`painted→end` のスタイル計算はどちらも 6 ms 以下だった。直接の読み込み（Chromium、cold、6 回ずつ）でも、スタイル計算の合計はn段で 173 → 65 ms、1 段で 135 → 63 ms になった。
+
+壁時計の時間（`TRACE=0`、クリック→`painted`、12 回ずつ）：
+
+| クリック→最初の表示 | main | 変更後 | 差 |
+| --- | --- | --- | --- |
+| Chromium・n段・cold | 380 | 303 | −88（12/12） |
+| Chromium・n段・warm | 373 | 289 | −96（11/12） |
+| Chromium・1段・cold | 367 | 286 | −78（11/12） |
+| Chromium・1段・warm | 292 | 240 | −58（12/12） |
+| Firefox・n段・cold | 539 | 497 | −47（10/12） |
+| Firefox・n段・warm | 496 | 451 | −36（8/12） |
+| Firefox・1段・cold | 359 | 319 | −46（12/12） |
+| Firefox・1段・warm | 352 | 305 | −44（10/12） |
+
+`visible` までの時間は Chromium で −19〜−55 ms（9〜11/12）、Firefox で −8〜+14 ms だった。Firefox の短縮は `rm-pending` を外した後のフレームに集まっている（`visible→painted` が 58〜106 ms から 22〜58 ms）。
+
+直接の読み込み（ナビゲーション開始→`painted`）は、Chromium（6 回ずつ、cold）でn段 504 → 441 ms（−85、6/6）、1 段 470 → 380 ms（−74、6/6）だった。Firefox（12 回ずつ）はn段 cold 625 → 592 ms（−67、8/12）、warm 501 → 416 ms（−78、11/12）、1 段 cold 485 → 436 ms（−25、11/12）、warm 288 → 250 ms（−32、10/12）だった。最初の 6 回の計測では Firefox の 1 段・cold の `visible` が +50 ms に見えたが、12 回で測り直すと +5 ms（6/12）で、揺れの範囲だった。tips-python（数式なし、クリック、cold、6 回ずつ）の差は −17〜+6 ms で、揺れの範囲だった。
+
+Chromium のスタイル計算の短縮は、調査時の見積もり（n段で 130〜160 ms）より小さい 94〜112 ms だった。変更後も `page-load→visible` にn段で 11〜15 ms のスタイル計算が残っている。

@@ -38,6 +38,15 @@ const {
         if (root.dataset.pageKind === "article") root.classList.add("rm-pending");
       };
       markPending(document.documentElement);
+      // rm-pending hides the article with clip-path, which leaves it in the
+      // accessibility tree; aria-hidden keeps it out for the same span. The
+      // reader removes both in its first frame (reading-mode.ts), as does the
+      // fallback below. Without JavaScript neither is set.
+      const hideArticle = (doc) => {
+        const scrollport = doc.querySelector(".rm-article-scrollport");
+        scrollport?.setAttribute("aria-hidden", "true");
+        return Boolean(scrollport);
+      };
       // With n段 stored, put the article text in the reader's first column
       // before the swap, at the column width. Its first layout, during which
       // the math fonts are found, is then the one the reader measures, instead
@@ -76,17 +85,26 @@ const {
         // Firefox rebuilds the text's boxes when its ancestors change position.
         doc.documentElement.classList.add("rm-premount");
       };
-      // On a full page load, move .rm-source as soon as the parser attaches it
-      // (right after .rm-reader, ReadingMode.astro). The parser keeps appending
-      // the rest of the text to the moved element, so the frames rendered
-      // during the parse lay it out in its column. Mutation callbacks run at
-      // the microtask checkpoint after the parser task that inserted it, before
-      // the next rendering opportunity. In 1段 nothing is observed.
-      if (wantsColumn(document)) {
+      // On a full page load, the head script runs before the body is parsed.
+      // Mark the scrollport aria-hidden as soon as the parser attaches it, and
+      // in n段 move .rm-source as soon as it is attached (right after
+      // .rm-reader, ReadingMode.astro). The parser keeps appending the rest of
+      // the text to the moved element, so the frames rendered during the parse
+      // lay it out in its column. Mutation callbacks run at the microtask
+      // checkpoint after the parser task that inserted the element, before the
+      // next rendering opportunity. Both elements come before the article
+      // text, so the observer stops early. (An inline script in the body
+      // would block the parser and cost Firefox a style pass.)
+      if (document.documentElement.classList.contains("rm-pending")) {
+        let hidden = false;
+        let column = wantsColumn(document);
         const observer = new MutationObserver(() => {
-          if (!document.querySelector(".rm-source")) return;
-          observer.disconnect();
-          premountColumn(document);
+          if (!hidden) hidden = hideArticle(document);
+          if (column && document.querySelector(".rm-source")) {
+            column = false;
+            premountColumn(document);
+          }
+          if (hidden && !column) observer.disconnect();
         });
         observer.observe(document, { childList: true, subtree: true });
         document.addEventListener("DOMContentLoaded", () => observer.disconnect(), { once: true });
@@ -105,6 +123,7 @@ const {
       };
       document.addEventListener("astro:before-swap", (event) => {
         markPending(event.newDocument.documentElement);
+        if (event.newDocument.documentElement.classList.contains("rm-pending")) hideArticle(event.newDocument);
         premountColumn(event.newDocument);
       });
       // If the reader bundle fails or stalls, leave a usable single-column
@@ -124,6 +143,7 @@ const {
           unmountColumn();
           root.classList.add("rm-fallback");
           root.classList.remove("rm-pending");
+          document.querySelector(".rm-article-scrollport")?.removeAttribute("aria-hidden");
         }, 10000);
       };
       armReaderFallback();

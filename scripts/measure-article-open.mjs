@@ -23,6 +23,9 @@
 // Environment: ENGINES=chromium,firefox  ARTICLES=…  MODES=…  CACHES=…  NAV=click|direct  WARMUP=0
 // TRACE=0 (disable the Chromium trace; tracing adds overhead, so compare
 // wall-clock times with TRACE=0).
+// "visible" is when rm-pending is removed, inside the reader's first frame;
+// "painted" is the first task after that frame, so visible→painted holds the
+// style, layout and paint of the first frame that shows the article.
 import { chromium, firefox } from 'playwright-core';
 
 const base = process.argv[2] ?? 'http://localhost:4321/dispositif/';
@@ -51,7 +54,14 @@ const probe = () => {
     const c = document.documentElement.classList;
     if (c.contains('rm-pending')) t('pending');
     if (c.contains('rm-ready')) t('ready');
-    if (window.rmT?.pending && !c.contains('rm-pending') && c.contains('rm-ready')) t('visible');
+    if (window.rmT?.pending && !c.contains('rm-pending') && c.contains('rm-ready') && window.rmT.visible === undefined) {
+      t('visible');
+      // rm-pending is removed in the reader's first animation frame; a task
+      // posted now runs after that frame's style, layout and paint.
+      const channel = new MessageChannel();
+      channel.port1.onmessage = () => t('painted');
+      channel.port2.postMessage(null);
+    }
   }).observe(document, { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] });
   observe();
   window.rmLoaf = [];
@@ -87,11 +97,14 @@ function summarizeTrace(json) {
   // The direct load's document starts at its navigationStart mark (the last one).
   const navigation = events.filter(e => e.pid === main.pid && e.name === 'navigationStart').at(-1);
   if (navigation) marks.navigation = navigation.ts;
-  const order = (marks.click !== undefined ? ['click', 'after-swap', 'page-load', 'visible'] : ['navigation', 'ready', 'visible'])
+  const order = (marks.click !== undefined ? ['click', 'after-swap', 'page-load', 'visible', 'painted'] : ['navigation', 'ready', 'visible', 'painted'])
     .filter(k => marks[k] !== undefined);
   const spans = order.slice(1).map((k, i) => [`${order[i]}→${k}`, marks[order[i]], marks[k]]);
   const xs = events.filter(e => e.pid === main.pid && e.tid === main.tid && e.ph === 'X' && e.dur)
     .sort((a, b) => a.ts - b.ts || b.dur - a.dur);
+  // The rest of the trace (500 ms after visible): work the opening still
+  // causes after the first frame, such as the end of the view transition.
+  if (marks.painted !== undefined) spans.push(['painted→end', marks.painted, Math.max(...xs.map(e => e.ts + e.dur))]);
   // Self time: subtract direct children.
   const self = new Map();
   const stack = [];

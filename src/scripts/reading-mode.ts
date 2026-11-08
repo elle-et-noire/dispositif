@@ -823,6 +823,8 @@ export function initializeReadingMode() {
       // The layout fallback stands down once rm-ready is set, so never leave
       // the article hidden if restoring throws.
       root.classList.remove("rm-pending");
+      // Set with rm-pending by Layout.astro.
+      articleScrollport.removeAttribute("aria-hidden");
     }
   });
   const saveReaderState = () => {
