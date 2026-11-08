@@ -47,6 +47,16 @@ const {
         scrollport?.setAttribute("aria-hidden", "true");
         return Boolean(scrollport);
       };
+      // The hidden article stays focusable: Tab would reach the scrollport and
+      // the links and buttons inside it while they are aria-hidden and clipped.
+      // inert would prevent that, but it is inherited through style like
+      // visibility, so toggling it restyles the whole article (~35-40 ms in
+      // both engines). Instead, ignore Tab for the pending span, usually one
+      // frame to a few hundred ms. Focus moved by script (the reader focuses a
+      // hash target before it clears rm-pending) is left alone.
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Tab" && document.documentElement.classList.contains("rm-pending")) event.preventDefault();
+      }, { capture: true });
       // With n段 stored, put the article text in the reader's first column
       // before the swap, at the column width. Its first layout, during which
       // the math fonts are found, is then the one the reader measures, instead

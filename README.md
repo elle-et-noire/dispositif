@@ -124,7 +124,7 @@ npx astro dev stop
 
 - 数式フォントの先読み（`src/scripts/math-font-prefetch.ts`、`lib/math-fonts.ts`）: ビルド時に記事ごとの数式フォントを `data-math-fonts` に書き出し、一覧のカードに80msホバーまたはフォーカスすると `FontFace.load()` で読み込みます。タッチ、オフライン、データ節約、2G回線では行いません。`astro:before-swap` で読み込み済みのフォントを `document.fonts` に記事の `@font-face` と同じ名前で加え、遷移先の文書から同じフォントの `@font-face` と preload を取り除きます。
 - n段の本文を先に段へ入れる（`src/layouts/Layout.astro` の head のスクリプト）: n段が保存されているときだけ、遷移では `astro:before-swap`、直接の読み込みでは MutationObserver で `.rm-source` を段の幅の枠へ移し、本文を1段の幅でレイアウトしないようにします。本文の途中にインラインスクリプトは置きません。
-- 準備中の本文は `clip-path: inset(50%)` と、スクロールポートの `aria-hidden="true"` で隠します。`visibility: hidden` は外すときに本文全体のスタイル計算を起こすので使いません。JavaScript が無いときは何も付けません。
+- 準備中の本文は `clip-path: inset(50%)` と、スクロールポートの `aria-hidden="true"` で隠します。`visibility: hidden` は外すときに本文全体のスタイル計算を起こすので使いません。JavaScript が無いときは何も付けません。準備中は Tab キーを無視し、隠れた本文にフォーカスが入らないようにします。`inert` は `visibility` と同じく付け外しで本文全体のスタイル計算を起こすので使いません。
 - `astro.config.mjs` の Vite プラグインが、Tailwind Typography の `[class~=not-prose]` を `.not-prose` に書き換えます。`<html>` のクラスが変わるたびに Chromium が文書全体のスタイルを計算し直すのを避けるためです。
 
 計測は本番ビルドを `astro preview` で配信して行います。
