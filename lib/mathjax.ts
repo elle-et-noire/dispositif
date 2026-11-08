@@ -14,6 +14,7 @@ import { createRequire } from "node:module";
 import { join } from "node:path";
 
 import { withBase } from "./base";
+import { speechLabel } from "./math-speech";
 
 // mathjax の node 版 API は CommonJS（node-main.cjs）で型定義も無いため、
 // Next/Turbopack のバンドル対象から外して（next.config の serverExternalPackages）
@@ -207,6 +208,7 @@ export function renderArticleMath(texList: string[]): Promise<RenderedMath> {
         for (const child of adaptor.childNodes(node) ?? []) walk(child);
       };
       walk(slot);
+      for (const container of containers) labelForScreenReaders(adaptor, container);
       html[Number(attr)] = containers.map((c) => adaptor.outerHTML(c)).join("");
     }
 
@@ -223,6 +225,39 @@ export function renderArticleMath(texList: string[]): Promise<RenderedMath> {
   return result;
 }
 
+// 支援技術向けに、数式を TeX のソースで読ませる（ROADMAP 2.3、方式 B）。
+//
+// CHTML の字形の箱（mjx-c）には 𝑎 や + などの文字が入っているので、そのままだと
+// 支援技術は構造のない文字の並び（x^2 が「x2」）として読む。MathJax の見えない
+// MathML（a11y/assistive-mml）は構造を伝えられるが、要素数が約 1.5 倍になり、
+// 数式記事を開くまでが Firefox で 0.2 秒ほど遅くなったうえ、MathML を数式として
+// 読み上げるエンジン（MathCAT など）は日本語に対応していない。そこで TeX を
+// role="img" の aria-label にし、字形の箱（mjx-math）には aria-hidden を付ける
+//（role="math" は、NVDA が MathML の無い要素を読まなかった報告があるので使わない）。
+//
+// \eqref の数式は中にリンク（a[href^="#mjx-eqn"]）を含む。img にするとリンクが
+// 支援技術から消えるのに Tab では止まるので、手を加えず、見えている「(1)」を読ませる。
+function labelForScreenReaders(adaptor: LiteAdaptor, container: MathJaxNode) {
+  // Text nodes ("#text") have no child list in the lite adaptor.
+  const descendants = (node: MathJaxNode, kind: string): MathJaxNode[] =>
+    adaptor.kind(node).startsWith("#") ? [] : (adaptor.childNodes(node) ?? []).flatMap((child) =>
+      [...(adaptor.kind(child) === kind ? [child] : []), ...descendants(child, kind)]);
+  if (descendants(container, "a").length) return;
+  const math = (adaptor.childNodes(container) ?? []).find((child) => adaptor.kind(child) === "mjx-math");
+  const latex = math ? adaptor.getAttribute(math, "data-latex") : null;
+  if (!math || !latex) return;
+  // 式番号（\tag や equation 環境の番号）は mjx-labels の中にあり、TeX には含まれない。
+  const tags = descendants(container, "mjx-labels")
+    .flatMap((labels) => descendants(labels, "mjx-mtd"))
+    .map((cell) => adaptor.textContent(cell).trim())
+    .filter(Boolean);
+  adaptor.setAttribute(container, "role", "img");
+  adaptor.setAttribute(container, "aria-label", speechLabel(latex, tags));
+  // Children of an img are presentational, but Chromium still keeps the glyph
+  // text in its accessibility tree; hide it explicitly.
+  adaptor.setAttribute(math, "aria-hidden", "true");
+}
+
 // --- 最小限の型（mathjax node 版に型定義が無いため必要なぶんだけ宣言）---
 
 type MathJaxNode = unknown;
@@ -232,6 +267,7 @@ type LiteAdaptor = {
   childNodes: (node: MathJaxNode) => MathJaxNode[] | undefined;
   kind: (node: MathJaxNode) => string;
   getAttribute: (node: MathJaxNode, name: string) => string | null;
+  setAttribute: (node: MathJaxNode, name: string, value: string) => void;
   outerHTML: (node: MathJaxNode) => string;
   textContent: (node: MathJaxNode) => string;
 };
