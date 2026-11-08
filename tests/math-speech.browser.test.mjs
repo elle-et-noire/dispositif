@@ -32,7 +32,15 @@ test("数式は TeX のソースを名前にした画像として読み上げの
         assert.doesNotMatch(markup.label ?? "", /hspace/);
         const cdp = await page.context().newCDPSession(page);
         const { nodes } = await cdp.send("Accessibility.getFullAXTree");
-        const images = nodes.filter((n) => !n.ignored && n.role?.value === "image");
+        // Count only images in the article: the dev server's toolbar adds an
+        // unlabeled svg badge when its audit reports something.
+        const images = [];
+        for (const n of nodes.filter((n) => !n.ignored && n.role?.value === "image" && n.backendDOMNodeId)) {
+          const { object } = await cdp.send("DOM.resolveNode", { backendNodeId: n.backendDOMNodeId });
+          const { result } = await cdp.send("Runtime.callFunctionOn", { objectId: object.objectId,
+            functionDeclaration: "function () { return !!this.closest('.rm-source'); }", returnByValue: true });
+          if (result.value) images.push(n);
+        }
         // Mathematical alphanumeric symbols (𝑥, 𝜆, …) only appear in the glyph boxes.
         const glyphs = nodes.filter((n) => !n.ignored && n.role?.value === "StaticText"
           && /[\u{1D400}-\u{1D7FF}]/u.test(n.name?.value ?? ""));
