@@ -150,7 +150,7 @@ npm run test:browser   # astro preview などを起動した状態で
 
 ### 4.3 GitHub Actions
 
-`.github/workflows/deploy.yml` で、型検査・単体テスト・ブラウザテスト（Chromium・Firefox、約5分）が成功したときだけmainをデプロイする。プルリクエストでは検査だけを行い、古い実行は取り消す。mainのデプロイは取り消さず順に実行する。
+`.github/workflows/deploy.yml` で、型検査・単体テスト・ブラウザテスト（Chromium・Firefox、約5分）が成功したときだけmainをデプロイする。プルリクエストでは検査だけを行い、古い実行は取り消す。mainのデプロイは取り消さず順に実行する。文書（`README.md`、`ROADMAP.md`、`AGENTS.md`、`CLAUDE.md`、`docs/`）だけの変更では実行しない。
 
 - [ ] 内部リンク検査を実行する
 
