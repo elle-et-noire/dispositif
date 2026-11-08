@@ -93,6 +93,19 @@ export function nearestPoint(anchor: Tick, point: ReadingPoint, g: ReadingLayout
   const y = ticks(t - k * g.step), range = horizontalRange(y, g);
   return { x: bounded(k * g.p, range.min, range.max), y };
 }
+/** A change in article length alone (a details element opened or closed, an
+ * image loaded) keeps the point, so everything before the change stays put.
+ * Only the ends move with the length, so each axis is pulled back by at most
+ * the amount its end moved; a fringe already reached is kept, not enlarged. */
+export function refitPoint(point: ReadingPoint, from: ReadingLayout, to: ReadingLayout): ReadingPoint {
+  if (to.l <= to.h) return { x: zero, y: zero };
+  if (from.l <= from.h) return point;
+  const x = ticks(Math.min(point.x,
+    horizontalRange(point.y, to).max + Math.max(0, point.x - horizontalRange(point.y, from).max)));
+  const y = ticks(Math.min(point.y,
+    verticalRange(x, to).max + Math.max(0, point.y - verticalRange(point.x, from).max)));
+  return { x, y };
+}
 export function slotColumns(point: ReadingPoint, g: ReadingLayout) {
   if (g.l <= g.h) return { start: 0, count: 1 };
   return { start: floorDiv(point.x - g.edge + g.p - g.w, g.p), count: ceilDiv(g.viewportWidth, g.p) + 1 };
