@@ -3,7 +3,7 @@ import test from "node:test";
 import { SCALE, ticks, fromCss, toCss, zero, createLayout, articleColumns, horizontalRange, verticalRange,
   horizontalInputRange, horizontalDestination, verticalDestination, paperWindow, slotColumns, nearestPoint,
   ReadingState } from "../src/scripts/reading-coordinates.ts";
-import { nativeWindow, cssGeometry } from "../src/scripts/reading-geometry.ts";
+import { nativeWindow, cssGeometry, devicePixels } from "../src/scripts/reading-geometry.ts";
 import { ReadingViewport } from "../src/scripts/reading-viewport.ts";
 
 const layout = (width = 1600, length = 70000, overlap = 21) => createLayout(Math.min(608, width - 32), 16, 700, overlap, length, width, 16);
@@ -215,4 +215,19 @@ test("小数のネイティブ移動でも投影原点は揺れず、往復で�
     state.horizontal(adapter.read(state.point)!.x!);
     assert.equal(state.point.x, origin);
   }
+});
+
+test("段の本文の位置は1デバイスピクセル単位に丸める", () => {
+  // 125 %: one device pixel is 0.8 CSS px; a 706 px column step is 882.5 device px.
+  assert.equal(devicePixels(0.400391, 0.8), 0.8);
+  assert.equal(devicePixels(706.4, 0.8), 706.4);
+  assert.equal(devicePixels(-705.6, 0.8), -705.6);
+  assert.equal(devicePixels(-0.3, 0.8), 0);
+  assert.ok(Object.is(devicePixels(-0.3, 0.8), 0));
+  for (const unit of [1, 0.8, 2 / 3, 1 / 1.1, 0.5]) for (const value of [-2976.123, -0.4, 0, 13.37, 1888.5, 4384.2]) {
+    const device = devicePixels(value, unit) / unit;
+    close(device, Math.round(device), 1e-3);
+    assert.ok(Math.abs(devicePixels(value, unit) - value) <= unit / 2 + 1e-4);
+  }
+  assert.equal(devicePixels(12.3, 0), 12.3);
 });

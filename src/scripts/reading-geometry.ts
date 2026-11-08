@@ -3,6 +3,15 @@ import { ceilDiv, floorDiv, fromCss, ticks, toCss, horizontalInputRange, vertica
 
 export const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), Math.max(min, max));
 
+/** Rounds a CSS offset to whole device pixels. `unit` is one device pixel in
+ * CSS px (1 / devicePixelRatio). Trailing float noise is cut so the same
+ * offset always yields the same CSS text. */
+export const devicePixels = (value: number, unit: number) => {
+  if (!(unit > 0)) return value;
+  const rounded = Number((Math.round(value / unit) * unit).toFixed(4));
+  return rounded === 0 ? 0 : rounded;
+};
+
 /** CSS-only projection. Never use these browser-rounded values as app state. */
 export interface ReadingGeometry {
   w: number; p: number; h: number; step: number; l: number;
