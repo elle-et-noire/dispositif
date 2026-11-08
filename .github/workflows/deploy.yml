@@ -1,12 +1,18 @@
 name: Deploy to GitHub Pages
 
 on:
-  # `main`ブランチにプッシュするたびにワークフローをトリガーします。
-  # 別のブランチを使用している場合は、`main`をそのブランチ名に置き換えてください。
+  # main へのプッシュで検査し、成功したらデプロイする。
   push:
     branches: [ main ]
+  # プルリクエストでは検査だけを行い、デプロイしない。
+  pull_request:
   # GitHub上のActionsタブからこのワークフローを手動で実行できます。
   workflow_dispatch:
+
+# 同じブランチの古い実行は取り消す。main のデプロイは途中で止めず、順に実行する。
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # このジョブがリポジトリをクローンし、ページデプロイメントを作成することを許可します。
 permissions:
@@ -15,23 +21,56 @@ permissions:
   id-token: write
 
 jobs:
+  # 型検査と単体テスト。
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      # astro check は数式フォントの準備を必要としないが、build と同じ状態にそろえる。
+      - run: npm run copy:math-fonts
+      - run: npx astro check
+      - run: npm test
+
+  # 本番ビルドを astro preview で配信し、Chromium と Firefox でブラウザテストを実行する。
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      # 本文の組版をローカルの検証環境（Noto Sans CJK JP）とそろえる。
+      - run: sudo apt-get update && sudo apt-get install -y fonts-noto-cjk
+      - run: npx playwright-core install --with-deps chromium firefox
+      - run: npm run build
+      - name: Run browser tests against astro preview
+        run: |
+          npx astro preview --port 4321 > preview.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf -o /dev/null http://localhost:4321/dispositif/ && break; sleep 1; done
+          npm run test:browser
+      - if: failure()
+        run: cat preview.log
+
   build:
+    needs: [check, browser]
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout your repository using git
         uses: actions/checkout@v6
       - name: Install, build, and upload your site
         uses: withastro/action@v6
-        # with:
-          # path: . # リポジトリ内のAstroプロジェクトのルート位置です。（オプション）
-          # node-version: 24 # サイトのビルドに使用するNodeのバージョンです。デフォルトは24です。（オプション）
-          # package-manager: pnpm@latest # 依存関係のインストールとサイトのビルドに使用するNodeパッケージマネージャーです。ロックファイルに基づいて自動検出されます。（オプション）
-          # build-cmd: pnpm run build # サイトをビルドするためのコマンドです。デフォルトでパッケージのbuildスクリプトを実行します。（オプション）
-        # env:
-          # PUBLIC_POKEAPI: 'https://pokeapi.co/api/v2' # 変数の値にはシングルクォートを使用してください。（オプション）
 
   deploy:
     needs: build
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
