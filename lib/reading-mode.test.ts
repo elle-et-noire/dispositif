@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { SCALE, ticks, fromCss, toCss, zero, createLayout, articleColumns, horizontalRange, verticalRange,
   horizontalInputRange, horizontalDestination, verticalDestination, paperWindow, slotColumns, nearestPoint,
-  ReadingState } from "../src/scripts/reading-coordinates.ts";
+  ReadingState, refitPoint } from "../src/scripts/reading-coordinates.ts";
 import { nativeWindow, cssGeometry, devicePixels } from "../src/scripts/reading-geometry.ts";
 import { ReadingViewport } from "../src/scripts/reading-viewport.ts";
 
@@ -66,6 +66,29 @@ test("一軸だけの操作は他軸の座標を1単位も変えない", () => {
       assert.equal(horizontalDestination(point, target, g).y, point.y);
       assert.equal(verticalDestination(point, target, g).x, point.x);
     }
+  }
+});
+
+test("本文の長さだけが変わると位置を保ち、縮んだ端からだけ引き戻す", () => {
+  for (const width of [390, 1280, 1600]) {
+    const before = layout(width, 70000, 0), longer = layout(width, 72000, 0), shorter = layout(width, 60000, 0);
+    // Between column boundaries, at a fringe, and at the end.
+    const state = new ReadingState(before);
+    state.vertical(fromCss(4000)); state.horizontal(ticks(state.point.x + fromCss(213)));
+    const fringe = new ReadingState(before); fringe.home(); fringe.vertical(verticalRange(zero, before).min);
+    const end = new ReadingState(before); end.end();
+    for (const point of [state.point, fringe.point, end.point]) {
+      assert.deepEqual(refitPoint(point, before, longer), point);
+      assert.deepEqual(refitPoint(point, before, before), point);
+    }
+    assert.deepEqual(refitPoint(state.point, before, shorter), state.point);
+    assert.deepEqual(refitPoint(fringe.point, before, shorter), fringe.point);
+    // Past the shorter end, the point returns to that end, not beyond it.
+    const pulled = refitPoint(end.point, before, shorter);
+    assert.ok(pulled.x <= horizontalRange(pulled.y, shorter).max);
+    assert.ok(pulled.y <= verticalRange(pulled.x, shorter).max);
+    // A single sheet has no other position.
+    assert.deepEqual(refitPoint(state.point, before, layout(width, 500, 0)), { x: zero, y: zero });
   }
 });
 

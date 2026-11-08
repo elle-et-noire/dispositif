@@ -1,7 +1,7 @@
 import { devicePixels, type ReadingGeometry } from "./reading-geometry";
 import type { ReadingLayout, ReadingPoint } from "./reading-coordinates";
 import { createLayout, fromCss, toCss, ticks, zero, paperWindow, slotColumns, visibleColumnCount,
-  ReadingState, endPoint } from "./reading-coordinates";
+  ReadingState, endPoint, refitPoint } from "./reading-coordinates";
 import { ReadingViewport } from "./reading-viewport";
 import { ReadingFragments } from "./reading-fragments";
 import { ReadingMotion } from "./reading-motion";
@@ -419,8 +419,14 @@ export function initializeReadingMode() {
     plane.style.setProperty("--rm-overlap", "0px");
     plane.style.setProperty("--rm-l", `${l}px`);
     plane.style.setProperty("--rm-edge", `${edge}px`);
+    const lengthOnly = reading && (Object.keys(layout) as (keyof ReadingLayout)[])
+      .every((key) => key === "l" || layout[key] === reading!.layout[key]);
+    const previous = reading;
     reading = new ReadingState(layout, anchor);
-    if (wasHome) reading.home(); else if (wasEnd) reading.end();
+    // Opening or closing a details element changes only the length. Keep the
+    // exact point rather than snapping to the anchor's column or the new end.
+    if (lengthOnly && previous) reading.restorePoint(refitPoint(previous.point, previous.layout, layout));
+    else if (wasHome) reading.home(); else if (wasEnd) reading.end();
     native.reset();
     rangeStart = NaN;
     present(true);
@@ -609,11 +615,17 @@ export function initializeReadingMode() {
   // the activating key as well as supporting detail=0 from other browsers
   // and assistive technologies; a pointer press cancels that indication.
   let keyboardActivation: Element | undefined;
+  // A pressed control is already on screen. Following its focus would move
+  // the view before the click lands, and the click would then miss it.
+  let pointerFocus = false;
   document.addEventListener("keydown", (event) => {
+    pointerFocus = false;
     keyboardActivation = (event.key === "Enter" || event.key === " ") && event.target instanceof Element
       ? event.target : undefined;
   }, { capture: true, signal });
-  document.addEventListener("pointerdown", () => { keyboardActivation = undefined; }, { capture: true, passive: true, signal });
+  document.addEventListener("pointerdown", () => { keyboardActivation = undefined; pointerFocus = true; }, { capture: true, passive: true, signal });
+  // Touch moves focus after pointerup, so the press ends at its click.
+  document.addEventListener("click", () => { pointerFocus = false; }, { capture: true, passive: true, signal });
   document.addEventListener("click", (event) => {
     const element = event.target instanceof Element ? event.target : null;
     if (!enabled && event.button === 0 && !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey) {
@@ -716,7 +728,9 @@ export function initializeReadingMode() {
   source.addEventListener("load", scheduleMeasure, { capture: true, signal });
   source.addEventListener("error", scheduleMeasure, { capture: true, signal });
   source.addEventListener("focusin", (event) => {
-    if (event.target instanceof HTMLElement && enabled) navigate(event.target);
+    const pressed = pointerFocus;
+    pointerFocus = false;
+    if (event.target instanceof HTMLElement && enabled && !pressed) navigate(event.target);
   }, { signal });
 
   const resizeObserver = new ResizeObserver(scheduleMeasure);

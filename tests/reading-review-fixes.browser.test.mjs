@@ -401,3 +401,53 @@ test("保存済みの履歴が壊れていても、新しい読書位置を保�
     assert.equal(saved?.position, 1200, JSON.stringify(saved));
   } finally { await browser.close(); }
 });
+
+test("n段表示で折りたたみをクリックしても表示位置を動かさず、キーボードのフォーカスには追従する", { timeout: 90_000 }, async () => {
+  const browser = await chromium.launch({ executablePath: process.env.RM_BROWSER_PATH || undefined });
+  const open = async () => {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await page.addInitScript(() => localStorage.setItem("dispositif:reading-mode", "multi"));
+    await page.goto(new URL("nextjs-mdx/", BASE).href);
+    await page.waitForSelector(".rm-ready");
+    await page.evaluate(() => document.fonts.ready);
+    return page;
+  };
+  let page;
+  try {
+    const summaries = () => page.evaluate(() => {
+      const originals = [...document.querySelectorAll(".rm-source details")];
+      return [...document.querySelectorAll(".rm-slot summary")].map((summary) => {
+        const rect = summary.getBoundingClientRect(), details = summary.parentElement;
+        const hit = document.elementFromPoint(rect.left + 5, rect.top + 10);
+        return { x: rect.left, y: rect.top, hit: Boolean(hit && summary.contains(hit)), source: Boolean(summary.closest(".rm-source")),
+          index: summary.closest(".rm-source") ? originals.indexOf(details) : Number(details.dataset.rmDetails) };
+      }).filter((s) => s.hit && s.y > 100 && s.y < 850);
+    });
+    const kinds = new Set();
+    // Offsets between column boundaries, so that rounding to a column shows.
+    for (const left of [700, 2000, 2333]) {
+      // A fresh tab: the same entry would restore the previous iteration's details.
+      await page?.close();
+      page = await open();
+      await page.locator(".rm-viewport").evaluate((v, left) => v.scrollTo({ left, behavior: "instant" }), left);
+      await settle(page);
+      const [target] = await summaries();
+      assert.ok(target, `${left}: 見えている折りたたみがない`);
+      kinds.add(target.source);
+      const isOpen = (i) => page.evaluate((i) => document.querySelectorAll(".rm-source details")[i].open, i);
+      assert.equal(await isOpen(target.index), false);
+      await page.mouse.click(target.x + 5, target.y + 10);
+      await settle(page);
+      assert.equal(await isOpen(target.index), true, `${left}: 開かなかった`);
+      const after = (await summaries()).find((s) => s.index === target.index);
+      assert.deepEqual(after && { x: after.x, y: after.y }, { x: target.x, y: target.y }, `${left}: 位置がずれた`);
+    }
+    assert.deepEqual([...kinds].sort(), [false, true], "原本と複製の両方を試していない");
+    // Focus that does not come from a press still brings its element into view.
+    const last = page.locator(".rm-source details summary").last();
+    await last.focus();
+    await settle(page);
+    const box = await last.boundingBox();
+    assert.ok(box && box.x >= 0 && box.x + box.width <= 1280 && box.y >= 0 && box.y + box.height <= 900, JSON.stringify(box));
+  } finally { await browser.close(); }
+});
