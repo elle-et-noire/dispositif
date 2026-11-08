@@ -42,6 +42,16 @@ test("一覧へ戻るとき、ポインターでは復元直後の枠を抑え�
     await page.keyboard.press("Enter");
     await restored();
     assert.equal(await card.evaluate((el) => getComputedStyle(el).outlineStyle), "solid");
+    // Alt+← reaches the page as a keydown before the browser goes back
+    // (headless Chromium does not go back on it, so goBack() does). History
+    // traversal restores the card without a ring, like a pointer return.
+    await openArticle();
+    await page.keyboard.press("Alt+ArrowLeft");
+    await page.goBack();
+    await restored();
+    assert.equal(await card.evaluate((el) => getComputedStyle(el).outlineStyle), "none");
+    await page.keyboard.press("ArrowDown");
+    assert.equal(await card.evaluate((el) => getComputedStyle(el).outlineStyle), "solid");
   } finally { await browser.close(); }
 });
 
