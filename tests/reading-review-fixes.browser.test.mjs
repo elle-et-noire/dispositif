@@ -474,39 +474,48 @@ test("n段表示で折りたたみをクリックしても表示位置を動か�
 });
 
 for (const [name, engine] of Object.entries({ chromium, firefox })) {
-  test(`${name}: 本文の再計測を待つ間のスクロールも読書位置に反映する`, { timeout: 60_000 }, async () => {
+  test(`${name}: 本文の再計測を待つ間のスクロールも読書位置に反映する`, { timeout: 90_000 }, async () => {
     const browser = await engine.launch({ executablePath: name === "chromium" ? process.env.RM_BROWSER_PATH || undefined : undefined });
-    // Scrolls horizontally, optionally right after a mutation in the article
-    // has scheduled a measurement that keeps the layout. Fonts and images
-    // loading after the first frame do the same.
-    const scrolled = async (measuring) => {
+    // Changes the article, which schedules a measurement (fonts and images
+    // loading after the first frame do the same), then scrolls horizontally
+    // before or after that measurement has run.
+    const scrolled = async (change, measured) => {
       const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
       await page.addInitScript(() => localStorage.setItem("dispositif:reading-mode", "multi"));
       await page.goto(new URL("nextjs-mdx/", BASE).href);
       await page.waitForSelector(".rm-ready");
       await page.evaluate(() => document.fonts.ready);
       await settle(page);
-      const state = await page.evaluate(async (measuring) => {
+      const state = await page.evaluate(async ({ change, measured }) => {
+        const frames = async (n) => { for (let i = 0; i < n; i++) await new Promise(requestAnimationFrame); };
         const viewport = document.querySelector(".rm-viewport");
-        if (measuring) {
-          document.querySelector(".rm-source").append(document.createComment("measure"));
-          await Promise.resolve();
+        const source = document.querySelector(".rm-source");
+        if (change === "same") source.append(document.createComment("measure"));
+        else {
+          const block = document.createElement("div");
+          block.style.height = "300px";
+          source.append(block);
         }
+        await Promise.resolve();
+        if (measured) await frames(5);
         viewport.scrollTo({ left: 700, behavior: "instant" });
-        for (let i = 0; i < 5; i++) await new Promise(requestAnimationFrame);
+        await frames(5);
         return {
           left: viewport.scrollLeft, top: viewport.scrollTop,
           x: document.querySelector(".rm-plane").dataset.rmXTicks,
           slots: [...document.querySelectorAll(".rm-slot")].map((slot) => Math.round(slot.getBoundingClientRect().left)),
         };
-      }, measuring);
+      }, { change, measured });
       await page.close();
       return state;
     };
     try {
-      const expected = await scrolled(false);
-      assert.notEqual(expected.x, "0", JSON.stringify(expected));
-      assert.deepEqual(await scrolled(true), expected);
+      // "same" keeps the layout; "length" only lengthens the article.
+      for (const change of ["same", "length"]) {
+        const expected = await scrolled(change, true);
+        assert.notEqual(expected.x, "0", `${change}: ${JSON.stringify(expected)}`);
+        assert.deepEqual(await scrolled(change, false), expected, change);
+      }
     } finally { await browser.close(); }
   });
 }
