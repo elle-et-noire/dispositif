@@ -234,7 +234,10 @@ test("拡大表示の下端の丸めでも白い線を残さず、本文の末�
           assert.equal(partial?.paperHeight ?? 0, 0, `白い線が残った: ${message}`);
           assert.ok(Math.abs(main.paperHeight - s.h) < 1e-5, `本文端に余白ができた: ${message}`);
           const sourceTop = k * s.step + s.y - main.contentShift;
-          assert.ok(Math.abs(direction < 0 ? sourceTop : sourceTop + s.h - s.l) < .001,
+          // The text's translate is rounded to whole device pixels (sharp text
+          // when columns are recycled), so it may sit up to half a pixel off the
+          // exact end. The paper edge itself need not be on that grid.
+          assert.ok(Math.abs(direction < 0 ? sourceTop : sourceTop + s.h - s.l) <= .501,
             `本文を切り捨てて線を隠している: ${message}`);
           if (direction > 0 && partial) {
             const x = (partial.left + s.w / 2) * s.zoom;

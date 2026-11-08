@@ -1,4 +1,4 @@
-import type { ReadingGeometry } from "./reading-geometry";
+import { devicePixels, type ReadingGeometry } from "./reading-geometry";
 import type { ReadingLayout, ReadingPoint } from "./reading-coordinates";
 import { createLayout, fromCss, toCss, ticks, zero, paperWindow, slotColumns, visibleColumnCount,
   ReadingState, endPoint } from "./reading-coordinates";
@@ -108,7 +108,7 @@ export function initializeReadingMode() {
   const native = new ReadingViewport(viewport, plane);
   let rangeStart = NaN;
   const placements = new WeakMap<HTMLElement, {
-    left: number; top: number; clip: string; paperTop: number; paperHeight: number;
+    left: number; translate: string; clip: string; paperTop: number; paperHeight: number;
     shadeTop: number; shadeBottom: number;
   }>();
   let dirty = true;
@@ -263,6 +263,9 @@ export function initializeReadingMode() {
       dirty = false;
     }
     const state = reading;
+    // The raster grid: one device pixel in CSS px, including browser zoom. The
+    // scroll step (geometry.unit) can be coarser than this.
+    const pixel = 1 / (window.devicePixelRatio || 1);
     for (const slot of slots) {
       const k = Number(slot.dataset.rmK);
       const content = slot.firstElementChild as HTMLElement;
@@ -284,7 +287,13 @@ export function initializeReadingMode() {
       if (previous?.left !== left) track.style.left = `${left}px`;
       // Translate the text in both axes. Moving its layout left offset would
       // lay out the entire MathJax tree again when recycling a column.
-      if (previous?.left !== left || previous?.top !== top) content.style.translate = `${left}px ${top}px`;
+      // Whole device pixels only: when a column is recycled, Chromium moves
+      // its already rasterized text instead of painting it again, so a move by
+      // a fraction of a device pixel (e.g. a 706 px step at 125 %) leaves the
+      // text resampled and blurred until something repaints it. Compared
+      // after rounding, so a zoom change re-rounds an unmoved column.
+      const translate = `${devicePixels(left, pixel)}px ${devicePixels(top, pixel)}px`;
+      if (previous?.translate !== translate) content.style.translate = translate;
       if (previous?.clip !== clip) track.style.clipPath = clip;
       if (previous?.paperTop !== paperTop) {
         paper.style.top = shade.style.top = `${paperTop}px`;
@@ -296,7 +305,7 @@ export function initializeReadingMode() {
       if (previous?.shadeBottom !== shadeBottom) shade.style.setProperty("--rm-shade-bottom", `${shadeBottom}px`);
       slot.toggleAttribute("data-rm-head", from <= 0);
       slot.toggleAttribute("data-rm-tail", from + geometry.h >= geometry.l);
-      placements.set(slot, { left, top, clip, paperTop, paperHeight, shadeTop, shadeBottom });
+      placements.set(slot, { left, translate, clip, paperTop, paperHeight, shadeTop, shadeBottom });
       // Slots outside the article have no visible paper. Keep their existing
       // fragments until they become visible instead of cloning/removing blocks
       // that would immediately be clipped away.
