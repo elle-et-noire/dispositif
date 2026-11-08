@@ -5,7 +5,7 @@ import { createLayout, fromCss, toCss, ticks, zero, paperWindow, slotColumns, vi
 import { ReadingViewport } from "./reading-viewport";
 import { ReadingFragments } from "./reading-fragments";
 import { ReadingMotion } from "./reading-motion";
-import { prefersMulti, READING_MODE_STORAGE_KEY } from "./reading-preference";
+import { opensMulti, READING_MODE_STORAGE_KEY } from "./reading-preference";
 import { type HistoryPosition, HISTORY_STORAGE_KEY, parseSavedHistory, mergeHistory, resolveHistoryEntry } from "./reading-history";
 
 let dispose: (() => void) | undefined;
@@ -95,6 +95,8 @@ export function initializeReadingMode() {
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   let preference: string | null = null;
   try { preference = localStorage.getItem(READING_MODE_STORAGE_KEY); } catch { /* storage is optional */ }
+  // ?view= is read once: the toggle changes the mode without rewriting the URL.
+  const startMulti = opensMulti(location.search, preference, savedHistoryPosition?.mode);
   let enabled = false;
   let suspendedForPrint = false;
   let resumeAfterPrint = false;
@@ -556,7 +558,7 @@ export function initializeReadingMode() {
 
   const applyDefault = () => {
     if (suspendedForPrint || printing.matches || root.classList.contains("rm-fallback")) return;
-    setEnabled(prefersMulti(preference));
+    setEnabled(startMulti);
   };
 
   // The original normally lives inside the reader. Return it to the document
