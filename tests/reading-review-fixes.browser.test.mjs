@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { chromium } from "playwright-core";
+import { chromium, firefox } from "playwright-core";
 
 const BASE = process.env.RM_BASE_URL ?? "http://localhost:4321/dispositif/";
 const ARTICLE = new URL("symmetric-polynomial/", BASE).href;
@@ -472,3 +472,41 @@ test("n段表示で折りたたみをクリックしても表示位置を動か�
     assert.ok(box && box.x >= 0 && box.x + box.width <= 1280 && box.y >= 0 && box.y + box.height <= 900, JSON.stringify(box));
   } finally { await browser.close(); }
 });
+
+for (const [name, engine] of Object.entries({ chromium, firefox })) {
+  test(`${name}: 本文の再計測を待つ間のスクロールも読書位置に反映する`, { timeout: 60_000 }, async () => {
+    const browser = await engine.launch({ executablePath: name === "chromium" ? process.env.RM_BROWSER_PATH || undefined : undefined });
+    // Scrolls horizontally, optionally right after a mutation in the article
+    // has scheduled a measurement that keeps the layout. Fonts and images
+    // loading after the first frame do the same.
+    const scrolled = async (measuring) => {
+      const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+      await page.addInitScript(() => localStorage.setItem("dispositif:reading-mode", "multi"));
+      await page.goto(new URL("nextjs-mdx/", BASE).href);
+      await page.waitForSelector(".rm-ready");
+      await page.evaluate(() => document.fonts.ready);
+      await settle(page);
+      const state = await page.evaluate(async (measuring) => {
+        const viewport = document.querySelector(".rm-viewport");
+        if (measuring) {
+          document.querySelector(".rm-source").append(document.createComment("measure"));
+          await Promise.resolve();
+        }
+        viewport.scrollTo({ left: 700, behavior: "instant" });
+        for (let i = 0; i < 5; i++) await new Promise(requestAnimationFrame);
+        return {
+          left: viewport.scrollLeft, top: viewport.scrollTop,
+          x: document.querySelector(".rm-plane").dataset.rmXTicks,
+          slots: [...document.querySelectorAll(".rm-slot")].map((slot) => Math.round(slot.getBoundingClientRect().left)),
+        };
+      }, measuring);
+      await page.close();
+      return state;
+    };
+    try {
+      const expected = await scrolled(false);
+      assert.notEqual(expected.x, "0", JSON.stringify(expected));
+      assert.deepEqual(await scrolled(true), expected);
+    } finally { await browser.close(); }
+  });
+}

@@ -408,6 +408,10 @@ export function initializeReadingMode() {
     // Layout changes preserve the logical anchor; ordinary observations never
     // reconstruct application state from native positions.
     if (reading && sameLayout(layout, reading.layout)) {
+      // The scroll handler skips a native scroll while this frame is pending,
+      // and present() acknowledges the current offsets. Apply that scroll
+      // first, or the view snaps back and the reading position stays put.
+      syncPosition();
       present();
       return;
     }
