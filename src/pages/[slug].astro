@@ -55,10 +55,14 @@ const headings = getHeadings(content);
   ></div>
 
   <div class="rm-article-scrollport" tabindex="0" role="region" aria-label="記事本文">
+    {/* Pointer-only: the background around the paper. Keyboard and screen
+        reader users get the same action from .rm-close, so this link is kept
+        out of the Tab order and the accessibility tree. */}
     <a
       href={withBase()}
       data-astro-prefetch="hover"
-      aria-label="記事を閉じて一覧へ戻る"
+      tabindex="-1"
+      aria-hidden="true"
       class="rm-dismiss block cursor-pointer"
     ></a>
     <article class="rm-article prose relative z-20 mx-auto mt-8 flex w-[calc(100%-1rem)] max-w-[68rem] flex-col px-4 pb-16 md:pl-16 md:pr-4">

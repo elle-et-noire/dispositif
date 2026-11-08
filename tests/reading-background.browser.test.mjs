@@ -45,6 +45,33 @@ test("一覧へ戻るとき、ポインターでは復元直後の枠を抑え�
   } finally { await browser.close(); }
 });
 
+test("背景の閉じるリンクはポインター専用で、Tab移動と読み上げでは閉じるボタンだけを使う", { timeout: 60_000 }, async () => {
+  const browser = await chromium.launch({ executablePath: process.env.RM_BROWSER_PATH || undefined });
+  try {
+    for (const width of [390, 1280]) for (const mode of ["single", "multi"]) {
+      const page = await browser.newPage({ viewport: { width, height: 600 } });
+      try {
+        await page.addInitScript((mode) => localStorage.setItem("dispositif:reading-mode", mode), mode);
+        await page.goto(ARTICLE_URL);
+        await page.waitForSelector('html[data-page-kind="article"].rm-ready');
+        if (mode === "multi") await page.waitForSelector("html.rm-active .rm-slot");
+        await settle(page);
+        const close = page.getByRole("link", { name: "記事を閉じて一覧へ戻る" });
+        assert.equal(await close.count(), 1, `${width}px ${mode}`);
+        assert.equal(await close.evaluate((el) => el.classList.contains("rm-close")), true);
+        let reachedClose = false;
+        for (let i = 0; i < 80; i++) {
+          await page.keyboard.press("Tab");
+          const focused = await page.evaluate(() => document.activeElement?.className ?? "");
+          assert.doesNotMatch(String(focused), /\brm-dismiss\b/, `${width}px ${mode}`);
+          if (/\brm-close\b/.test(String(focused))) { reachedClose = true; break; }
+        }
+        assert.equal(reachedClose, true, `${width}px ${mode}: 閉じるボタンへTabで届かない`);
+      } finally { await page.close(); }
+    }
+  } finally { await browser.close(); }
+});
+
 test("一覧はヘッダーの下の標準バーとホイール・キーでスクロールする", { timeout: 45_000 }, async () => {
   const browser = await chromium.launch({ executablePath: process.env.RM_BROWSER_PATH || undefined,
     ignoreDefaultArgs: ["--hide-scrollbars"] });
