@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { chromium } from "playwright-core";
+import { chromium, firefox } from "playwright-core";
 
 const BASE = process.env.RM_BASE_URL ?? "http://localhost:4321/dispositif/";
 const ARTICLE = new URL("symmetric-polynomial/", BASE).href;
@@ -472,3 +472,50 @@ test("n段表示で折りたたみをクリックしても表示位置を動か�
     assert.ok(box && box.x >= 0 && box.x + box.width <= 1280 && box.y >= 0 && box.y + box.height <= 900, JSON.stringify(box));
   } finally { await browser.close(); }
 });
+
+for (const [name, engine] of Object.entries({ chromium, firefox })) {
+  test(`${name}: 本文の再計測を待つ間のスクロールも読書位置に反映する`, { timeout: 90_000 }, async () => {
+    const browser = await engine.launch({ executablePath: name === "chromium" ? process.env.RM_BROWSER_PATH || undefined : undefined });
+    // Changes the article, which schedules a measurement (fonts and images
+    // loading after the first frame do the same), then scrolls horizontally
+    // before or after that measurement has run.
+    const scrolled = async (change, measured) => {
+      const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+      await page.addInitScript(() => localStorage.setItem("dispositif:reading-mode", "multi"));
+      await page.goto(new URL("nextjs-mdx/", BASE).href);
+      await page.waitForSelector(".rm-ready");
+      await page.evaluate(() => document.fonts.ready);
+      await settle(page);
+      const state = await page.evaluate(async ({ change, measured }) => {
+        const frames = async (n) => { for (let i = 0; i < n; i++) await new Promise(requestAnimationFrame); };
+        const viewport = document.querySelector(".rm-viewport");
+        const source = document.querySelector(".rm-source");
+        if (change === "same") source.append(document.createComment("measure"));
+        else {
+          const block = document.createElement("div");
+          block.style.height = "300px";
+          source.append(block);
+        }
+        await Promise.resolve();
+        if (measured) await frames(5);
+        viewport.scrollTo({ left: 700, behavior: "instant" });
+        await frames(5);
+        return {
+          left: viewport.scrollLeft, top: viewport.scrollTop,
+          x: document.querySelector(".rm-plane").dataset.rmXTicks,
+          slots: [...document.querySelectorAll(".rm-slot")].map((slot) => Math.round(slot.getBoundingClientRect().left)),
+        };
+      }, { change, measured });
+      await page.close();
+      return state;
+    };
+    try {
+      // "same" keeps the layout; "length" only lengthens the article.
+      for (const change of ["same", "length"]) {
+        const expected = await scrolled(change, true);
+        assert.notEqual(expected.x, "0", `${change}: ${JSON.stringify(expected)}`);
+        assert.deepEqual(await scrolled(change, false), expected, change);
+      }
+    } finally { await browser.close(); }
+  });
+}

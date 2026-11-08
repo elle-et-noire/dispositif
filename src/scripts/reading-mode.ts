@@ -372,6 +372,12 @@ export function initializeReadingMode() {
     // On enabling, detach the original while reading the page's new geometry,
     // so it is not laid out at an intermediate width before its column.
     if (!slots.length && !premounted) source.remove();
+    // The scroll handler skips a native scroll while this frame is pending.
+    // Apply it before reading the old point, or the point kept below (or the
+    // offsets present() acknowledges) drops it and the view snaps back. After
+    // a resize the browser's clamped offsets are not input: the anchor wins.
+    if (reading && fromCss(viewport.clientWidth) === reading.layout.viewportWidth
+      && fromCss(Math.max(1, viewport.clientHeight)) === reading.layout.h) syncPosition();
     const anchor = fromCss(position);
     const oldPoint = reading?.point;
     const oldEnd = reading && endPoint(reading.layout);
