@@ -582,13 +582,13 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
         await page.locator("astro-dev-toolbar").evaluateAll((nodes) => nodes.forEach((node) => node.remove()));
         await settle(page);
         const initial = await layout(page);
+        const sourceElements = await page.locator(".rm-source").evaluate((source) => source.getElementsByTagName("*").length);
         const client = await page.context().newCDPSession(page);
-        await client.send("Performance.enable");
+        const events = [];
+        client.on("Tracing.dataCollected", ({ value }) => events.push(...value));
+        const traced = new Promise((resolve) => client.once("Tracing.tracingComplete", resolve));
+        await client.send("Tracing.start", { categories: "devtools.timeline", transferMode: "ReportEvents" });
         await client.send("Emulation.setCPUThrottlingRate", { rate: 4 });
-        const metrics = async () => Object.fromEntries(
-          (await client.send("Performance.getMetrics")).metrics.map(({ name, value }) => [name, value]),
-        );
-        const before = await metrics();
         for (const distance of [-8000, 8000]) {
           await client.send("Input.synthesizeScrollGesture", {
             x: initial.left + 100, y: initial.top + 150,
@@ -596,13 +596,20 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
             gestureSourceType: "mouse", preventFling: true,
           });
         }
-        const after = await metrics();
-        const count = after.RecalcStyleCount - before.RecalcStyleCount;
-        const duration = after.RecalcStyleDuration - before.RecalcStyleDuration;
-        t.diagnostic(`CPU 4倍減速: スタイル再計算 ${count}回 / ${(duration * 1000).toFixed(1)}ms`);
-        // Allow ample headroom for CI, but catch the former whole-MathJax-tree
-        // invalidation (hundreds of milliseconds per update on this article).
-        assert.ok(duration / Math.max(1, count) < 0.05,
+        await client.send("Tracing.end");
+        await traced;
+        const restyles = events.filter((event) => event.name === "UpdateLayoutTree" && event.ph === "X");
+        const elements = restyles.map((event) => event.args?.elementCount);
+        t.diagnostic(`CPU 4倍減速: スタイル再計算 ${restyles.length}回 / `
+          + `${(restyles.reduce((sum, event) => sum + event.dur, 0) / 1000).toFixed(1)}ms / `
+          + `最大 ${Math.max(...elements)}要素（本文 ${sourceElements}要素）`);
+        assert.ok(restyles.length > 0 && elements.every(Number.isFinite), "スタイル再計算の要素数を記録できない");
+        // Count elements, not milliseconds, so that a slow CI runner does not
+        // fail the test. Mounting a fragment into a new column restyles that
+        // fragment (at most about 55% of the article body). The former bug, an
+        // inherited value changing on an ancestor of the article, restyled the
+        // whole document (more than the article body) on every update.
+        assert.ok(Math.max(...elements) < sourceElements,
           "段の移動で数式本文全体のスタイル再計算が発生している");
         assert.equal(await page.locator(".rm-slot").count(), initial.slots.length);
         await client.send("Emulation.setCPUThrottlingRate", { rate: 1 });
@@ -708,7 +715,10 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
           for (const delta of [initial.p * 1.7, -initial.p * 1.7]) {
             const before = await layout(page);
             await page.mouse.wheel(delta, 0);
-            await page.waitForTimeout(80);
+            // Wait for the native scroll itself, not a fixed time: a slow CI
+            // runner may apply it later. Poll with timers, since rAF is stubbed.
+            await page.waitForFunction((target) => Math.abs(document.querySelector(".rm-viewport").scrollLeft - target) < 1,
+              before.x + delta, { polling: 20, timeout: 3000 }).catch(() => {});
             const state = await layout(page);
             assert.ok(Math.abs(state.x - before.x - delta) < 1, "JSの更新待ちで高速スクロールが止まった");
           }
