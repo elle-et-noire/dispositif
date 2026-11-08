@@ -1,11 +1,20 @@
 name: Deploy to GitHub Pages
 
+# 文書だけの変更では実行しない。記事（post/*.md）はサイトの内容なので除外しない。
+# 除外したファイル以外が1つでも変わっていれば実行する。
 on:
   # main へのプッシュで検査し、成功したらデプロイする。
   push:
     branches: [ main ]
+    paths-ignore: &docs-only
+      - README.md
+      - ROADMAP.md
+      - AGENTS.md
+      - CLAUDE.md
+      - docs/**
   # プルリクエストでは検査だけを行い、デプロイしない。
   pull_request:
+    paths-ignore: *docs-only
   # GitHub上のActionsタブからこのワークフローを手動で実行できます。
   workflow_dispatch:
 
