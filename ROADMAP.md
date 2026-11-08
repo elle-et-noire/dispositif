@@ -131,7 +131,8 @@ npm run build
 - 各数式の `mjx-container` に `role="img"` と、TeXのソースを `aria-label` として付ける（`lib/mathjax.ts`、`lib/math-speech.ts`）。前処理で足す前後の `\hspace` と、`\label`・`\tag` は除き、見えている式番号を末尾に足す。HTMLは数式記事で約3.5%増える。
 - MathJaxの見えないMathML（`a11y/assistive-mml`）は採らなかった。数式記事で要素数が9260から13566に増え、記事を開くまでがChromiumで +56〜146 ms、Firefoxで +71〜246 ms 遅くなった。MathMLに `content-visibility: auto` を付けるとChromiumは戻ったが、画面外の数式がアクセシビリティツリーから消えた（196個 → 1個）。MathMLを数式として読み上げるMathCATなどは日本語に対応していないことも理由である。試作はローカルのブランチ `a11y/assistive-mml` にある。
 - 読み上げ文字列を作るSREは日本語の規則がないので使わない。`role="math"` は、NVDAがMathMLのない要素を読まなかった報告があるので使わない。
-- MathMLが必要になったら、Firefoxの費用の内訳（パース・スタイル計算・レイアウト）を調べ、表示後に `<template>` から差し込むなどを試す。
+- MathMLの費用の内訳（数式記事の本文を文書へ入れて7回測った中央値の差）は、パース +4〜5 ms、スタイル計算 +12〜18 ms、レイアウトがChromium +38 ms・Firefox +79 ms（文書で1回目は +168 ms）で、大半はレイアウトだった。MathMLの中を `display: inline` にしても、Firefoxのレイアウトは +70 ms までしか減らなかった。
+- MathMLを `<template>` に入れておき、表示後に手の空いた時間で8式ずつ差し込む方式も試した。記事を開くまでの時間はChromiumで変わらず、Firefoxで一覧からの遷移が +2〜+49 ms だった。代わりに表示後、Chromiumで合計75〜135 ms（1回最長約10 ms）、Firefoxで合計265〜340 ms（1回最長20〜33 ms）の処理が0.5〜3.6秒続き、差し込むまでは数式を読めない。さらに本文に約4300要素が残るので、幅の変更や1段・n段の切り替えで本文を組み直すたびに、Firefoxで約80 msが加わる。日本語の読み上げでMathMLの利点が生きるか分からないので採らなかった。試作はローカルのブランチ `a11y/assistive-mml` にある。
 
 完了条件:
 
