@@ -31,8 +31,12 @@ const saveIndexPosition = () => {
   list.style.setProperty("--article-index-offset", `${-scrollport.scrollTop}px`);
 };
 
-document.addEventListener("astro:before-preparation", () => {
-  if (isArticle()) returnByPointer = lastInput === "pointer";
+document.addEventListener("astro:before-preparation", (event) => {
+  // History traversal (Alt+←, the back button, a mouse back button) is not a
+  // keyboard activation of a control on the page, even when its last input
+  // was the Alt+← keydown, so restore the card like a pointer return: no ring
+  // until the next key press.
+  if (isArticle()) returnByPointer = lastInput === "pointer" || event.navigationType === "traverse";
   saveIndexPosition();
 });
 
