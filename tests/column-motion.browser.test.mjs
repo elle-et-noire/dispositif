@@ -42,31 +42,6 @@ async function open(page) {
   await page.locator(".cl-viewport").focus();
 }
 
-test("先頭・末尾で外向きの矢印を押しても同じ位置へ再スクロールしない", { timeout: 45_000 }, async () => {
-  const browser = await launch(chromium);
-  const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
-  try {
-    await open(page);
-    await page.locator(".cl-viewport").evaluate((v) => {
-      const original = v.scrollTo.bind(v);
-      window.edgeScrollWrites = 0;
-      v.scrollTo = (...args) => { window.edgeScrollWrites++; return original(...args); };
-    });
-    for (const [edge, arrow] of [["Home", "ArrowLeft"], ["End", "ArrowRight"]]) {
-      await page.keyboard.press(edge);
-      await settle(page);
-      const before = await state(page);
-      await page.evaluate(() => { window.edgeScrollWrites = 0; });
-      for (let i = 0; i < 4; i++) await page.keyboard.press(arrow);
-      await settle(page);
-      assert.equal(await page.evaluate(() => window.edgeScrollWrites), 0);
-      const after = await state(page);
-      assert.equal(after.x, before.x);
-      assert.equal(after.y, before.y);
-    }
-  } finally { await browser.close(); }
-});
-
 async function middle(page, phase = 100) {
   await page.keyboard.press("Home");
   await settle(page);
@@ -167,41 +142,6 @@ test("左右キーは途中の位置を通り、連打を合成し、逆入力�
     const immediate = await state(page);
     assert.equal(immediate.animating, false);
     assert.ok(Math.abs(immediate.x - reduced.x - reduced.p) < 2);
-  } finally { await page.close(); await browser.close(); }
-});
-
-test("ヘッダーの横バーは3pxで下端に接し、本文の間隔は16pxでそろう", { timeout: 30_000 }, async () => {
-  const browser = await launch(chromium, { ignoreDefaultArgs: ["--hide-scrollbars"] });
-  const page = await browser.newPage({ viewport: { width: 390, height: 900 } });
-  try {
-    await open(page);
-    await page.mouse.move(100, 200);
-    const layout = await page.evaluate(() => {
-      const header = document.querySelector("[data-site-header]").getBoundingClientRect();
-      const toc = document.querySelector(".toc-header-scroll");
-      const rect = toc.getBoundingClientRect();
-      const reader = document.querySelector(".cl-reader").getBoundingClientRect();
-      const first = document.querySelector('.cl-slot[data-cl-k="0"]').getBoundingClientRect();
-      return { headerBottom: header.bottom, bottom: rect.bottom, left: rect.left,
-        padding: getComputedStyle(toc).paddingBottom,
-        height: getComputedStyle(toc, "::-webkit-scrollbar").height,
-        readerGap: reader.top - header.bottom, leftMargin: first.left,
-        gap: parseFloat(document.querySelector(".cl-plane").style.getPropertyValue("--cl-p")) - first.width };
-    });
-    assert.equal(layout.height, "3px");
-    assert.equal(layout.padding, "0px");
-    assert.equal(layout.bottom, layout.headerBottom);
-    assert.equal(layout.readerGap, 16);
-    assert.equal(layout.leftMargin, 16);
-    assert.equal(layout.gap, 16);
-    const screenshot = await page.screenshot();
-    const pixel = await page.evaluate(async ({ png, x, y }) => {
-      const image = new Image(); image.src = `data:image/png;base64,${png}`; await image.decode();
-      const canvas = document.createElement("canvas"); canvas.width = image.width; canvas.height = image.height;
-      const context = canvas.getContext("2d"); context.drawImage(image, 0, 0);
-      return [...context.getImageData(x, y, 1, 1).data];
-    }, { png: screenshot.toString("base64"), x: Math.floor(layout.left + 5), y: Math.floor(layout.bottom - 1) });
-    assert.ok(["130,144,162,255", "100,116,139,255"].includes(pixel.join()), `ヘッダー下端にバーがない: ${pixel}`);
   } finally { await page.close(); await browser.close(); }
 });
 

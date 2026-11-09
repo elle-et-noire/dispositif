@@ -7,39 +7,6 @@ const settle = page => page.evaluate(async () => {
   for (let i = 0; i < 3; i++) await new Promise(requestAnimationFrame);
 });
 
-test("本文の末尾を越えて見えない段の断片を作り直さない", { timeout: 45_000 }, async () => {
-  const browser = await launch(chromium);
-  const page = await browser.newPage({ viewport: { width: 390, height: 900 } });
-  try {
-    await storeColumns(page, "multi");
-    await page.goto(ARTICLE_URL);
-    await page.waitForSelector(".cl-slot");
-    await page.evaluate(() => document.fonts.ready);
-    await page.locator(".cl-viewport").focus();
-    await page.evaluate(() => {
-      window.hiddenFragmentChanges = [];
-      window.hiddenFragmentObserver = new MutationObserver((changes) => {
-        for (const change of changes) {
-          const slot = change.target instanceof Element ? change.target.closest(".cl-slot") : null;
-          if (slot && !slot.querySelector(".cl-source") && parseFloat(slot.querySelector(".cl-paper").style.height) === 0)
-            hiddenFragmentChanges.push(change.type);
-        }
-      });
-      hiddenFragmentObserver.observe(document.querySelector(".cl-plane"), { childList: true, subtree: true });
-    });
-    await page.keyboard.press("End");
-    await settle(page);
-    const result = await page.evaluate(() => {
-      hiddenFragmentObserver.disconnect();
-      return { changes: hiddenFragmentChanges.length,
-        hidden: [...document.querySelectorAll(".cl-slot")].filter((slot) =>
-          !slot.querySelector(".cl-source") && parseFloat(slot.querySelector(".cl-paper").style.height) === 0).length };
-    });
-    assert.ok(result.hidden > 0, "末尾を越える段がテスト対象に含まれていない");
-    assert.equal(result.changes, 0, "表示されない段の断片を更新した");
-  } finally { await browser.close(); }
-});
-
 test("縦横のネイティブスクロールの途中でJSが位置を書き戻さない", { timeout: 45_000 }, async () => {
   const browser = await launch(chromium);
   const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });

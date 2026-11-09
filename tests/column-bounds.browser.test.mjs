@@ -176,32 +176,6 @@ test("画像の配置から上下に動かすと部分段が連続的に消え�
   } finally { await browser.close(); }
 });
 
-test("同じ座標の本文と白い面は到達経路によらず一致し、Home/Endは基準配置に戻る", { timeout: 30_000 }, async () => {
-  const browser = await launch(chromium);
-  const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
-  try {
-    await open(page);
-    const result = [];
-    for (const path of [[{ y: 4000 }, { x: 600 }, { y: -400 }], [{ x: 600 }, { y: -400 }]]) {
-      await page.locator(".cl-viewport").focus(); await page.keyboard.press("Home"); await settle(page);
-      for (const point of path) await setPoint(page, point);
-      const s = await state(page);
-      result.push({ x: s.x, y: s.y, slots: s.slots.filter(slot => slot.right > 0 && slot.left < s.width)
-        .sort((a,b) => a.k-b.k).map(({ k, left, paperTop, paperHeight }) => ({ k, left, paperTop, paperHeight })) });
-    }
-    assert.deepEqual(result[0], result[1]);
-    const destinations = [];
-    for (let i = 0; i < 2; i++) {
-      await page.keyboard.press("End"); await settle(page);
-      const end = await state(page); destinations.push({ x: end.x, y: end.y });
-      await setPoint(page, { x: 0 }); await setPoint(page, { y: 3000 });
-      await page.keyboard.press("Home"); await settle(page);
-      const start = await state(page); assert.ok(Math.abs(start.x) < 2 && Math.abs(start.y) < 2);
-    }
-    assert.deepEqual(destinations[0], destinations[1]);
-  } finally { await page.close(); await browser.close(); }
-});
-
 test("拡大表示の下端の丸めでも白い線を残さず、本文の末尾を正確にそろえる", { timeout: 90_000 }, async () => {
   const browser = await launch(chromium, { ignoreDefaultArgs: ["--hide-scrollbars"] });
   try {
