@@ -201,7 +201,10 @@ export function renderArticleMath(texList: string[]): Promise<RenderedMath> {
         for (const child of adaptor.childNodes(node) ?? []) walk(child);
       };
       walk(slot);
-      for (const container of containers) labelForScreenReaders(adaptor, container);
+      for (const container of containers) {
+        labelForScreenReaders(adaptor, container);
+        dropLatexSource(adaptor, container);
+      }
       html[Number(attr)] = containers.map((c) => adaptor.outerHTML(c)).join("");
     }
 
@@ -251,6 +254,15 @@ function labelForScreenReaders(adaptor: LiteAdaptor, container: MathJaxNode) {
   adaptor.setAttribute(math, "aria-hidden", "true");
 }
 
+// MathJax は数式の各部分に TeX のソースを data-latex として付ける。使うのは上の
+// aria-label を作るときだけで、ブラウザー側では使わない。数式記事では数千個あり、
+// HTML の転送・パースと、n段の断片の複製の量を増やすだけなので取り除く。
+function dropLatexSource(adaptor: LiteAdaptor, node: MathJaxNode) {
+  if (adaptor.kind(node).startsWith("#")) return;
+  adaptor.removeAttribute(node, "data-latex");
+  for (const child of adaptor.childNodes(node) ?? []) dropLatexSource(adaptor, child);
+}
+
 // --- 最小限の型（mathjax node 版に型定義が無いため必要なぶんだけ宣言）---
 
 type MathJaxNode = unknown;
@@ -261,6 +273,7 @@ type LiteAdaptor = {
   kind: (node: MathJaxNode) => string;
   getAttribute: (node: MathJaxNode, name: string) => string | null;
   setAttribute: (node: MathJaxNode, name: string, value: string) => void;
+  removeAttribute: (node: MathJaxNode, name: string) => void;
   outerHTML: (node: MathJaxNode) => string;
   textContent: (node: MathJaxNode) => string;
 };
