@@ -6,19 +6,19 @@ import { SCALE, ticks, fromCss, toCss, zero, createLayout, articleColumns, horiz
 import { nativeWindow, cssGeometry, devicePixels } from "../src/scripts/column-geometry.ts";
 import { ColumnViewport } from "../src/scripts/column-viewport.ts";
 
-const layout = (width = 1600, length = 70000, overlap = 21) => createLayout(Math.min(608, width - 32), 16, 700, overlap, length, width, 16);
+const layout = (width = 1600, length = 70000) => createLayout(Math.min(608, width - 32), 16, 700, length, width, 16);
 const close = (a: number, b: number, tolerance = .001) => assert.ok(Math.abs(a - b) <= tolerance, `${a} != ${b}`);
 
 test("HomeとEndは対称な本文端で、そこから外側へ横移動できない", () => {
-  for (const width of [390, 1280, 1600]) for (const overlap of [0, 21, 175]) {
-    const g = layout(width, 70003, overlap), state = new ReadingState(g);
+  for (const width of [390, 1280, 1600]) {
+    const g = layout(width, 70003), state = new ReadingState(g);
     state.home(); const home = state.point;
     state.horizontal(ticks(-100 * g.p)); assert.deepEqual(state.point, home);
     state.end(); const end = state.point;
     state.horizontal(ticks(end.x + 100 * g.p)); assert.deepEqual(state.point, end);
-    const k = Math.floor((g.l - g.h) / g.step);
+    const k = Math.floor((g.l - g.h) / g.h);
     assert.equal(k * g.p + g.w + 2 * g.edge - end.x, g.viewportWidth);
-    assert.equal(k * g.step + end.y + g.h, g.l);
+    assert.equal(k * g.h + end.y + g.h, g.l);
     state.home(); assert.deepEqual(state.point, { x: zero, y: zero });
   }
 });
@@ -35,8 +35,8 @@ test("1段分の余白は縦方向でだけ作れ、横位置を動かさず内�
     assert.equal(fringe.x, start.x);
     const normal = horizontalRange(fringe.y, g);
     assert.equal(direction < 0 ? normal.min - fringe.x : fringe.x - normal.max, g.p);
-    const partial = direction < 0 ? 0 : Math.floor((g.l - g.h) / g.step);
-    assert.equal(paperWindow(ticks(partial * g.step + fringe.y), g).height, 0);
+    const partial = direction < 0 ? 0 : Math.floor((g.l - g.h) / g.h);
+    assert.equal(paperWindow(ticks(partial * g.h + fringe.y), g).height, 0);
     state.horizontal(ticks(fringe.x + direction * g.p));
     assert.deepEqual(state.point, fringe, "外側の余白を増やす方向に動けた");
     state.horizontal(ticks(fringe.x - direction * fromCss(13)));
@@ -52,7 +52,7 @@ test("1段分の余白は縦方向でだけ作れ、横位置を動かさず内�
 
 test("一軸だけの操作は他軸の座標を1単位も変えない", () => {
   const g = layout();
-  for (const y of [zero, ticks(g.step - 1), ticks(3 * g.step + 71)]) {
+  for (const y of [zero, ticks(g.h - 1), ticks(3 * g.h + 71)]) {
     const point = { x: ticks(2 * g.p + 19), y };
     for (const target of [ticks(-1e10), zero, ticks(1e10)]) {
       assert.equal(horizontalDestination(point, target, g).y, point.y);
@@ -63,7 +63,7 @@ test("一軸だけの操作は他軸の座標を1単位も変えない", () => {
 
 test("本文の長さだけが変わると位置を保ち、縮んだ端からだけ引き戻す", () => {
   for (const width of [390, 1280, 1600]) {
-    const before = layout(width, 70000, 0), longer = layout(width, 72000, 0), shorter = layout(width, 60000, 0);
+    const before = layout(width, 70000), longer = layout(width, 72000), shorter = layout(width, 60000);
     // Between column boundaries, at a fringe, and at the end.
     const state = new ReadingState(before);
     state.vertical(fromCss(4000)); state.horizontal(ticks(state.point.x + fromCss(213)));
@@ -80,7 +80,7 @@ test("本文の長さだけが変わると位置を保ち、縮んだ端から�
     assert.ok(pulled.x <= horizontalRange(pulled.y, shorter).max);
     assert.ok(pulled.y <= verticalRange(pulled.x, shorter).max);
     // A single sheet has no other position.
-    assert.deepEqual(refitPoint(state.point, before, layout(width, 500, 0)), { x: zero, y: zero });
+    assert.deepEqual(refitPoint(state.point, before, layout(width, 500)), { x: zero, y: zero });
   }
 });
 
@@ -97,20 +97,20 @@ test("同じ位置と操作の結果は到達経路によらず一致する", ()
 
 test("段の白い面が本文全体を覆い、末尾側の上端と先頭側の下端がずれない", () => {
   for (const length of [701,900,13573]) {
-    const g = layout(1600, length, 0);
+    const g = layout(1600, length);
     for (const y of [-1291,-100,0,173,3549].map(fromCss)) {
       const columns = articleColumns(y, g); let end = 0;
       for (let k=columns.first; k<=columns.last; k++) {
-        const from = ticks(k*g.step+y), paper = paperWindow(from,g);
-        assert.ok(from+paper.top-paper.shift <= end);
-        end = Math.max(end, from+paper.top+paper.height-paper.shift);
+        const from = ticks(k*g.h+y), paper = paperWindow(from,g);
+        assert.ok(from+paper.top <= end);
+        end = Math.max(end, from+paper.top+paper.height);
         if (from >= 0) assert.equal(paper.top, 0);
         if (from < 0 && paper.height > 0) assert.equal(paper.top+paper.height,g.h);
       }
       assert.equal(end,g.l);
     }
-    assert.equal(paperWindow(ticks(-g.step), g).height,0);
-    assert.equal(paperWindow(ticks(g.l-g.h+g.step),g).height,0);
+    assert.equal(paperWindow(ticks(-g.h), g).height,0);
+    assert.equal(paperWindow(ticks(g.l-g.h+g.h),g).height,0);
   }
 });
 
@@ -151,7 +151,7 @@ test("ハッシュ移動は対象を含む窓へ移動し、結果を整数座�
     const point=nearestPoint(target,state.point,g), columns=slotColumns(point,g);
     let visible=false;
     for(let k=columns.start;k<columns.start+columns.count;k++) {
-      const left=g.edge+k*g.p-point.x, y=target-k*g.step-point.y;
+      const left=g.edge+k*g.p-point.x, y=target-k*g.h-point.y;
       if(left>=0&&left+g.w<=g.viewportWidth&&y>=0&&y<g.h)visible=true;
     }
     assert.ok(visible); assert.ok(Number.isInteger(point.x)&&Number.isInteger(point.y));
@@ -204,8 +204,8 @@ test("ネイティブ入力の端をアダプターでだけ正規化し、末�
     assert.ok(movement?.y!==undefined);
     state.vertical(movement!.y!);adapter.place(state.point,g);
     assert.equal(state.point.x,x);assert.equal(state.point.y,limit);
-    const k=Math.floor((g.l-g.h-limit)/g.step);
-    assert.equal(paperWindow(ticks((k+1)*g.step+limit),g).height,0);
+    const k=Math.floor((g.l-g.h-limit)/g.h);
+    assert.equal(paperWindow(ticks((k+1)*g.h+limit),g).height,0);
   }
 });
 

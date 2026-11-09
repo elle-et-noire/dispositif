@@ -15,21 +15,19 @@ export interface ColumnMetrics {
   readonly w: Tick;
   readonly p: Tick;
   readonly h: Tick;
-  readonly step: Tick;
   readonly l: Tick;
   readonly viewportWidth: Tick;
   readonly edge: Tick;
 }
 export interface ReadingRange { min: Tick; max: Tick }
-export function createLayout(w: number, gap: number, h: number, overlap: number, l: number, viewportWidth: number, edge: number): ColumnMetrics {
-  const width = fromCss(w), height = fromCss(h);
-  const repeated = bounded(fromCss(overlap), 0, Math.min(height / 4, height - 1));
-  return { w: width, p: ticks(width + fromCss(gap)), h: height,
-    step: ticks(height - repeated), l: fromCss(l), viewportWidth: fromCss(viewportWidth), edge: fromCss(edge) };
+export function createLayout(w: number, gap: number, h: number, l: number, viewportWidth: number, edge: number): ColumnMetrics {
+  const width = fromCss(w);
+  return { w: width, p: ticks(width + fromCss(gap)), h: fromCss(h),
+    l: fromCss(l), viewportWidth: fromCss(viewportWidth), edge: fromCss(edge) };
 }
 export function articleColumns(y: Tick, g: ColumnMetrics) {
   if (g.l <= g.h) return { first: 0, last: 0 };
-  return { first: floorDiv(-y, g.step), last: ceilDiv(g.l - g.h - y, g.step) };
+  return { first: floorDiv(-y, g.h), last: ceilDiv(g.l - g.h - y, g.h) };
 }
 
 /** Ordinary horizontal input aligns the first/last sheet with the viewport. */
@@ -48,7 +46,7 @@ export function verticalRange(x: Tick, g: ColumnMetrics): ReadingRange {
   const extra = Math.min(g.p, Math.max(0, g.viewportWidth - g.w - 2 * g.edge));
   const first = floorDiv(x + extra, g.p);
   const last = ceilDiv(x + g.viewportWidth - g.w - 2 * g.edge - extra, g.p);
-  return { min: ticks(-first * g.step), max: ticks(Math.max(0, g.l - g.h) - last * g.step) };
+  return { min: ticks(-first * g.h), max: ticks(Math.max(0, g.l - g.h) - last * g.h) };
 }
 
 /** A fringe reached vertically may be exited continuously, but not enlarged. */
@@ -71,26 +69,26 @@ export function verticalDestination(point: ReadingPoint, y: Tick, g: ColumnMetri
 export function restoredPoint(anchor: Tick, g: ColumnMetrics): ReadingPoint {
   const t = bounded(anchor, 0, Math.max(0, g.l - g.h));
   if (g.l <= g.h) return { x: zero, y: zero };
-  const k = floorDiv(t, g.step), y = ticks(t - k * g.step);
+  const k = floorDiv(t, g.h), y = ticks(t - k * g.h);
   const range = horizontalRange(y, g);
   return { x: bounded(k * g.p, range.min, range.max), y };
 }
 export function endPoint(g: ColumnMetrics): ReadingPoint {
   const t = ticks(Math.max(0, g.l - g.h));
   const restored = restoredPoint(t, g);
-  const k = floorDiv(t, g.step), range = horizontalRange(restored.y, g);
+  const k = floorDiv(t, g.h), range = horizontalRange(restored.y, g);
   return { x: bounded(k * g.p + g.w + 2 * g.edge - g.viewportWidth, range.min, range.max), y: restored.y };
 }
 export function readingPosition(point: ReadingPoint, g: ColumnMetrics): Tick {
-  return bounded(floorDiv(point.x, g.p) * g.step + point.y, 0, Math.max(0, g.l - g.h));
+  return bounded(floorDiv(point.x, g.p) * g.h + point.y, 0, Math.max(0, g.l - g.h));
 }
 export function nearestPoint(anchor: Tick, point: ReadingPoint, g: ColumnMetrics): ReadingPoint {
   const t = bounded(anchor, 0, Math.max(0, g.l - g.h));
   // Only candidate selection uses a floating distance. The resulting position
   // and all constraints are exact integer coordinates.
-  const p = toCss(g.p), s = toCss(g.step);
+  const p = toCss(g.p), s = toCss(g.h);
   const k = Math.round((p * toCss(point.x) + s * toCss(t - point.y)) / (p * p + s * s));
-  const y = ticks(t - k * g.step), range = horizontalRange(y, g);
+  const y = ticks(t - k * g.h), range = horizontalRange(y, g);
   return { x: bounded(k * g.p, range.min, range.max), y };
 }
 /** A change in article length alone (a details element opened or closed, an
@@ -117,13 +115,10 @@ export function visibleColumnCount(point: ReadingPoint, g: ColumnMetrics) {
   return Math.max(1, last - first + 1);
 }
 
-/** Rounded trimming never removes more context than the neighbour contains. */
+/** The part of a column that holds article text, from the column's top. */
 export function paperWindow(from: Tick, g: ColumnMetrics) {
   const top = bounded(-from, 0, g.h), bottom = bounded(g.l - from, top, g.h);
-  const overlap = g.h - g.step;
-  const head = g.l > g.h ? floorDiv(overlap * bounded(-from, 0, g.step), g.step) : 0;
-  const tail = g.l > g.h ? floorDiv(overlap * bounded(from + g.h - g.l, 0, g.step), g.step) : 0;
-  return { top: bounded(top + head, 0, g.h), height: ticks(Math.max(0, bottom - top - head - tail)), shift: ticks(head - tail) };
+  return { top, height: ticks(bottom - top) };
 }
 
 export class ReadingState {

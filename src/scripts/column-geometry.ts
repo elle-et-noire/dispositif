@@ -14,7 +14,7 @@ export const devicePixels = (value: number, unit: number) => {
 
 /** CSS-only projection. Never use these browser-rounded values as app state. */
 export interface ColumnGeometry {
-  w: number; p: number; h: number; step: number; l: number;
+  w: number; p: number; h: number; l: number;
   viewportWidth: number; edge: number; unit: number;
   originColumn: number; originY: number; leading: number;
   n: number; maxX: number; maxY: number;
@@ -40,7 +40,7 @@ export function nativeWindow(point: ReadingPoint, g: ColumnMetrics, previous?: N
   return { x, y, column, count };
 }
 export function cssGeometry(g: ColumnMetrics, point: ReadingPoint, window: NativeWindow, nativeX: number, nativeY: number, unit: number): ColumnGeometry {
-  return { w: toCss(g.w), p: toCss(g.p), h: toCss(g.h), step: toCss(g.step), l: toCss(g.l),
+  return { w: toCss(g.w), p: toCss(g.p), h: toCss(g.h), l: toCss(g.l),
     viewportWidth: toCss(g.viewportWidth), edge: toCss(g.edge), unit,
     // Share the adapter's integer grid: native scrolling then leaves these
     // offsets constant instead of rewriting every text root for sub-tick noise.

@@ -24,7 +24,6 @@ async function layout(page) {
       maxX: viewport.scrollWidth - viewport.clientWidth,
       maxY: viewport.scrollHeight - viewport.clientHeight,
       h: viewport.clientHeight,
-      step: parseFloat(plane.style.getPropertyValue("--cl-step")),
       p: parseFloat(plane.style.getPropertyValue("--cl-p")),
       edge: parseFloat(plane.style.getPropertyValue("--cl-edge")),
       leading: Number(plane.dataset.clLeading),
@@ -41,7 +40,7 @@ async function layout(page) {
           k: Number(slot.dataset.clK),
           paperTop: parseFloat(slot.querySelector(".cl-paper").style.top),
           paperHeight: parseFloat(slot.querySelector(".cl-paper").style.height),
-          contentShift: parseFloat(slot.querySelector(".cl-content").style.translate.split(/\s+/)[1] ?? "0") + Number(slot.dataset.clK) * parseFloat(plane.style.getPropertyValue("--cl-step")) + Number(plane.dataset.clOriginY),
+          contentShift: parseFloat(slot.querySelector(".cl-content").style.translate.split(/\s+/)[1] ?? "0") + Number(slot.dataset.clK) * parseFloat(plane.style.getPropertyValue("--cl-h")) + Number(plane.dataset.clOriginY),
           left: frame.left,
           width: frame.width,
           top: frame.top,
@@ -80,7 +79,7 @@ async function assertPainted(page) {
     for (const offset of [23, 111, Math.floor(state.h / 2) + 7, state.h - 23]) {
       const y = Math.floor(state.top + offset);
       // Sample the actual pixel center, avoiding text at the row's left edge.
-      const t = slot.k * state.step + state.y + y + 0.5 - state.top - slot.contentShift;
+      const t = slot.k * state.h + state.y + y + 0.5 - state.top - slot.contentShift;
       samples.push({
         x: slot.sampleX,
         y,
@@ -99,11 +98,6 @@ async function assertPainted(page) {
     assert.deepEqual(pixels[i], samples[i].expected,
       `段 ${samples[i].column} の画素 (${samples[i].x}, ${samples[i].y}) が本文と一致しない。scrollTop=${state.y}`);
   }
-}
-
-async function assertNoOverlap(page) {
-  const state = await layout(page);
-  assert.equal(state.h - state.step, 0, "段の本文が重複している");
 }
 
 async function settle(page) {
@@ -161,7 +155,7 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
 
           // Partial sheets and side canvas are now reachable; horizontal
           // gestures must keep the current vertical text coordinate.
-          for (const y of [0, Math.floor(initial.step / 2), initial.step - 1]) {
+          for (const y of [0, Math.floor(initial.h / 2), initial.h - 1]) {
             await scrollLogical(page, 0, y);
             await page.locator(".cl-viewport").focus();
             await page.keyboard.press("ArrowLeft");
@@ -175,15 +169,14 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
           }
 
           // The user's example: down one text advance, then left one column.
-          await scrollLogical(page, 0, initial.step);
+          await scrollLogical(page, 0, initial.h);
           await page.locator(".cl-viewport").focus();
           await page.keyboard.press("ArrowLeft");
           await settle(page);
           const negative = await layout(page);
           assert.equal(Math.floor((negative.x - negative.leading + 0.01) / negative.p) + negative.origin, -1);
-          assert.equal(negative.y, initial.step);
+          assert.equal(negative.y, initial.h);
           await assertPainted(page);
-          await assertNoOverlap(page);
           await page.keyboard.press("ArrowLeft");
           await settle(page);
           const beforePageUp = await layout(page);
@@ -193,7 +186,7 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
           assert.ok(Math.abs(afterPageUp.x + afterPageUp.origin * afterPageUp.p - beforePageUp.x - beforePageUp.origin * beforePageUp.p) < 1);
           assert.ok(afterPageUp.y <= beforePageUp.y);
 
-          await scrollLogical(page, 0, 2 * initial.step);
+          await scrollLogical(page, 0, 2 * initial.h);
           await page.keyboard.press("ArrowLeft");
           await page.keyboard.press("ArrowLeft");
           await page.keyboard.press("ArrowLeft");
@@ -201,19 +194,17 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
           const two = await layout(page);
           assert.equal(two.x, 0);
           assert.ok(two.slots.some(slot => slot.visible && slot.k === -2));
-          assert.equal(two.y, 2 * initial.step);
+          assert.equal(two.y, 2 * initial.h);
           await assertPainted(page);
 
           for (const y of [0, 37, 220, initial.h - 1, initial.h + 47, 2 * initial.h + 173,
             initial.l - initial.h - 17]) {
             await scrollLogical(page, 0, y);
             await assertPainted(page);
-            await assertNoOverlap(page);
           }
           // Recycling and diagonal movement must paint the right source rows too.
           await scrollLogical(page, 3, 220);
           await assertPainted(page);
-          await assertNoOverlap(page);
 
           const beforeWheel = await layout(page);
           await page.mouse.move(beforeWheel.left + 100, beforeWheel.top + 100);
@@ -240,16 +231,16 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
                   for (let i = 0; i < 8; i++) await page.keyboard.press(direction < 0 ? "ArrowLeft" : "ArrowRight");
                 } else {
                   await page.locator(".cl-viewport").evaluate((viewport, direction) => {
-                    const step = parseFloat(document.querySelector(".cl-plane").style.getPropertyValue("--cl-step"));
-                    viewport.scrollBy({ top: -direction * 8 * step, behavior: "instant" });
+                    const h = parseFloat(document.querySelector(".cl-plane").style.getPropertyValue("--cl-h"));
+                    viewport.scrollBy({ top: -direction * 8 * h, behavior: "instant" });
                   }, direction);
                 }
                 await settle(page);
               }
               const moved = await layout(page);
               const k = Math.floor((moved.x - moved.leading + 0.01) / moved.p) + moved.origin;
-              assert.ok(Math.abs(k * moved.step + moved.y - 220) < 1,
-                `座標の組み替えで本文位置がずれた: ${JSON.stringify({ direction, cycle, k, x: moved.x, y: moved.y, step: moved.step, origin: moved.origin, originY: moved.originY })}`);
+              assert.ok(Math.abs(k * moved.h + moved.y - 220) < 1,
+                `座標の組み替えで本文位置がずれた: ${JSON.stringify({ direction, cycle, k, x: moved.x, y: moved.y, h: moved.h, origin: moved.origin, originY: moved.originY })}`);
               assert.ok(Math.abs((moved.x - moved.leading) % moved.p - 73) < 1, "横移動が段境界に吸着した");
               assert.equal(moved.slots.length, slotCount, "移動するほど本文複製が増えた");
               origins.add(`${moved.origin}:${moved.originY}`);
@@ -259,7 +250,7 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
           assert.ok(origins.size >= 4, "スクロール領域の端を越す移動を確認できない");
 
           // The final real page stays visible; no input can expose an empty one.
-          for (const y of [0, Math.floor(initial.step / 2), initial.step, 2 * initial.step]) {
+          for (const y of [0, Math.floor(initial.h / 2), initial.h, 2 * initial.h]) {
             await scrollLogical(page, 0, y);
             // The scrollbar spans a finite native window. Keep moving
             // across rebases until the logical article end is reached.
@@ -275,10 +266,10 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
             const right = await layout(page);
             assert.equal(right.x, right.maxX);
             const visible = right.slots.filter((slot) => slot.visible);
-            assert.ok(visible.every((slot) => slot.k * right.step + right.y < right.l));
+            assert.ok(visible.every((slot) => slot.k * right.h + right.y < right.l));
             const last = visible.reduce((a, b) => a.k > b.k ? a : b);
-            assert.ok(last.k * right.step + right.y < right.l);
-            assert.ok(last.k * right.step + right.y + right.step >= right.l - 1);
+            assert.ok(last.k * right.h + right.y < right.l);
+            assert.ok(last.k * right.h + right.y + right.h >= right.l - 1);
             const exterior = right.left + right.width - last.left - last.width;
             assert.ok(exterior >= right.edge - 1 && exterior <= right.p + right.edge + 1,
               "末尾の余白が1段幅を超えた");
@@ -302,8 +293,8 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
             await settle(page);
             const atBottom = await layout(page);
             const bottomColumn = Math.max(...atBottom.slots.filter((slot) => slot.visible).map((slot) => slot.k));
-            assert.ok(bottomColumn * atBottom.step + atBottom.y < atBottom.l);
-            assert.ok(bottomColumn * atBottom.step + atBottom.y + atBottom.h >= atBottom.l - 1);
+            assert.ok(bottomColumn * atBottom.h + atBottom.y < atBottom.l);
+            assert.ok(bottomColumn * atBottom.h + atBottom.y + atBottom.h >= atBottom.l - 1);
             assert.ok(Math.abs(atBottom.nativeY - atBottom.maxY) < 1);
             for (const key of ["PageDown", " "]) {
               await page.keyboard.press(key);
@@ -335,8 +326,8 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
             }, edge);
             await settle(page);
             const actual = await layout(page);
-            assert.ok(actual.slots.some(slot => slot.visible && slot.k * actual.step + actual.y < actual.l && slot.k * actual.step + actual.y + actual.h > 0));
-            assert.ok(actual.slots.filter((slot) => slot.visible).every((slot) => slot.k * actual.step + actual.y < actual.l));
+            assert.ok(actual.slots.some(slot => slot.visible && slot.k * actual.h + actual.y < actual.l && slot.k * actual.h + actual.y + actual.h > 0));
+            assert.ok(actual.slots.filter((slot) => slot.visible).every((slot) => slot.k * actual.h + actual.y < actual.l));
             await assertPainted(page);
           }
           // Home/End work regardless of how far away the virtual origin is.
@@ -345,10 +336,10 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
             await page.keyboard.press(key);
             await settle(page);
             const state = await layout(page);
-            const t = (Math.floor((state.x - state.leading + 0.01) / state.p) + state.origin) * state.step + state.y;
+            const t = (Math.floor((state.x - state.leading + 0.01) / state.p) + state.origin) * state.h + state.y;
             if (key === "Home") assert.ok(Math.abs(t) < 1);
             else assert.ok(state.slots.filter((slot) => slot.visible).some((slot) => {
-              const py = state.l - 1 - slot.k * state.step - state.y;
+              const py = state.l - 1 - slot.k * state.h - state.y;
               return py >= 0 && py < state.h;
             }), "Endで本文末尾が表示されない");
             await assertPainted(page);
@@ -359,7 +350,6 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
               === document.querySelector(".cl-viewport").clientHeight);
           await settle(page);
           await assertPainted(page);
-          await assertNoOverlap(page);
         } catch (error) {
           const path = join(tmpdir(), `dispositif-column-paint-${viewport.width}.png`);
           await page.screenshot({ path }).catch(() => {});
@@ -389,13 +379,13 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
         await page.evaluate(() => { location.hash = "cl-far-end"; });
         await page.waitForFunction(() => {
           const v = document.querySelector(".cl-viewport"), s = document.querySelector(".cl-plane").style;
-          const step = parseFloat(s.getPropertyValue("--cl-step"));
+          const h = parseFloat(s.getPropertyValue("--cl-h"));
           const target = document.getElementById("cl-far-end").getBoundingClientRect().top
             - document.querySelector(".cl-source").getBoundingClientRect().top;
           const vr = v.getBoundingClientRect();
           return [...document.querySelectorAll(".cl-slot")].some((slot) => {
             const r = slot.getBoundingClientRect();
-            const py = target - Number(slot.dataset.clK) * step - v.scrollTop - parseFloat(document.querySelector(".cl-plane").dataset.clOriginY);
+            const py = target - Number(slot.dataset.clK) * h - v.scrollTop - parseFloat(document.querySelector(".cl-plane").dataset.clOriginY);
             return r.left >= vr.left - 1 && r.right <= vr.right + 1 && py >= -1 && py < v.clientHeight;
           });
         });
@@ -404,7 +394,7 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
         const headingT = await page.locator("#cl-far-end").evaluate((heading) =>
           heading.getBoundingClientRect().top - document.querySelector(".cl-source").getBoundingClientRect().top);
         const target = atHash.slots.filter((slot) => slot.visible).map((slot) => ({
-          ...slot, py: headingT - slot.k * atHash.step - atHash.y,
+          ...slot, py: headingT - slot.k * atHash.h - atHash.y,
         })).find((slot) => slot.py >= 0 && slot.py < atHash.h - 23);
         assert.ok(target, "遠い見出しが可視段の中にない");
         const [pixel] = await readPixels(page, [{
@@ -416,10 +406,10 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
           await page.keyboard.press(key);
           await settle(page);
           const s = await layout(page);
-          const t = (Math.floor((s.x - s.leading + 0.01) / s.p) + s.origin) * s.step + s.y;
+          const t = (Math.floor((s.x - s.leading + 0.01) / s.p) + s.origin) * s.h + s.y;
           if (key === "Home") assert.ok(Math.abs(t) < 1);
           else assert.ok(s.slots.filter((slot) => slot.visible).some((slot) => {
-            const py = s.l - 1 - slot.k * s.step - s.y;
+            const py = s.l - 1 - slot.k * s.h - s.y;
             return py >= 0 && py < s.h;
           }));
           assert.equal(await page.locator(".cl-content").count(), count);
@@ -463,7 +453,7 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
           await settle(page);
           const resized = await layout(page);
           const last = Math.max(...resized.slots.filter((slot) => slot.visible).map((slot) => slot.k));
-          assert.ok(Math.abs(last * resized.step + resized.y + resized.h - resized.l) < 1, JSON.stringify({ last, resized }));
+          assert.ok(Math.abs(last * resized.h + resized.y + resized.h - resized.l) < 1, JSON.stringify({ last, resized }));
           await page.keyboard.press("PageDown");
           await settle(page);
           const afterPage = await layout(page);
@@ -471,7 +461,7 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
           const w = resized.slots[0].width;
           const extra = Math.min(resized.p, Math.max(0, resized.width - w - 2 * resized.edge));
           const boundaryColumn = Math.ceil((logicalX + resized.width - w - 2 * resized.edge - extra) / resized.p);
-          const stop = resized.l - resized.h - boundaryColumn * resized.step;
+          const stop = resized.l - resized.h - boundaryColumn * resized.h;
           assert.ok(Math.abs(afterPage.y - stop) < 1, "縦操作専用の余白の終点で止まらない");
           assert.ok(Math.abs(afterPage.x + afterPage.origin * afterPage.p - afterPage.leading - logicalX) < 1,
             "End後の縦操作で横位置が動いた");

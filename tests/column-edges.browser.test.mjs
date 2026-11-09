@@ -17,20 +17,20 @@ async function state(page) {
     const plane = document.querySelector(".cl-plane");
     const p = parseFloat(plane.style.getPropertyValue("--cl-p"));
     const w = parseFloat(plane.style.getPropertyValue("--cl-w"));
-    const step = parseFloat(plane.style.getPropertyValue("--cl-step"));
+    const h = parseFloat(plane.style.getPropertyValue("--cl-h"));
     const edge = parseFloat(plane.style.getPropertyValue("--cl-edge"));
     const x = viewport.scrollLeft + Number(plane.dataset.clOriginColumn) * p - Number(plane.dataset.clLeading);
     const y = viewport.scrollTop + Number(plane.dataset.clOriginY);
     let first = Math.ceil((x - edge - 0.01) / p);
     let last = Math.floor((x + viewport.clientWidth - edge - w + 0.01) / p);
     if (first > last) first = last = Math.round((x + viewport.clientWidth / 2 - edge - w / 2) / p);
-    return { x, y, p, w, step, first, last, edge, width: viewport.clientWidth,
+    return { x, y, p, w, first, last, edge, width: viewport.clientWidth,
       h: viewport.clientHeight, l: parseFloat(plane.style.getPropertyValue("--cl-l")),
       hasEnd: [...document.querySelectorAll(".cl-slot")].some(slot => {
         const r = slot.getBoundingClientRect(), v = viewport.getBoundingClientRect();
         return r.left >= v.left - 1 && r.right <= v.right + 1
           && parseFloat(slot.querySelector(".cl-paper").style.height) >= viewport.clientHeight - 1
-          && Math.abs(Number(slot.dataset.clK) * step + y + viewport.clientHeight - parseFloat(plane.style.getPropertyValue("--cl-l"))) < 2;
+          && Math.abs(Number(slot.dataset.clK) * h + y + viewport.clientHeight - parseFloat(plane.style.getPropertyValue("--cl-l"))) < 2;
       }) };
   });
 }
