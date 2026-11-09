@@ -8,8 +8,8 @@ Astroベースの記事サイトです。記事はビルド時にMarkdownからH
 /
 ├── docs/
 │   ├── article-open.md                  # 記事を開くまでの処理と計測方法
+│   ├── article-open-history.md          # 記事を開くまでの時間を短くした変更の記録
 │   ├── column-layout.md                 # 段組みの実装
-│   ├── column-preload-investigation.md  # 記事を開くまでの時間を短くした変更の記録
 │   └── math-accessibility.md            # 数式の読み上げ方式の決定記録
 ├── lib/                    # 記事取得、Markdown前処理、MathJax変換、単体テスト（*.test.ts）
 ├── post/                   # Markdown記事
@@ -98,7 +98,7 @@ npm run test:browser   # astro preview などを起動した状態で
 - 本文全体のスタイル再計算がFirefoxだけで再発すること。この検査は `column-layout` にあり、Chromiumでしか実行しません。
 - 1段で一覧から記事を開き、ブラウザーの戻るで一覧へ戻ったときに、一覧の位置が復元されないこと。n段の同じ経路は `column-ordinary-navigation` が確かめます。
 
-テストのほかに、開発サーバでは長い記事、モバイル幅、斜めホイール、折りたたみ・コピー、ハッシュ、印刷、ClientRouter 遷移も確認してください。
+テストで確かめられない項目は、`ROADMAP.md` の「手作業での確認」の一覧で確認します。
 
 ## 記事の段組み
 

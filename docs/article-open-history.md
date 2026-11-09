@@ -1,6 +1,6 @@
-# 段組み先読みの調査メモ
+# 記事を開くまでの時間を短くした変更の記録
 
-> 一覧や直接の読み込みから記事を表示するまでの時間を短くした変更の記録である。現在の処理、計測の手順、残っている課題は `docs/article-open.md` にある。各節の試験の記述は当時のもので、現在の試験が確かめることは `README.md` の「テスト」にある。各節は次の表のPRに対応する。
+> 現在の処理、計測の手順、残っている課題は `docs/article-open.md` にある。各節の試験の記述は当時のもので、現在の試験が確かめることは `README.md` の「テスト」にある。各節は次の表のPRに対応する。
 >
 > 2026-11-09に「読書モード」を「段組み」に改名した。この文書に出てくる古い名前は、現在の名前に次のように対応する。`rm-`は`cl-`、`rm-active`は`cl-multi`、`rm:off`は`cl:single`、`reading-mode.ts`は`column-layout.ts`、ほかの`reading-*.ts`は`column-*.ts`（`reading-history.ts`は名前を変えていない）、`ReadingMode.astro`は`ColumnLayout.astro`、`reading-mode.css`は`column-layout.css`、`tests/reading-*.browser.test.mjs`は`tests/column-*.browser.test.mjs`、環境変数`RM_*`は`TEST_*`、保存キー`dispositif:reading-mode`は`dispositif:columns`、URLの`?view=`は`?columns=`である。`tests/reading-preload-navigation.browser.test.mjs`は改名後にPR #30で削除した。
 >
