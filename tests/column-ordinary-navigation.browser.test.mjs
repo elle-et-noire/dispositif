@@ -125,7 +125,7 @@ for (const [name, engine] of engines) {
   });
 
   for (const mode of ['multi', 'single']) {
-    test(`${name}: ${mode} contents links update the address and closing restores the index`, { timeout: 120_000 }, async () => {
+    test(`${name}: ${mode} contents links update the address, and closing or going back restores the index`, { timeout: 120_000 }, async () => {
       const browser = await launch(engine);
       try {
         const context = await newContext(browser);
@@ -166,6 +166,14 @@ for (const [name, engine] of engines) {
         await indexReady(page);
         await frames(page);
         assert.equal(await indexScroll(page), listY);
+        assert.match(await focusedHref(page), /tips-wsl\/$/);
+        // The browser's back button restores the index the same way.
+        await link.click();
+        await articleReady(page, 'tips-wsl');
+        await page.goBack();
+        await indexReady(page);
+        await frames(page);
+        assert.equal(await indexScroll(page), listY, 'back did not restore the index position');
         assert.match(await focusedHref(page), /tips-wsl\/$/);
         assert.deepEqual(context.errors, []);
         await context.close();
