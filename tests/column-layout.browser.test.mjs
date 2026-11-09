@@ -36,16 +36,19 @@ async function layout(page) {
         const style = getComputedStyle(slot.querySelector(".cl-content"));
         const textLeft = frame.left + parseFloat(style.paddingLeft);
         const textRight = frame.right - parseFloat(style.paddingRight);
+        // The part of the paper inside the column's window.
+        const paper = slot.querySelector(".cl-paper").getBoundingClientRect();
+        const paperTop = Math.max(paper.top, frame.top), paperHeight = Math.max(0, Math.min(paper.bottom, frame.bottom) - paperTop);
         return {
           k: Number(slot.dataset.clK),
-          paperTop: parseFloat(slot.querySelector(".cl-paper").style.top),
-          paperHeight: parseFloat(slot.querySelector(".cl-paper").style.height),
+          paperTop: paperTop - frame.top,
+          paperHeight,
           contentShift: parseFloat(slot.querySelector(".cl-content").style.translate.split(/\s+/)[1] ?? "0") + Number(slot.dataset.clK) * parseFloat(plane.style.getPropertyValue("--cl-h")) + Number(plane.dataset.clOriginY),
           left: frame.left,
           width: frame.width,
           top: frame.top,
           height: frame.height,
-          visible: parseFloat(slot.querySelector(".cl-paper").style.height) > 1 && textRight > rect.left + 8 && textLeft < rect.left + viewport.clientWidth - 8,
+          visible: paperHeight > 1 && textRight > rect.left + 8 && textLeft < rect.left + viewport.clientWidth - 8,
           sampleX: Math.floor(Math.min(Math.max(textLeft + (textRight - textLeft) * 0.85, rect.left + 8),
             rect.left + viewport.clientWidth - 8)),
         };

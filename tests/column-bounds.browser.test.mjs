@@ -23,9 +23,13 @@ async function state(page) {
       nativeX: v.scrollLeft, nativeY: v.scrollTop, maxY: v.scrollHeight - v.clientHeight,
       slots: [...document.querySelectorAll(".cl-slot")].map(slot => {
         const r = slot.getBoundingClientRect(), paper = slot.querySelector(".cl-paper");
-        const pr = paper.getBoundingClientRect();
+        // The part of the paper inside the column's window, in units of the
+        // window, whose height is h.
+        // A column outside the article is hidden whole by its track's clip.
+        const pr = paper.getBoundingClientRect(), shown = Math.max(pr.top, r.top), scale = r.height / h;
+        const hidden = getComputedStyle(slot.parentElement).clipPath === "inset(50%)";
         return { k: Number(slot.dataset.clK), left: r.left / zoom, right: r.right / zoom,
-          paperTop: parseFloat(paper.style.top), paperHeight: parseFloat(paper.style.height),
+          paperTop: (shown - r.top) / scale, paperHeight: hidden ? 0 : Math.max(0, Math.min(pr.bottom, r.bottom) - shown) / scale,
           contentShift: parseFloat(slot.querySelector(".cl-content").style.translate.split(/\s+/)[1] ?? "0") + Number(slot.dataset.clK) * h + Number(plane.dataset.clOriginY),
           paperY: pr.y, paperX: pr.x, paperBottom: pr.bottom };
       }) };

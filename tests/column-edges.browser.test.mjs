@@ -29,7 +29,8 @@ async function state(page) {
       hasEnd: [...document.querySelectorAll(".cl-slot")].some(slot => {
         const r = slot.getBoundingClientRect(), v = viewport.getBoundingClientRect();
         return r.left >= v.left - 1 && r.right <= v.right + 1
-          && parseFloat(slot.querySelector(".cl-paper").style.height) >= viewport.clientHeight - 1
+          && Math.min(slot.querySelector(".cl-paper").getBoundingClientRect().bottom, r.bottom)
+            - Math.max(slot.querySelector(".cl-paper").getBoundingClientRect().top, r.top) >= r.height - 1
           && Math.abs(Number(slot.dataset.clK) * h + y + viewport.clientHeight - parseFloat(plane.style.getPropertyValue("--cl-l"))) < 2;
       }) };
   });

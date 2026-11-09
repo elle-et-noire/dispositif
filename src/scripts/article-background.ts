@@ -97,7 +97,11 @@ document.addEventListener("click", (event) => {
     && event.clientY >= frame.top && event.clientY <= frame.bottom
     && (event.clientX >= frame.left + viewport.clientWidth * scale
       || event.clientY >= frame.top + viewport.clientHeight * scale)) return;
-  const onPaper = Array.from(document.querySelectorAll<HTMLElement>(".cl-paper"))
+  // A column's paper spans the whole article; only the part inside the
+  // viewport is visible.
+  const inFrame = event.clientX >= frame.left && event.clientX < frame.right
+    && event.clientY >= frame.top && event.clientY < frame.bottom;
+  const onPaper = inFrame && Array.from(document.querySelectorAll<HTMLElement>(".cl-paper"))
     .some((paper) => {
       const rect = paper.getBoundingClientRect();
       const x = event.clientX - rect.left, y = event.clientY - rect.top;
