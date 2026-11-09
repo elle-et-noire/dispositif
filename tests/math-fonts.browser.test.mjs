@@ -51,12 +51,47 @@ test("フォント準備を再実行しても配信を維持し、1段・n段・
         await page.goto(BASE_URL);
         await page.locator('a[href*="/symmetric-polynomial"]').first().click();
         await page.waitForURL("**/symmetric-polynomial/");
-        await page.waitForSelector("html.rm-ready");
+        // rm-ready comes before the reader applies the mode in its first frame;
+        // rm-pending goes after it.
+        await page.waitForSelector("html.rm-ready:not(.rm-pending)");
         await assertMathFonts(page);
         assert.equal(await page.locator("html").evaluate((html) => html.classList.contains("rm-active")), mode === "multi");
         await page.reload();
         await assertMathFonts(page);
       } finally { await page.close(); }
+    }
+  } finally { await browser.close(); }
+});
+
+// A math font that is found only during the first layout arrives after it,
+// and the whole article is laid out again, so the article preloads every math
+// font it uses. A preloaded font that the page never uses would be a wasted
+// download (and a console warning).
+test("数式の記事は、使う数式フォントをすべて preload し、使わないものは preload しない", { timeout: 60_000 }, async () => {
+  const browser = await chromium.launch({ executablePath: process.env.RM_BROWSER_PATH || undefined });
+  try {
+    const index = await browser.newPage();
+    await index.goto(BASE_URL);
+    const articles = await index.locator("a[data-math-fonts]").evaluateAll((links) => links.map((link) => link.getAttribute("href")));
+    await index.close();
+    assert.ok(articles.length > 0, "数式の記事が一覧にない");
+    for (const href of articles) {
+      for (const view of ["single", "multi"]) {
+        const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+        try {
+          const requested = new Set();
+          page.on("request", (request) => {
+            const url = new URL(request.url());
+            if (url.pathname.includes("/fonts/mjx/")) requested.add(url.pathname);
+          });
+          await page.goto(new URL(`${href}?view=${view}`, BASE_URL).href);
+          await page.waitForSelector("html.rm-ready:not(.rm-pending)");
+          await page.evaluate(() => document.fonts.ready);
+          const preloaded = await page.locator("link[data-math-font-preload]").evaluateAll((links) =>
+            links.map((link) => new URL(link.href).pathname));
+          assert.deepEqual([...requested].sort(), [...new Set(preloaded)].sort(), `${href} (${view})`);
+        } finally { await page.close(); }
+      }
     }
   } finally { await browser.close(); }
 });

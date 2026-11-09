@@ -162,6 +162,8 @@ const {
           root.classList.add("rm-fallback");
           root.classList.remove("rm-pending");
           document.querySelector(".rm-article-scrollport")?.removeAttribute("aria-hidden");
+          // The table of contents skipped its position while pre-mounted (Toc.astro).
+          document.dispatchEvent(new CustomEvent("rm:off"));
         }, 10000);
       };
       armReaderFallback();

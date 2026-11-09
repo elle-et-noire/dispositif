@@ -126,6 +126,8 @@ n段表示ではコードを段幅で折り返し、折り返した行は行番�
 一覧から記事を開くとき（ClientRouter による遷移）と、記事を直接読み込むときの表示を速くするため、次の処理を入れています。経緯と計測値は `docs/reading-preload-investigation.md` にあります。
 
 - 数式フォントの先読み（`src/scripts/math-font-prefetch.ts`、`lib/math-fonts.ts`）: ビルド時に記事ごとの数式フォントを `data-math-fonts` に書き出し、一覧のカードに80msホバーまたはフォーカスすると `FontFace.load()` で読み込みます。タッチ、オフライン、データ節約、2G回線では行いません。`astro:before-swap` で読み込み済みのフォントを `document.fonts` に記事の `@font-face` と同じ名前で加え、遷移先の文書から同じフォントの `@font-face` と preload を取り除きます。
+- 数式フォントの preload（`src/pages/[slug].astro`）: 記事が使う数式フォントをすべて `<link rel="preload">` で読み込みます。最初のレイアウトの途中で見つかったフォントはそのレイアウトの後に届き、届くたびに記事全体をレイアウトし直すためです。Nunito は preload しません。FCP が遅れるだけで、レイアウトの回数は減らなかったためです。
+- n段で本文を段へ入れている間（`rm-premount`）は、目次が見出しの位置を読みません（`src/components/Toc.astro`）。n段では読書モードが `rm:heading` で現在の見出しを伝えるので、ここで位置を読むと、記事全体のレイアウトを強制するだけになります。1段で始めるときは、読書モードが `rm:off` を送り、目次がそこで位置を合わせます。
 - n段の本文を先に段へ入れる（`src/layouts/Layout.astro` の head のスクリプト）: 遷移先URLの `?view=`、指定がなければ保存された選択でn段になるときだけ、遷移では `astro:before-swap`、直接の読み込みでは MutationObserver で `.rm-source` を段の幅の枠へ移し、本文を1段の幅でレイアウトしないようにします。本文の途中にインラインスクリプトは置きません。
 - 準備中の本文は `clip-path: inset(50%)` と、スクロールポートの `aria-hidden="true"` で隠します。`visibility: hidden` は外すときに本文全体のスタイル計算を起こすので使いません。JavaScript が無いときは何も付けません。準備中は Tab キーを無視し、隠れた本文にフォーカスが入らないようにします。`inert` は `visibility` と同じく付け外しで本文全体のスタイル計算を起こすので使いません。
 - `astro.config.mjs` の Vite プラグインが、Tailwind Typography の `[class~=not-prose]` を `.not-prose` に書き換えます。`<html>` のクラスが変わるたびに Chromium が文書全体のスタイルを計算し直すのを避けるためです。

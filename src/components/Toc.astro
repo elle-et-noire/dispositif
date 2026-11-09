@@ -204,8 +204,13 @@ const { headings, variant = "header" } = Astro.props;
         ? (Number.parseFloat(getComputedStyle(headings[0]).scrollMarginTop) || 64) + 1
         : 64;
 
+      // In n段 the reader picks the heading (rm:heading). While the article is
+      // pre-mounted for it (rm-premount, Layout.astro), reading positions here
+      // would only force a layout of the whole article; if the reader starts
+      // in 1段 instead, it sends rm:off, which syncs.
       const syncActiveToScrollPosition = () => {
-        if (document.documentElement.classList.contains("rm-active")) return;
+        const { classList } = document.documentElement;
+        if (classList.contains("rm-active") || classList.contains("rm-premount")) return;
         const offset = activeOffset();
         const current =
           [...headings]
