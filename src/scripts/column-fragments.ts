@@ -19,6 +19,8 @@ interface RenderedRange {
   revision: number;
   from: number;
   to: number;
+  /** The `from` of the last call, for the direction of travel. */
+  at: number;
   blocks: Map<FragmentElement, FragmentElement>;
   parents: Map<HTMLElement, HTMLElement>;
 }
@@ -163,15 +165,23 @@ export class ColumnFragments {
     if (!state || state.revision !== this.revision) {
       content.replaceChildren();
       content.style.height = `${length}px`;
-      state = { revision: this.revision, from: Infinity, to: -Infinity, blocks: new Map(), parents: new Map() };
+      state = { revision: this.revision, from: Infinity, to: -Infinity, at: from, blocks: new Map(), parents: new Map() };
       this.rendered.set(content, state);
     }
-    if (from >= state.from && from + height <= state.to) return;
-    // A small pixel margin covers normal native scrolling between JS updates;
-    // it is independent of article length and never retains departed blocks.
+    // A small pixel margin covers native scrolling between JS updates; it is
+    // independent of article length and never retains departed blocks. Native
+    // scrolling runs ahead of a busy main thread, so the range is renewed
+    // while half a margin is still prepared ahead, not once it is used up,
+    // and most of the margin goes in the direction of travel.
     const margin = Math.min(160, height / 4);
-    state.from = from - margin;
-    state.to = from + height + margin;
+    const step = from - state.at;
+    state.at = from;
+    // Past the article's ends there is nothing to prepare.
+    if ((state.from <= 0 || from - state.from >= margin / 2)
+      && (state.to >= length || state.to - from - height >= margin / 2)) return;
+    const direction = Math.abs(step) < height ? Math.sign(step) : 0;
+    state.from = from - margin * (1 - direction / 2);
+    state.to = from + height + margin * (1 + direction / 2);
     let low = 0;
     let high = this.blocks.length;
     while (low < high) {

@@ -113,6 +113,25 @@ async function settle(page) {
   });
 }
 
+// Scrolls natively without the reader's scroll handler, as a frame painted
+// while a busy main thread has not yet handled the scroll. `release` hands
+// the scroll to the reader.
+async function scrollUnhandled(page, dy) {
+  await page.locator(".cl-viewport").evaluate((viewport, dy) => {
+    window.clHoldScroll = (event) => event.stopImmediatePropagation();
+    window.addEventListener("scroll", window.clHoldScroll, { capture: true });
+    viewport.scrollTop += dy;
+  }, dy);
+  await settle(page);
+  return async () => {
+    await page.locator(".cl-viewport").evaluate((viewport) => {
+      window.removeEventListener("scroll", window.clHoldScroll, { capture: true });
+      viewport.dispatchEvent(new Event("scroll"));
+    });
+    await settle(page);
+  };
+}
+
 async function scrollLogical(page, column, y, phase = 0) {
   // Native limits describe the CURRENT row/column. Open the requested range
   // before moving along the other axis, as a reader would do.
@@ -208,6 +227,16 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
             await scrollLogical(page, 0, y);
             await assertPainted(page);
           }
+          // After a few small steps the reader has handled, the copied
+          // columns still hold text for a further scroll it has not handled.
+          await scrollLogical(page, 0, 220);
+          for (let i = 0; i < 4; i++) {
+            await page.locator(".cl-viewport").evaluate((viewport) => { viewport.scrollTop += 40; });
+            await settle(page);
+          }
+          const release = await scrollUnhandled(page, 70);
+          await assertPainted(page);
+          await release();
           // Recycling and diagonal movement must paint the right source rows too.
           await scrollLogical(page, 3, 220);
           await assertPainted(page);
@@ -316,21 +345,11 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
             const blocked = await layout(page);
             assert.ok(Math.abs(blocked.y - atBottom.y) < 1, "本文末尾の後ろに空白が増えた");
             await assertPainted(page);
-            // A frame painted after a native scroll but before the reader's
-            // scroll handler has run, as on a busy main thread: the paper at
-            // the article's end must still move with the text.
-            await page.locator(".cl-viewport").evaluate((v) => {
-              window.clHoldScroll = (event) => event.stopImmediatePropagation();
-              window.addEventListener("scroll", window.clHoldScroll, { capture: true });
-              v.scrollTop -= 100;
-            });
-            await settle(page);
+            // Before the reader has handled the scroll, the paper at the
+            // article's end must still move with the text.
+            const release = await scrollUnhandled(page, -100);
             await assertPainted(page);
-            await page.locator(".cl-viewport").evaluate((v) => {
-              window.removeEventListener("scroll", window.clHoldScroll, { capture: true });
-              v.dispatchEvent(new Event("scroll"));
-            });
-            await settle(page);
+            await release();
             await page.mouse.wheel(0, -160);
             await settle(page);
             assert.ok((await layout(page)).y < atBottom.y - 150, "末尾から前の本文へ戻れない");
