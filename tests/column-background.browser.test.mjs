@@ -117,7 +117,7 @@ test("一覧はヘッダーの下の標準バーとホイール・キーでス�
   } finally { await browser.close(); }
 });
 
-test("先頭と末尾だけ丸角にし、紙面操作・文字選択・モード切り替えで誤って閉じない", { timeout: 45_000 }, async () => {
+test("先頭と末尾だけ丸角にし、紙面操作・文字選択・段組みの切り替えで誤って閉じない", { timeout: 45_000 }, async () => {
   const browser = await launch(chromium);
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   try {

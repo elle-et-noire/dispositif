@@ -245,7 +245,7 @@ test("本文の幅が変わっても段の切り替えで同じ見出しの位�
   } finally { await browser.close(); }
 });
 
-test("別の記事で表示モードを変えてから履歴で戻っても同じ本文付近を表示する", { timeout: 45_000 }, async () => {
+test("別の記事で段組みを切り替えてから履歴で戻っても同じ本文付近を表示する", { timeout: 45_000 }, async () => {
   const browser = await launch(chromium);
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   try {

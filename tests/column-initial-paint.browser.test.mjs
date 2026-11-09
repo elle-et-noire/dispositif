@@ -21,7 +21,7 @@ const pendingState = () => {
 const hiddenWhilePending = (frame) => frame.pending && frame.clipPath === 'inset(50%)' && !frame.hit && frame.ariaHidden === 'true';
 const shown = el => [getComputedStyle(el).clipPath, el.getAttribute('aria-hidden')];
 for (const [name, engine] of engines) {
-  test(`${name}: initial article paint waits for the selected mode`, { timeout: 120_000 }, async () => {
+  test(`${name}: initial article paint waits for the selected column layout`, { timeout: 120_000 }, async () => {
     const browser = await launch(engine);
     try {
       for (const mode of ['single', 'multi', null]) {

@@ -74,7 +74,7 @@ test("1段の目次を右へ寄せ、操作ボタンと一緒に追従させて�
   } finally { await browser.close(); }
 });
 
-test("1段の標準バー越しに背景ヘッダーが透け、キー・矢印・モード切替で記事自身がスクロールする", { timeout: 60_000 }, async () => {
+test("1段の標準バー越しに背景ヘッダーが透け、キー・矢印・段組みの切り替えで記事自身がスクロールする", { timeout: 60_000 }, async () => {
   const browser = await launch(chromium, { ignoreDefaultArgs: ["--hide-scrollbars"] });
   try {
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
