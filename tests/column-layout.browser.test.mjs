@@ -36,16 +36,22 @@ async function layout(page) {
         const style = getComputedStyle(slot.querySelector(".cl-content"));
         const textLeft = frame.left + parseFloat(style.paddingLeft);
         const textRight = frame.right - parseFloat(style.paddingRight);
+        // The part of the paper inside the column's window. A column outside
+        // the article is hidden whole by its track's clip.
+        const paper = slot.querySelector(".cl-paper").getBoundingClientRect();
+        const hidden = getComputedStyle(slot.parentElement).clipPath === "inset(50%)";
+        const paperTop = Math.max(paper.top, frame.top);
+        const paperHeight = hidden ? 0 : Math.max(0, Math.min(paper.bottom, frame.bottom) - paperTop);
         return {
           k: Number(slot.dataset.clK),
-          paperTop: parseFloat(slot.querySelector(".cl-paper").style.top),
-          paperHeight: parseFloat(slot.querySelector(".cl-paper").style.height),
+          paperTop: paperTop - frame.top,
+          paperHeight,
           contentShift: parseFloat(slot.querySelector(".cl-content").style.translate.split(/\s+/)[1] ?? "0") + Number(slot.dataset.clK) * parseFloat(plane.style.getPropertyValue("--cl-h")) + Number(plane.dataset.clOriginY),
           left: frame.left,
           width: frame.width,
           top: frame.top,
           height: frame.height,
-          visible: parseFloat(slot.querySelector(".cl-paper").style.height) > 1 && textRight > rect.left + 8 && textLeft < rect.left + viewport.clientWidth - 8,
+          visible: paperHeight > 1 && textRight > rect.left + 8 && textLeft < rect.left + viewport.clientWidth - 8,
           sampleX: Math.floor(Math.min(Math.max(textLeft + (textRight - textLeft) * 0.85, rect.left + 8),
             rect.left + viewport.clientWidth - 8)),
         };
@@ -339,6 +345,11 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
             const blocked = await layout(page);
             assert.ok(Math.abs(blocked.y - atBottom.y) < 1, "本文末尾の後ろに空白が増えた");
             await assertPainted(page);
+            // Before the reader has handled the scroll, the paper at the
+            // article's end must still move with the text.
+            const release = await scrollUnhandled(page, -100);
+            await assertPainted(page);
+            await release();
             await page.mouse.wheel(0, -160);
             await settle(page);
             assert.ok((await layout(page)).y < atBottom.y - 150, "末尾から前の本文へ戻れない");

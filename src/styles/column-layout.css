@@ -315,14 +315,20 @@
        sticky box unclipped so the plane-relative text can keep painting. */
   }
 
-  /* A separate sibling keeps surface updates out of the MathJax tree. */
+  /* A separate sibling keeps surface updates out of the MathJax tree. Fixed
+     to the plane like .cl-content, with the same translate, so it scrolls
+     natively with the text and spans the whole article: its rounded corners
+     are the article's two ends. */
   .cl-paper {
-    position: absolute;
+    --cl-w: inherit;
+    position: fixed;
+    top: 0;
     left: 0;
-    width: 100%;
+    width: var(--cl-w);
     z-index: -1;
+    translate: 0;
     background: var(--cl-surface);
-    border-radius: 0;
+    border-radius: var(--note-radius);
     box-shadow: var(--note-shadow);
     pointer-events: none;
   }
@@ -337,17 +343,6 @@
     /* JS sets non-inherited offsets; native scrolling moves the whole plane. */
     translate: 0;
     font-family: var(--font-noto-sans);
-  }
-
-  /* Keep changing edge styles on the surface sibling. Inherited custom
-     properties on the slot would invalidate the entire MathJax subtree. */
-  .cl-slot[data-cl-head] > .cl-paper {
-    border-top-left-radius: var(--note-radius);
-    border-top-right-radius: var(--note-radius);
-  }
-  .cl-slot[data-cl-tail] > .cl-paper {
-    border-bottom-left-radius: var(--note-radius);
-    border-bottom-right-radius: var(--note-radius);
   }
 
 }
