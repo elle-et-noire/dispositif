@@ -2,13 +2,17 @@
 // The article text (.cl-source) goes in the slot, directly after the reader's
 // markup: with n段 stored, Layout.astro moves it into the reader's first
 // column as soon as the parser attaches it.
+//
+// The viewport's name stays short and carries no key instructions: screen
+// readers speak it whenever a click or text selection focuses the viewport,
+// and they read the original text in order, not the visual columns.
 ---
 <div class="cl-reader" hidden>
   <div
     class="cl-viewport"
     tabindex="0"
     role="region"
-    aria-label="n段の読書領域。上下にスクロールできます。左右キーで段移動、PageDown・Spaceで先へ、PageUp・Shift+Spaceで前へ、Home・Endで先頭・末尾へ"
+    aria-label="n段の本文"
   >
     <div class="cl-plane"></div>
   </div>
