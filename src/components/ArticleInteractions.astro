@@ -22,13 +22,21 @@
     return figure.querySelector<HTMLElement>("pre")?.innerText ?? "";
   };
 
+  // 吹き出しの文字は、コピーした間だけ入れる。常に置いておくと、
+  // 見えないのに本文として読み上げられ（Edgeの「音声で読み上げる」など）、
+  // 文字が変わらないのでrole="status"がコピーの成功を伝えられない。
   const markCopied = (button: HTMLButtonElement) => {
+    const tooltip = button.querySelector(".code-copy-tooltip");
     button.dataset.copied = "true";
+    if (tooltip) tooltip.textContent = "Copied!";
     const previous = timers.get(button);
     if (previous) window.clearTimeout(previous);
     timers.set(
       button,
-      window.setTimeout(() => delete button.dataset.copied, 2000),
+      window.setTimeout(() => {
+        delete button.dataset.copied;
+        if (tooltip) tooltip.textContent = "";
+      }, 2000),
     );
   };
 
@@ -83,7 +91,7 @@
         button.type = "button";
         button.className = "code-copy-button";
         button.setAttribute("aria-label", "コードをコピー");
-        button.innerHTML = `${COPY_ICON}${CHECK_ICON}<span class="code-copy-tooltip" role="status">Copied!</span>`;
+        button.innerHTML = `${COPY_ICON}${CHECK_ICON}<span class="code-copy-tooltip" role="status"></span>`;
         figure.appendChild(button);
       });
 
