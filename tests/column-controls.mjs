@@ -1,10 +1,10 @@
-export async function toggleReadingMode(page) {
-  await page.locator(".rm-toggle").click();
+export async function toggleColumns(page) {
+  await page.locator(".cl-toggle").click();
 }
 
 // Native scrollbar tracks belong to the viewport, not separate DOM elements.
-export async function readingScrollbar(page, axis = "x") {
-  return page.locator(".rm-viewport").evaluate((v, axis) => {
+export async function columnScrollbar(page, axis = "x") {
+  return page.locator(".cl-viewport").evaluate((v, axis) => {
     const r = v.getBoundingClientRect(), scale = r.width / v.offsetWidth;
     const horizontal = axis === "x", button = 16 * scale;
     const client = horizontal ? v.clientWidth : v.clientHeight;

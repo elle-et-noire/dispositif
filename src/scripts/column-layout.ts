@@ -1,19 +1,19 @@
-import { devicePixels, type ReadingGeometry } from "./reading-geometry";
-import type { ReadingLayout, ReadingPoint } from "./reading-coordinates";
+import { devicePixels, type ColumnGeometry } from "./column-geometry";
+import type { ColumnMetrics, ReadingPoint } from "./column-coordinates";
 import { createLayout, fromCss, toCss, ticks, zero, paperWindow, slotColumns, visibleColumnCount,
-  ReadingState, endPoint, refitPoint } from "./reading-coordinates";
-import { ReadingViewport } from "./reading-viewport";
-import { ReadingFragments } from "./reading-fragments";
-import { ReadingMotion } from "./reading-motion";
-import { opensMulti, READING_MODE_STORAGE_KEY } from "./reading-preference";
+  ReadingState, endPoint, refitPoint } from "./column-coordinates";
+import { ColumnViewport } from "./column-viewport";
+import { ColumnFragments } from "./column-fragments";
+import { ColumnMotion } from "./column-motion";
+import { opensMulti, COLUMNS_STORAGE_KEY } from "./column-preference";
 import { type HistoryPosition, HISTORY_STORAGE_KEY, parseSavedHistory, mergeHistory, resolveHistoryEntry } from "./reading-history";
 
 let dispose: (() => void) | undefined;
 // Saves the active reader's current position; the single pagehide listener
 // below calls it before persisting so storage is written once per unload.
 let saveActiveReader: (() => void) | undefined;
-const sameLayout = (a: ReadingLayout, b: ReadingLayout) =>
-  (Object.keys(a) as (keyof ReadingLayout)[]).every((key) => a[key] === b[key]);
+const sameLayout = (a: ColumnMetrics, b: ColumnMetrics) =>
+  (Object.keys(a) as (keyof ColumnMetrics)[]).every((key) => a[key] === b[key]);
 const historyPositions = new Map<string, HistoryPosition>();
 const dirtyHistoryPositions = new Set<string>();
 // Throws when storage is unavailable; callers decide how to degrade.
@@ -37,19 +37,19 @@ window.addEventListener("pagehide", () => {
   persistHistoryPositions();
 });
 
-export function initializeReadingMode() {
+export function initializeColumnLayout() {
   dispose?.();
   const root = document.documentElement;
-  const source = document.querySelector<HTMLElement>(".rm-source");
-  const articleScrollport = document.querySelector<HTMLElement>(".rm-article-scrollport");
-  const viewport = document.querySelector<HTMLElement>(".rm-viewport");
-  const reader = document.querySelector<HTMLElement>(".rm-reader");
-  const plane = document.querySelector<HTMLElement>(".rm-plane");
-  const ruler = document.querySelector<HTMLElement>(".rm-ruler");
-  const toggle = document.querySelector<HTMLButtonElement>(".rm-toggle");
+  const source = document.querySelector<HTMLElement>(".cl-source");
+  const articleScrollport = document.querySelector<HTMLElement>(".cl-article-scrollport");
+  const viewport = document.querySelector<HTMLElement>(".cl-viewport");
+  const reader = document.querySelector<HTMLElement>(".cl-reader");
+  const plane = document.querySelector<HTMLElement>(".cl-plane");
+  const ruler = document.querySelector<HTMLElement>(".cl-ruler");
+  const toggle = document.querySelector<HTMLButtonElement>(".cl-toggle");
   const header = document.querySelector<HTMLElement>("[data-site-header]");
-  const article = document.querySelector<HTMLElement>(".rm-article") ?? root;
-  const toolbar = document.querySelector<HTMLElement>(".rm-toolbar");
+  const article = document.querySelector<HTMLElement>(".cl-article") ?? root;
+  const toolbar = document.querySelector<HTMLElement>(".cl-toolbar");
   const toolbarParent = toolbar?.parentNode;
   const toolbarNextSibling = toolbar?.nextSibling ?? null;
   if (!source || !articleScrollport || !viewport || !reader || !plane || !ruler || !toggle) return;
@@ -84,7 +84,7 @@ export function initializeReadingMode() {
   // column (at astro:before-swap, or while a full load parses it), so that its
   // first layout is at the column width. Adopt that slot instead of mounting
   // the original again.
-  let premounted = source.parentElement?.matches(".rm-plane > .rm-track > .rm-slot")
+  let premounted = source.parentElement?.matches(".cl-plane > .cl-track > .cl-slot")
     ? source.parentElement : undefined;
   // The pre-mounted original came from just after the reader.
   const sourceParent = premounted ? reader.parentNode! : source.parentNode!;
@@ -94,20 +94,20 @@ export function initializeReadingMode() {
   const printing = window.matchMedia("print");
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   let preference: string | null = null;
-  try { preference = localStorage.getItem(READING_MODE_STORAGE_KEY); } catch { /* storage is optional */ }
-  // ?view= is read once: the toggle changes the mode without rewriting the URL.
+  try { preference = localStorage.getItem(COLUMNS_STORAGE_KEY); } catch { /* storage is optional */ }
+  // ?columns= is read once: the toggle changes the mode without rewriting the URL.
   const startMulti = opensMulti(location.search, preference, savedHistoryPosition?.mode);
-  let enabled = false;
+  let multi = false;
   let suspendedForPrint = false;
   let resumeAfterPrint = false;
   let printPosition = 0;
-  let printPoint: { point: ReadingPoint; layout: ReadingLayout } | undefined;
-  let geometry: ReadingGeometry | undefined;
+  let printPoint: { point: ReadingPoint; layout: ColumnMetrics } | undefined;
+  let geometry: ColumnGeometry | undefined;
   let position = 0;
   let measuring = 0;
   let scrolling = 0;
   let reading: ReadingState | undefined;
-  const native = new ReadingViewport(viewport, plane);
+  const native = new ColumnViewport(viewport, plane);
   let rangeStart = NaN;
   const placements = new WeakMap<HTMLElement, {
     left: number; translate: string; clip: string; paperTop: number; paperHeight: number;
@@ -119,7 +119,7 @@ export function initializeReadingMode() {
   let slots: HTMLElement[] = [];
   let preferredSourceColumn: number | undefined;
   let headings: { id: string; t: number }[] = [];
-  const fragments = new ReadingFragments(source);
+  const fragments = new ColumnFragments(source);
 
   const offsetOf = (element: Element) => {
     const box = source.getBoundingClientRect();
@@ -155,7 +155,7 @@ export function initializeReadingMode() {
     const entry = historyPositions.get(entryKey);
     if (!entry || suspendedForPrint) return;
     const inset = 1.5 * (parseFloat(getComputedStyle(root).fontSize) || 16);
-    const offset = offsetOverride ?? (enabled ? position : Math.max(0, inset - source.getBoundingClientRect().top));
+    const offset = offsetOverride ?? (multi ? position : Math.max(0, inset - source.getBoundingClientRect().top));
     const anchor = offset > 0 ? captureAnchor(offset) : undefined;
     if (!anchor) { delete entry.anchor; dirtyHistoryPositions.add(entryKey); return; }
     const path: number[] = [];
@@ -193,23 +193,23 @@ export function initializeReadingMode() {
       ?? headings[0]?.id ?? "";
     if (id === activeHeading) return;
     activeHeading = id;
-    document.dispatchEvent(new CustomEvent("rm:heading", { detail: { id } }));
+    document.dispatchEvent(new CustomEvent("cl:heading", { detail: { id } }));
   };
 
   const mountSlot = (content: HTMLElement) => {
-    content.classList.add("rm-content");
+    content.classList.add("cl-content");
     const track = document.createElement("div");
-    track.className = "rm-track";
+    track.className = "cl-track";
     const slot = document.createElement("div");
-    slot.className = "rm-slot";
+    slot.className = "cl-slot";
     if (content !== source) slot.setAttribute("aria-hidden", "true");
     slot.appendChild(content);
     const shade = document.createElement("div");
-    shade.className = "rm-shade";
+    shade.className = "cl-shade";
     shade.setAttribute("aria-hidden", "true");
     slot.appendChild(shade);
     const paper = document.createElement("div");
-    paper.className = "rm-paper";
+    paper.className = "cl-paper";
     paper.setAttribute("aria-hidden", "true");
     slot.appendChild(paper);
     track.appendChild(slot);
@@ -234,7 +234,7 @@ export function initializeReadingMode() {
       // The original is also a displayed tree. Keep it alive when shrinking the
       // pool, even if that means assigning it to a different column.
       const removable = slots.filter((slot) => slot.firstElementChild !== source)
-        .sort((a, b) => Number(wanted.has(Number(a.dataset.rmK))) - Number(wanted.has(Number(b.dataset.rmK))));
+        .sort((a, b) => Number(wanted.has(Number(a.dataset.clK))) - Number(wanted.has(Number(b.dataset.clK))));
       const removed = new Set(removable.slice(0, Math.max(0, slots.length - count)));
       slots = slots.filter((slot) => {
         if (removed.has(slot)) {
@@ -244,21 +244,21 @@ export function initializeReadingMode() {
         return true;
       });
       while (slots.length < count) mountSlot(slots.length === 0 ? source : fragments.createContent());
-      const retained = new Set(slots.map((slot) => Number(slot.dataset.rmK)));
+      const retained = new Set(slots.map((slot) => Number(slot.dataset.clK)));
       const missing = [...wanted].filter((k) => !retained.has(k));
       for (const slot of slots) {
-        const old = slot.dataset.rmK;
+        const old = slot.dataset.clK;
         const k = old !== undefined && wanted.has(Number(old)) ? Number(old) : missing.shift();
         if (k === undefined) continue;
-        if (old !== String(k)) slot.dataset.rmK = String(k);
+        if (old !== String(k)) slot.dataset.clK = String(k);
       }
       if (preferredSourceColumn !== undefined && wanted.has(preferredSourceColumn)) {
         const original = slots.find((slot) => slot.firstElementChild === source);
-        const destination = slots.find((slot) => Number(slot.dataset.rmK) === preferredSourceColumn);
+        const destination = slots.find((slot) => Number(slot.dataset.clK) === preferredSourceColumn);
         if (original && destination && original !== destination) {
-          const previous = original.dataset.rmK!;
-          original.dataset.rmK = destination.dataset.rmK!;
-          destination.dataset.rmK = previous;
+          const previous = original.dataset.clK!;
+          original.dataset.clK = destination.dataset.clK!;
+          destination.dataset.clK = previous;
         }
       } else preferredSourceColumn = undefined;
       rangeStart = start;
@@ -269,7 +269,7 @@ export function initializeReadingMode() {
     // scroll step (geometry.unit) can be coarser than this.
     const pixel = 1 / (window.devicePixelRatio || 1);
     for (const slot of slots) {
-      const k = Number(slot.dataset.rmK);
+      const k = Number(slot.dataset.clK);
       const content = slot.firstElementChild as HTMLElement;
       const track = slot.parentElement!;
       const paper = slot.lastElementChild as HTMLElement;
@@ -303,10 +303,10 @@ export function initializeReadingMode() {
       if (previous?.paperHeight !== paperHeight) {
         paper.style.height = shade.style.height = `${paperHeight}px`;
       }
-      if (previous?.shadeTop !== shadeTop) shade.style.setProperty("--rm-shade-top", `${shadeTop}px`);
-      if (previous?.shadeBottom !== shadeBottom) shade.style.setProperty("--rm-shade-bottom", `${shadeBottom}px`);
-      slot.toggleAttribute("data-rm-head", from <= 0);
-      slot.toggleAttribute("data-rm-tail", from + geometry.h >= geometry.l);
+      if (previous?.shadeTop !== shadeTop) shade.style.setProperty("--cl-shade-top", `${shadeTop}px`);
+      if (previous?.shadeBottom !== shadeBottom) shade.style.setProperty("--cl-shade-bottom", `${shadeBottom}px`);
+      slot.toggleAttribute("data-cl-head", from <= 0);
+      slot.toggleAttribute("data-cl-tail", from + geometry.h >= geometry.l);
       placements.set(slot, { left, translate, clip, paperTop, paperHeight, shadeTop, shadeBottom });
       // Slots outside the article have no visible paper. Keep their existing
       // fragments until they become visible instead of cloning/removing blocks
@@ -321,14 +321,14 @@ export function initializeReadingMode() {
   };
 
   const present = (force = false) => {
-    if (!enabled || !reading || printing.matches) return;
+    if (!multi || !reading || printing.matches) return;
     geometry = native.place(reading.point, reading.layout, force);
     position = toCss(reading.anchor);
     updateSlots();
     announceHeading();
   };
 
-  const motion = new ReadingMotion(
+  const motion = new ColumnMotion(
     () => reading?.layout,
     () => reading?.point ?? { x: zero, y: zero },
     (point) => {
@@ -337,12 +337,12 @@ export function initializeReadingMode() {
       present(true);
     },
     reducedMotion,
-    (active) => viewport.toggleAttribute("data-rm-animating", active),
+    (active) => viewport.toggleAttribute("data-cl-animating", active),
     signal,
   );
 
   const syncPosition = () => {
-    if (!enabled || !reading || printing.matches) return;
+    if (!multi || !reading || printing.matches) return;
     const movement = native.read(reading.point);
     if (!movement) return;
     motion.cancelAnimation();
@@ -354,7 +354,7 @@ export function initializeReadingMode() {
   function saveHistoryPosition() {
     if (!historyReady || suspendedForPrint) return;
     const details = historyPositions.get(entryKey)?.details;
-    historyPositions.set(entryKey, enabled
+    historyPositions.set(entryKey, multi
       ? { mode: "multi", position, point: reading?.point, layout: reading?.layout, details }
       : { mode: "single", position: articleScrollport!.scrollTop, details });
     dirtyHistoryPositions.add(entryKey);
@@ -370,7 +370,7 @@ export function initializeReadingMode() {
 
   const measure = () => {
     measuring = 0;
-    if (!enabled || printing.matches) return;
+    if (!multi || printing.matches) return;
     // On enabling, detach the original while reading the page's new geometry,
     // so it is not laid out at an intermediate width before its column.
     if (!slots.length && !premounted) source.remove();
@@ -385,7 +385,7 @@ export function initializeReadingMode() {
     const oldEnd = reading && endPoint(reading.layout);
     const wasEnd = oldPoint && oldEnd && oldPoint.x === oldEnd.x && oldPoint.y === oldEnd.y;
     const wasHome = oldPoint?.x === 0 && oldPoint?.y === 0;
-    article.style.setProperty("--rm-header-height", `${header?.getBoundingClientRect().height ?? 0}px`);
+    article.style.setProperty("--cl-header-height", `${header?.getBoundingClientRect().height ?? 0}px`);
     const gap = Math.max(0, parseFloat(getComputedStyle(ruler).marginRight) || 0);
     const edge = Math.max(0, parseFloat(getComputedStyle(ruler).paddingRight) || 0);
     // DPR alone is insufficient: browser zoom and device emulation can round
@@ -398,8 +398,8 @@ export function initializeReadingMode() {
     const w = toCss(fromCss(Math.min(parseFloat(getComputedStyle(ruler).width), Math.max(1, viewport.clientWidth - 2 * edge))));
     source.style.width = `${w}px`;
     const h = Math.max(1, viewport.clientHeight);
-    plane.style.setProperty("--rm-w", `${w}px`);
-    plane.style.setProperty("--rm-h", `${h}px`);
+    plane.style.setProperty("--cl-w", `${w}px`);
+    plane.style.setProperty("--cl-h", `${h}px`);
     // Lay the original out once, at W and in its column. A pre-mounted
     // original was laid out there already, at the same width unless the
     // column width differs from the CSS estimate (then once more here).
@@ -422,12 +422,12 @@ export function initializeReadingMode() {
     if (geometry?.w !== w) dirty = true;
     navigationHeading = undefined;
     motion.reset();
-    plane.style.setProperty("--rm-p", `${toCss(layout.p)}px`);
-    plane.style.setProperty("--rm-step", `${h}px`);
-    plane.style.setProperty("--rm-overlap", "0px");
-    plane.style.setProperty("--rm-l", `${l}px`);
-    plane.style.setProperty("--rm-edge", `${edge}px`);
-    const lengthOnly = reading && (Object.keys(layout) as (keyof ReadingLayout)[])
+    plane.style.setProperty("--cl-p", `${toCss(layout.p)}px`);
+    plane.style.setProperty("--cl-step", `${h}px`);
+    plane.style.setProperty("--cl-overlap", "0px");
+    plane.style.setProperty("--cl-l", `${l}px`);
+    plane.style.setProperty("--cl-edge", `${edge}px`);
+    const lengthOnly = reading && (Object.keys(layout) as (keyof ColumnMetrics)[])
       .every((key) => key === "l" || layout[key] === reading!.layout[key]);
     const previous = reading;
     reading = new ReadingState(layout, anchor);
@@ -441,21 +441,21 @@ export function initializeReadingMode() {
   };
 
   const scheduleMeasure = () => {
-    if (enabled && !measuring) measuring = requestAnimationFrame(measure);
+    if (multi && !measuring) measuring = requestAnimationFrame(measure);
   };
 
   const syncDetails = () => {
     const originals = source.querySelectorAll<HTMLDetailsElement>("details");
     slots.forEach((slot) => {
-      slot.querySelectorAll<HTMLDetailsElement>("details[data-rm-details]").forEach((details) => {
-        const original = originals[Number(details.dataset.rmDetails)];
+      slot.querySelectorAll<HTMLDetailsElement>("details[data-cl-details]").forEach((details) => {
+        const original = originals[Number(details.dataset.clDetails)];
         if (original) details.open = original.open;
       });
     });
   };
 
   const navigate = (target: HTMLElement) => {
-    if (!enabled || !geometry) return;
+    if (!multi || !geometry) return;
     syncPosition();
     let parent = target.parentElement;
     while (parent && parent !== source) {
@@ -488,45 +488,45 @@ export function initializeReadingMode() {
   };
 
   const followHash = () => {
-    if (!enabled || !location.hash) return;
+    if (!multi || !location.hash) return;
     const target = hashTarget(location.hash);
     if (target) navigate(target);
   };
 
   const restoreSource = () => {
     premounted = undefined;
-    root.classList.remove("rm-premount");
+    root.classList.remove("cl-premount");
     sourceParent.insertBefore(source, sourceNextSibling);
-    source.classList.remove("rm-content");
+    source.classList.remove("cl-content");
     for (const property of ["width", "left", "translate"]) source.style.removeProperty(property);
   };
 
-  const setEnabled = (next: boolean, anchor?: number) => {
-    if (next === enabled) return;
+  const setMulti = (next: boolean, anchor?: number) => {
+    if (next === multi) return;
     const toggleFocused = document.activeElement === toggle;
     motion.reset();
     // Single-column reading scrolls the article above the backdrop. Its
     // reading inset is the original 1.5rem, not the n-column
     // header's height. At the beginning keep the card at its normal position.
     const readingInset = 1.5 * (parseFloat(getComputedStyle(root).fontSize) || 16);
-    if (enabled) syncPosition();
+    if (multi) syncPosition();
     // A pre-mounted original has no single-column position; it starts at the top.
     if (next) position = anchor ?? (premounted ? 0 : Math.max(0, readingInset - source.getBoundingClientRect().top));
     const contentAnchor = !suspendedForPrint && anchor === undefined && position > 0 ? captureAnchor(position) : undefined;
-    enabled = next;
-    root.classList.toggle("rm-active", enabled);
+    multi = next;
+    root.classList.toggle("cl-multi", multi);
     // The pre-mounted layout (Layout.astro) is now the reader's own.
-    root.classList.remove("rm-premount");
-    articleScrollport.tabIndex = enabled ? -1 : 0;
+    root.classList.remove("cl-premount");
+    articleScrollport.tabIndex = multi ? -1 : 0;
     if (toolbar) {
-      if (enabled && header) header.appendChild(toolbar);
+      if (multi && header) header.appendChild(toolbar);
       else toolbarParent?.insertBefore(toolbar, toolbarNextSibling);
     }
-    reader.hidden = !enabled;
-    toggle.setAttribute("aria-pressed", String(enabled));
-    toggle.title = enabled ? "1段表示に切り替える" : "n段表示に切り替える";
+    reader.hidden = !multi;
+    toggle.setAttribute("aria-pressed", String(multi));
+    toggle.title = multi ? "1段表示に切り替える" : "n段表示に切り替える";
     activeHeading = "";
-    if (enabled) {
+    if (multi) {
       // All displayed trees need identical image dimensions for measurement,
       // including parts of the original outside its current column window.
       source.querySelectorAll<HTMLImageElement>("img").forEach((image) => { image.loading = "eager"; });
@@ -547,7 +547,7 @@ export function initializeReadingMode() {
       rangeStart = NaN;
       preferredSourceColumn = undefined;
       articleScrollport.scrollTo({ top: position <= 0 ? 0 : articleScrollport.scrollTop + source.getBoundingClientRect().top + position - readingInset, behavior: "instant" });
-      document.dispatchEvent(new CustomEvent("rm:off"));
+      document.dispatchEvent(new CustomEvent("cl:single"));
     }
     if (toggleFocused) toggle.focus({ preventScroll: true });
     saveHistoryPosition();
@@ -556,17 +556,17 @@ export function initializeReadingMode() {
   // Return a pre-mounted original to the single-column article when the
   // reader does not start in n段 (print, a changed preference, the fallback).
   const releasePremounted = () => {
-    if (!premounted || enabled) return;
+    if (!premounted || multi) return;
     restoreSource();
     plane.replaceChildren();
     reader.hidden = true;
     // The table of contents skipped its position while pre-mounted (Toc.astro).
-    document.dispatchEvent(new CustomEvent("rm:off"));
+    document.dispatchEvent(new CustomEvent("cl:single"));
   };
 
   const applyDefault = () => {
-    if (suspendedForPrint || printing.matches || root.classList.contains("rm-fallback")) return;
-    setEnabled(startMulti);
+    if (suspendedForPrint || printing.matches || root.classList.contains("cl-fallback")) return;
+    setMulti(startMulti);
   };
 
   // The original normally lives inside the reader. Return it to the document
@@ -574,21 +574,21 @@ export function initializeReadingMode() {
   const suspendForPrint = () => {
     if (suspendedForPrint) return;
     suspendedForPrint = true;
-    resumeAfterPrint = enabled;
+    resumeAfterPrint = multi;
     // By the media change event the hidden viewport can already have lost its
     // native offsets. Keep the last logical position instead of reading it now.
     printPosition = position;
     // The anchor alone drops a horizontal offset within a column (native
     // scrolling or an interrupted column step). Keep the exact point as well.
     printPoint = reading ? { point: { ...reading.point }, layout: reading.layout } : undefined;
-    setEnabled(false);
+    setMulti(false);
     releasePremounted();
   };
   const resumeFromPrint = () => {
     if (!suspendedForPrint || printing.matches) return;
     suspendedForPrint = false;
     if (resumeAfterPrint) {
-      setEnabled(true, printPosition);
+      setMulti(true, printPosition);
       if (printPoint && restoreExactPoint(printPoint.point, printPoint.layout)) {
         present(true);
         saveHistoryPosition();
@@ -600,10 +600,10 @@ export function initializeReadingMode() {
   };
 
   toggle.addEventListener("click", () => {
-    root.classList.remove("rm-fallback");
-    preference = enabled ? "single" : "multi";
-    try { localStorage.setItem(READING_MODE_STORAGE_KEY, preference); } catch { /* storage is optional */ }
-    setEnabled(!enabled);
+    root.classList.remove("cl-fallback");
+    preference = multi ? "single" : "multi";
+    try { localStorage.setItem(COLUMNS_STORAGE_KEY, preference); } catch { /* storage is optional */ }
+    setMulti(!multi);
   }, { signal });
 
   viewport.addEventListener("scroll", () => {
@@ -638,8 +638,8 @@ export function initializeReadingMode() {
   document.addEventListener("click", () => { pointerFocus = false; }, { capture: true, passive: true, signal });
   document.addEventListener("click", (event) => {
     const element = event.target instanceof Element ? event.target : null;
-    if (!enabled && event.button === 0 && !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey) {
-      const link = element?.closest<HTMLAnchorElement>(".rm-source a[href]");
+    if (!multi && event.button === 0 && !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey) {
+      const link = element?.closest<HTMLAnchorElement>(".cl-source a[href]");
       if (link && !link.matches('[href^="#mjx-eqn"]') && !link.closest("[data-toc]")) {
         const url = new URL(link.href, location.href);
         if (url.origin === location.origin && url.pathname + url.search === articlePath && url.hash) {
@@ -649,16 +649,16 @@ export function initializeReadingMode() {
         }
       }
     }
-    if (!enabled || event.button !== 0 || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
+    if (!multi || event.button !== 0 || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
     const fromKeyboard = event.detail === 0 || Boolean(keyboardActivation && element
       && (keyboardActivation === element || keyboardActivation.contains(element) || element.contains(keyboardActivation)));
     keyboardActivation = undefined;
-    const slot = element?.closest(".rm-slot");
+    const slot = element?.closest(".cl-slot");
     const control = element?.closest("summary, [data-details-close]");
     if (slot && control) {
       const details = control.closest<HTMLDetailsElement>("details");
       const original = details && source.contains(details) ? details
-        : source.querySelectorAll<HTMLDetailsElement>("details")[Number(details?.dataset.rmDetails)];
+        : source.querySelectorAll<HTMLDetailsElement>("details")[Number(details?.dataset.clDetails)];
       if (original) {
         event.preventDefault();
         event.stopPropagation();
@@ -694,13 +694,13 @@ export function initializeReadingMode() {
 
   document.addEventListener("toggle", (event) => {
     if (event.target instanceof HTMLDetailsElement && source.contains(event.target)) {
-      if (enabled) { syncDetails(); scheduleMeasure(); }
+      if (multi) { syncDetails(); scheduleMeasure(); }
       if (historyReady) saveHistoryDetails();
     }
   }, { capture: true, signal });
 
   document.addEventListener("keydown", (event) => {
-    if (!enabled || !geometry || event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey) return;
+    if (!multi || !geometry || event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey) return;
     const target = event.target instanceof Element ? event.target : null;
     if (target?.closest('input, textarea, select, button, summary, [contenteditable="true"], [data-toc]')) return;
     if (event.key === " " && target?.closest("a")) return;
@@ -740,7 +740,7 @@ export function initializeReadingMode() {
   source.addEventListener("focusin", (event) => {
     const pressed = pointerFocus;
     pointerFocus = false;
-    if (event.target instanceof HTMLElement && enabled && !pressed) navigate(event.target);
+    if (event.target instanceof HTMLElement && multi && !pressed) navigate(event.target);
   }, { signal });
 
   const resizeObserver = new ResizeObserver(scheduleMeasure);
@@ -759,31 +759,31 @@ export function initializeReadingMode() {
     return changed;
   };
   // Restore an exact point only when the layout it was taken in still holds.
-  const restoreExactPoint = (point: ReadingPoint, layout: ReadingLayout) => {
+  const restoreExactPoint = (point: ReadingPoint, layout: ColumnMetrics) => {
     if (!reading || !Number.isFinite(point.x) || !Number.isFinite(point.y) || !sameLayout(reading.layout, layout)) return false;
     reading.restorePoint(point);
     return true;
   };
   const restoreHistoryPosition = (saved: HistoryPosition) => {
-    const sameMode = saved.mode === (enabled ? "multi" : "single");
+    const sameMode = saved.mode === (multi ? "multi" : "single");
     const sameWidth = !saved.anchor || Math.abs(
       (parseFloat(getComputedStyle(source).width) || source.getBoundingClientRect().width)
         - saved.anchor.width) < 0.5;
-    if (enabled && reading && sameMode) {
+    if (multi && reading && sameMode) {
       if (!saved.point || !saved.layout || !restoreExactPoint(saved.point, saved.layout)) {
         reading.restore(fromCss(historyAnchorOffset(saved.anchor) ?? saved.position));
       }
       present(true);
-    } else if (!enabled && sameMode && sameWidth) articleScrollport.scrollTop = saved.position;
+    } else if (!multi && sameMode && sameWidth) articleScrollport.scrollTop = saved.position;
     else {
       const anchor = historyAnchorOffset(saved.anchor);
       if (anchor !== undefined) {
-        if (enabled && reading) { reading.restore(fromCss(anchor)); present(true); }
+        if (multi && reading) { reading.restore(fromCss(anchor)); present(true); }
         else {
           const inset = 1.5 * (parseFloat(getComputedStyle(root).fontSize) || 16);
           articleScrollport.scrollTop += source.getBoundingClientRect().top + anchor - inset;
         }
-      } else if (sameMode && !enabled) articleScrollport.scrollTop = saved.position;
+      } else if (sameMode && !multi) articleScrollport.scrollTop = saved.position;
       else followHash();
     }
   };
@@ -800,7 +800,7 @@ export function initializeReadingMode() {
     const nextKey = history.state?.dispositifReadingKey;
     if (nextKey && nextKey === entryKey) return;
     if (nextKey) {
-      if (enabled) syncPosition();
+      if (multi) syncPosition();
       saveHistoryPosition();
       saveHistoryDetails();
       saveHistoryAnchor();
@@ -823,7 +823,7 @@ export function initializeReadingMode() {
     const saved = historyPositions.get(entryKey);
     if (saved) {
       const changed = restoreDetails(saved);
-      if (changed && enabled) { syncDetails(); dirty = true; measure(); }
+      if (changed && multi) { syncDetails(); dirty = true; measure(); }
       restoreHistoryPosition(saved);
       restoredHash = location.hash;
     } else {
@@ -840,7 +840,7 @@ export function initializeReadingMode() {
     followHash();
   }, { signal });
 
-  root.classList.add("rm-ready");
+  root.classList.add("cl-ready");
   // All astro:page-load handlers (including copy-button enhancement) finish first.
   const initialFrame = requestAnimationFrame(() => {
     try {
@@ -853,10 +853,10 @@ export function initializeReadingMode() {
       historyReady = true;
       saveHistoryPosition();
     } finally {
-      // The layout fallback stands down once rm-ready is set, so never leave
+      // The layout fallback stands down once cl-ready is set, so never leave
       // the article hidden if restoring throws.
-      root.classList.remove("rm-pending");
-      // Set with rm-pending by Layout.astro.
+      root.classList.remove("cl-pending");
+      // Set with cl-pending by Layout.astro.
       articleScrollport.removeAttribute("aria-hidden");
     }
   });
@@ -864,7 +864,7 @@ export function initializeReadingMode() {
     // Before the first frame the entry has not been restored yet; saving now
     // would replace its saved disclosures and anchor with the defaults.
     if (!historyReady) return;
-    if (enabled) syncPosition();
+    if (multi) syncPosition();
     saveHistoryPosition();
     saveHistoryDetails();
     saveHistoryAnchor();
@@ -878,8 +878,8 @@ export function initializeReadingMode() {
     resizeObserver.disconnect();
     mutationObserver.disconnect();
     [initialFrame, measuring, scrolling, offscreenFrame].forEach(cancelAnimationFrame);
-    root.classList.remove("rm-active", "rm-ready");
-    article.style.removeProperty("--rm-header-height");
+    root.classList.remove("cl-multi", "cl-ready");
+    article.style.removeProperty("--cl-header-height");
     if (toolbar) toolbarParent?.insertBefore(toolbar, toolbarNextSibling);
     restoreSource();
     reader.hidden = true;

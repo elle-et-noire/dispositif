@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { chromium } from "playwright-core";
-import { toggleReadingMode } from "./reading-controls.mjs";
+import { toggleColumns } from "./column-controls.mjs";
 
 const ARTICLE_URL = new URL("symmetric-polynomial/",
-  process.env.RM_BASE_URL ?? "http://localhost:4321/dispositif/").href;
+  process.env.TEST_BASE_URL ?? "http://localhost:4321/dispositif/").href;
 
 async function settle(page) {
   await page.evaluate(async () => {
@@ -14,14 +14,14 @@ async function settle(page) {
 
 async function singleLayout(page) {
   return page.evaluate(() => {
-    const source = document.querySelector(".rm-source");
+    const source = document.querySelector(".cl-source");
     const rect = (selector) => {
       const r = document.querySelector(selector).getBoundingClientRect();
       return { x: r.x, y: r.y, width: r.width, height: r.height };
     };
     return {
-      card: rect("article"), source: rect(".rm-source"), title: rect(".rm-source > h1"),
-      toolbar: rect(".rm-toolbar"), close: rect(".rm-toolbar > .rm-close"),
+      card: rect("article"), source: rect(".cl-source"), title: rect(".cl-source > h1"),
+      toolbar: rect(".cl-toolbar"), close: rect(".cl-toolbar > .cl-close"),
       toc: rect(".toc-sidebar"),
       titlePadding: getComputedStyle(source.querySelector("h1")).paddingRight,
       sidebarTop: getComputedStyle(document.querySelector(".toc-sidebar")).top,
@@ -31,20 +31,20 @@ async function singleLayout(page) {
 }
 
 test("1段の目次を右へ寄せ、操作ボタンと一緒に追従させて重なりを防ぐ", { timeout: 60_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.RM_BROWSER_PATH || undefined });
+  const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER_PATH || undefined });
   try {
     for (const width of [390, 768, 1280, 1600]) {
       const page = await browser.newPage({ viewport: { width, height: 900 } });
       try {
-        await page.addInitScript(() => localStorage.setItem("dispositif:reading-mode", "single"));
+        await page.addInitScript(() => localStorage.setItem("dispositif:columns", "single"));
         await page.goto(ARTICLE_URL);
-        await page.waitForSelector(".rm-toolbar > .rm-toggle");
+        await page.waitForSelector(".cl-toolbar > .cl-toggle");
         await page.evaluate(() => document.fonts.ready);
         await settle(page);
         const before = await singleLayout(page);
         // Keep the article card and 48px control row, with a 32px gap before
         // the right-aligned 13rem sidebar and no extra title padding.
-        const documentWidth = await page.evaluate(() => document.querySelector(".rm-article-scrollport").clientWidth);
+        const documentWidth = await page.evaluate(() => document.querySelector(".cl-article-scrollport").clientWidth);
         const cardWidth = Math.min(documentWidth - 16, 1088);
         assert.equal(before.card.width, cardWidth);
         assert.equal(before.card.x, (documentWidth - cardWidth) / 2);
@@ -65,8 +65,8 @@ test("1段の目次を右へ寄せ、操作ボタンと一緒に追従させて�
           assert.equal(before.toc.x + before.toc.width, before.close.x + before.close.width);
           assert.ok(before.toc.y >= before.toolbar.y + before.toolbar.height, "目次が操作ボタンに重なった");
         }
-        assert.equal(await page.locator(".rm-settings-toggle").count(), 0);
-        assert.equal(await page.locator(".rm-toggle").count(), 1);
+        assert.equal(await page.locator(".cl-settings-toggle").count(), 0);
+        assert.equal(await page.locator(".cl-toggle").count(), 1);
         assert.equal(await page.locator("[data-site-header] [data-toc]").isVisible(), false);
         assert.equal(await page.locator(".toc-mobile-toggle").isVisible(), width < 768);
         assert.equal(await page.locator(".toc-sidebar").isVisible(), width >= 768);
@@ -81,43 +81,43 @@ test("1段の目次を右へ寄せ、操作ボタンと一緒に追従させて�
           await page.keyboard.press("Escape");
         }
 
-        await page.evaluate(() => document.querySelector(".rm-article-scrollport").scrollTo(0, 500));
+        await page.evaluate(() => document.querySelector(".cl-article-scrollport").scrollTo(0, 500));
         await settle(page);
         assert.equal((await singleLayout(page)).toolbar.y, 0);
         if (width >= 768) {
           const scrolled = await singleLayout(page);
           assert.ok(scrolled.toc.y >= scrolled.toolbar.y + scrolled.toolbar.height, "スクロール中に目次が操作ボタンに重なった");
-          await page.evaluate(() => document.querySelector(".rm-article-scrollport").scrollTo(0, 1e9)); await settle(page);
+          await page.evaluate(() => document.querySelector(".cl-article-scrollport").scrollTo(0, 1e9)); await settle(page);
           const end = await singleLayout(page);
           assert.ok(end.toc.y >= end.toolbar.y + end.toolbar.height, "末尾で目次が操作ボタンに重なった");
         }
-        await page.evaluate(() => document.querySelector(".rm-article-scrollport").scrollTo(0, 0));
+        await page.evaluate(() => document.querySelector(".cl-article-scrollport").scrollTo(0, 0));
         await settle(page);
-        await toggleReadingMode(page);
-        await page.waitForSelector("html.rm-active .rm-slot");
-        assert.equal(await page.locator("[data-site-header] .rm-toggle").isVisible(), true);
+        await toggleColumns(page);
+        await page.waitForSelector("html.cl-multi .cl-slot");
+        assert.equal(await page.locator("[data-site-header] .cl-toggle").isVisible(), true);
         assert.equal(await page.locator("[data-toc-variant=mobile]").isVisible(), false);
-        await toggleReadingMode(page);
-        await page.waitForSelector(".rm-toolbar > .rm-toggle");
+        await toggleColumns(page);
+        await page.waitForSelector(".cl-toolbar > .cl-toggle");
         await settle(page);
         assert.deepEqual(await singleLayout(page), before, "n段から戻ると1段の配置が変わった");
-        assert.equal(await page.locator(".rm-settings-toggle").count(), 0);
-        assert.equal(await page.locator(".rm-toggle").evaluate((toggle) => document.activeElement === toggle), true);
+        assert.equal(await page.locator(".cl-settings-toggle").count(), 0);
+        assert.equal(await page.locator(".cl-toggle").evaluate((toggle) => document.activeElement === toggle), true);
       } finally { await page.close(); }
     }
   } finally { await browser.close(); }
 });
 
 test("1段の標準バー越しに背景ヘッダーが透け、キー・矢印・モード切替で記事自身がスクロールする", { timeout: 60_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.RM_BROWSER_PATH || undefined,
+  const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER_PATH || undefined,
     ignoreDefaultArgs: ["--hide-scrollbars"] });
   try {
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
-    await page.addInitScript(() => localStorage.setItem("dispositif:reading-mode", "single"));
+    await page.addInitScript(() => localStorage.setItem("dispositif:columns", "single"));
     await page.goto(ARTICLE_URL);
-    await page.waitForSelector("html.rm-ready:not(.rm-pending)");
+    await page.waitForSelector("html.cl-ready:not(.cl-pending)");
     await page.evaluate(() => document.fonts.ready);
-    const scroller = page.locator(".rm-article-scrollport");
+    const scroller = page.locator(".cl-article-scrollport");
     const sizes = await scroller.evaluate((el) => ({ root: document.documentElement.clientWidth,
       header: document.querySelector("[data-site-header]").getBoundingClientRect().width,
       width: el.clientWidth, height: el.clientHeight }));
@@ -141,48 +141,48 @@ test("1段の標準バー越しに背景ヘッダーが透け、キー・矢印�
 
     await scroller.evaluate((el) => { el.scrollTop = 500; });
     await settle(page);
-    await toggleReadingMode(page);
-    await page.waitForSelector(".rm-slot");
-    await toggleReadingMode(page);
+    await toggleColumns(page);
+    await page.waitForSelector(".cl-slot");
+    await toggleColumns(page);
     await settle(page);
     assert.ok(Math.abs(await scroller.evaluate((el) => el.scrollTop) - 500) < 2, "切替後に読書位置がずれた");
     // The lower arrow belongs to this scroller; clicking it must not hit the
     // link that closes the article behind it.
     await page.mouse.click(1276, sizes.height - 8);
-    await page.waitForFunction(() => document.querySelector(".rm-article-scrollport").scrollTop > 500);
+    await page.waitForFunction(() => document.querySelector(".cl-article-scrollport").scrollTop > 500);
     assert.equal(page.url(), ARTICLE_URL);
     await scroller.focus();
     await page.keyboard.press("Home");
-    await page.waitForFunction(() => document.querySelector(".rm-article-scrollport").scrollTop === 0);
+    await page.waitForFunction(() => document.querySelector(".cl-article-scrollport").scrollTop === 0);
     await page.keyboard.press("PageDown");
-    await page.waitForFunction(() => document.querySelector(".rm-article-scrollport").scrollTop > 300);
+    await page.waitForFunction(() => document.querySelector(".cl-article-scrollport").scrollTop > 300);
     await page.keyboard.press("End");
     await page.waitForFunction(() => {
-      const el = document.querySelector(".rm-article-scrollport");
+      const el = document.querySelector(".cl-article-scrollport");
       return Math.abs(el.scrollTop + el.clientHeight - el.scrollHeight) < 2;
     });
     assert.equal(await page.evaluate(() => window.scrollY), 0);
     await page.emulateMedia({ media: "print" });
     assert.equal(await scroller.evaluate((el) => getComputedStyle(el).position), "static");
-    assert.equal(await page.locator(".rm-dismiss").isVisible(), false);
+    assert.equal(await page.locator(".cl-dismiss").isVisible(), false);
   } finally { await browser.close(); }
 });
 
 test("ノート外の左右・上下の背景でも標準のホイール操作で記事がスクロールする", { timeout: 60_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.RM_BROWSER_PATH || undefined,
+  const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER_PATH || undefined,
     ignoreDefaultArgs: ["--hide-scrollbars"] });
   try {
     for (const [width, javaScriptEnabled] of [[390, true], [1280, true], [1280, false]]) {
       const page = await browser.newPage({ viewport: { width, height: 900 }, javaScriptEnabled });
       try {
-        await page.addInitScript(() => localStorage.setItem("dispositif:reading-mode", "single"));
+        await page.addInitScript(() => localStorage.setItem("dispositif:columns", "single"));
         await page.goto(ARTICLE_URL);
         if (javaScriptEnabled) {
-          await page.waitForSelector("html.rm-ready:not(.rm-pending)");
+          await page.waitForSelector("html.cl-ready:not(.cl-pending)");
           await page.evaluate(() => document.fonts.ready);
         }
         await page.locator("astro-dev-toolbar").evaluateAll((nodes) => nodes.forEach((node) => node.remove()));
-        const scroller = page.locator(".rm-article-scrollport");
+        const scroller = page.locator(".cl-article-scrollport");
         // Reset each gesture so wheel latching cannot hide an inert region.
         for (const [x, y, start, delta] of [[2, 300, 500, 240], [width - 10, 300, 500, -240],
           [width / 2, 8, 0, 240], [width >= 768 ? 100 : 20, 888, 1e9, -240]]) {
@@ -190,7 +190,7 @@ test("ノート外の左右・上下の背景でも標準のホイール操作�
           if (javaScriptEnabled) await settle(page);
           const before = await scroller.evaluate((el) => el.scrollTop);
           assert.equal(await page.evaluate(({ x, y }) => document.elementFromPoint(x, y).className,
-            { x, y }), "rm-dismiss block cursor-pointer", `背景にカーソルを置けていない: ${width}, ${x}, ${y}`);
+            { x, y }), "cl-dismiss block cursor-pointer", `背景にカーソルを置けていない: ${width}, ${x}, ${y}`);
           await page.mouse.move(x, y);
           await page.mouse.wheel(0, delta);
           // Poll from Node so this also works when browser JS callbacks are disabled.

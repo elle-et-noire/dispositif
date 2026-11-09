@@ -72,20 +72,20 @@ document.addEventListener("astro:page-load", () => {
 
 let press: { x: number; y: number; scrollX: number; scrollY: number; selected: boolean } | undefined;
 document.addEventListener("pointerdown", (event) => {
-  const viewport = document.querySelector<HTMLElement>(".rm-viewport");
+  const viewport = document.querySelector<HTMLElement>(".cl-viewport");
   press = { x: event.clientX, y: event.clientY,
     scrollX: viewport?.scrollLeft ?? 0, scrollY: viewport?.scrollTop ?? 0,
     selected: !window.getSelection()?.isCollapsed };
 }, { passive: true });
 
 document.addEventListener("click", (event) => {
-  if (!document.documentElement.classList.contains("rm-active")
+  if (!document.documentElement.classList.contains("cl-multi")
     || event.defaultPrevented || event.button !== 0 || event.detail === 0
     || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
   const target = event.target instanceof Element ? event.target : null;
-  if (!target?.closest(".rm-article")
+  if (!target?.closest(".cl-article")
     || target.closest("a, button, input, select, textarea, summary")) return;
-  const viewport = document.querySelector<HTMLElement>(".rm-viewport");
+  const viewport = document.querySelector<HTMLElement>(".cl-viewport");
   if (!viewport || !press || press.selected || !window.getSelection()?.isCollapsed
     || Math.hypot(event.clientX - press.x, event.clientY - press.y) > 5
     || Math.abs(viewport.scrollLeft - press.scrollX) > 1
@@ -97,7 +97,7 @@ document.addEventListener("click", (event) => {
     && event.clientY >= frame.top && event.clientY <= frame.bottom
     && (event.clientX >= frame.left + viewport.clientWidth * scale
       || event.clientY >= frame.top + viewport.clientHeight * scale)) return;
-  const onPaper = Array.from(document.querySelectorAll<HTMLElement>(".rm-paper"))
+  const onPaper = Array.from(document.querySelectorAll<HTMLElement>(".cl-paper"))
     .some((paper) => {
       const rect = paper.getBoundingClientRect();
       const x = event.clientX - rect.left, y = event.clientY - rect.top;
@@ -120,5 +120,5 @@ document.addEventListener("click", (event) => {
       return true;
     });
   if (onPaper) return;
-  document.querySelector<HTMLAnchorElement>(".rm-dismiss")?.click();
+  document.querySelector<HTMLAnchorElement>(".cl-dismiss")?.click();
 });

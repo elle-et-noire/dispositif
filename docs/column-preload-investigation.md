@@ -4,6 +4,8 @@
 > 前半（「変更前の計測」〜「iframe 自動準備停止の比較」と「残作業の検証と固定コアでの再測定」）は、iframe で n 段を先読みする方式を検討した 2026-11-05 までの記録である。この方式は採用せず、iframe の先読みは削除した。「次の検証計画」も当時の計画で、その後は下の表の順に進めた。
 > 後半（「表示までの内訳と数式フォントの先読み」以降）が、現在の main に入っている変更の記録である。
 >
+> 2026-11-09に「読書モード」を「段組み」に改名した。この文書に出てくる古い名前は、現在の名前に次のように対応する。`rm-`は`cl-`、`rm-active`は`cl-multi`、`rm:off`は`cl:single`、`reading-mode.ts`は`column-layout.ts`、ほかの`reading-*.ts`は`column-*.ts`（`reading-history.ts`は名前を変えていない）、`tests/reading-*.browser.test.mjs`は`tests/column-*.browser.test.mjs`、環境変数`RM_*`は`TEST_*`、保存キー`dispositif:reading-mode`は`dispositif:columns`、URLの`?view=`は`?columns=`である。
+>
 > | 節 | PR | 内容 |
 > | --- | --- | --- |
 > | 表示までの内訳と数式フォントの先読み | #2 | ホバー時に記事の数式フォントを読み込む。Firefox での使い回し |

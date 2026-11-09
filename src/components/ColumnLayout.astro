@@ -1,22 +1,22 @@
 ---
-// The article text (.rm-source) goes in the slot, directly after the reader's
+// The article text (.cl-source) goes in the slot, directly after the reader's
 // markup: with n段 stored, Layout.astro moves it into the reader's first
 // column as soon as the parser attaches it.
 ---
-<div class="rm-reader" hidden>
+<div class="cl-reader" hidden>
   <div
-    class="rm-viewport"
+    class="cl-viewport"
     tabindex="0"
     role="region"
     aria-label="n段の読書領域。上下にスクロールできます。左右キーで段移動、PageDown・Spaceで先へ、PageUp・Shift+Spaceで前へ、Home・Endで先頭・末尾へ"
   >
-    <div class="rm-plane"></div>
+    <div class="cl-plane"></div>
   </div>
 </div>
 <slot />
-<div class="rm-ruler" aria-hidden="true"><div></div></div>
+<div class="cl-ruler" aria-hidden="true"><div></div></div>
 
 <script>
-  import { initializeReadingMode } from "../scripts/reading-mode";
-  document.addEventListener("astro:page-load", initializeReadingMode);
+  import { initializeColumnLayout } from "../scripts/column-layout";
+  document.addEventListener("astro:page-load", initializeColumnLayout);
 </script>

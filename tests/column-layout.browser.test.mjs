@@ -1,4 +1,4 @@
-import { toggleReadingMode } from "./reading-controls.mjs";
+import { toggleColumns } from "./column-controls.mjs";
 import assert from "node:assert/strict";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -7,7 +7,7 @@ import { chromium } from "playwright-core";
 
 const ARTICLE_URL = new URL(
   "symmetric-polynomial/",
-  process.env.RM_BASE_URL ?? "http://localhost:4321/dispositif/",
+  process.env.TEST_BASE_URL ?? "http://localhost:4321/dispositif/",
 ).href;
 const ROW_HEIGHT = 40;
 const ROW_COUNT = 300;
@@ -15,41 +15,41 @@ const COLORS = [[170, 51, 0, 255], [0, 68, 170, 255]];
 
 async function layout(page) {
   return page.evaluate(() => {
-    const viewport = document.querySelector(".rm-viewport");
-    const plane = document.querySelector(".rm-plane");
+    const viewport = document.querySelector(".cl-viewport");
+    const plane = document.querySelector(".cl-plane");
     const rect = viewport.getBoundingClientRect();
     return {
       x: viewport.scrollLeft,
-      y: viewport.scrollTop + parseFloat(document.querySelector(".rm-plane").dataset.rmOriginY),
+      y: viewport.scrollTop + parseFloat(document.querySelector(".cl-plane").dataset.clOriginY),
       nativeY: viewport.scrollTop,
-      origin: Number(document.querySelector(".rm-plane").dataset.rmOriginColumn),
-      originY: parseFloat(document.querySelector(".rm-plane").dataset.rmOriginY),
+      origin: Number(document.querySelector(".cl-plane").dataset.clOriginColumn),
+      originY: parseFloat(document.querySelector(".cl-plane").dataset.clOriginY),
       maxX: viewport.scrollWidth - viewport.clientWidth,
       maxY: viewport.scrollHeight - viewport.clientHeight,
       h: viewport.clientHeight,
-      step: parseFloat(plane.style.getPropertyValue("--rm-step")),
-      p: parseFloat(plane.style.getPropertyValue("--rm-p")),
-      edge: parseFloat(plane.style.getPropertyValue("--rm-edge")),
-      leading: Number(plane.dataset.rmLeading),
-      l: parseFloat(plane.style.getPropertyValue("--rm-l")),
+      step: parseFloat(plane.style.getPropertyValue("--cl-step")),
+      p: parseFloat(plane.style.getPropertyValue("--cl-p")),
+      edge: parseFloat(plane.style.getPropertyValue("--cl-edge")),
+      leading: Number(plane.dataset.clLeading),
+      l: parseFloat(plane.style.getPropertyValue("--cl-l")),
       top: rect.top,
       left: rect.left,
       width: viewport.clientWidth,
-      slots: [...document.querySelectorAll(".rm-slot")].map((slot) => {
+      slots: [...document.querySelectorAll(".cl-slot")].map((slot) => {
         const frame = slot.getBoundingClientRect();
-        const style = getComputedStyle(slot.querySelector(".rm-content"));
+        const style = getComputedStyle(slot.querySelector(".cl-content"));
         const textLeft = frame.left + parseFloat(style.paddingLeft);
         const textRight = frame.right - parseFloat(style.paddingRight);
         return {
-          k: Number(slot.dataset.rmK),
-          paperTop: parseFloat(slot.querySelector(".rm-paper").style.top),
-          paperHeight: parseFloat(slot.querySelector(".rm-paper").style.height),
-          contentShift: parseFloat(slot.querySelector(".rm-content").style.translate.split(/\s+/)[1] ?? "0") + Number(slot.dataset.rmK) * parseFloat(plane.style.getPropertyValue("--rm-step")) + Number(plane.dataset.rmOriginY),
+          k: Number(slot.dataset.clK),
+          paperTop: parseFloat(slot.querySelector(".cl-paper").style.top),
+          paperHeight: parseFloat(slot.querySelector(".cl-paper").style.height),
+          contentShift: parseFloat(slot.querySelector(".cl-content").style.translate.split(/\s+/)[1] ?? "0") + Number(slot.dataset.clK) * parseFloat(plane.style.getPropertyValue("--cl-step")) + Number(plane.dataset.clOriginY),
           left: frame.left,
           width: frame.width,
           top: frame.top,
           height: frame.height,
-          visible: parseFloat(slot.querySelector(".rm-paper").style.height) > 1 && textRight > rect.left + 8 && textLeft < rect.left + viewport.clientWidth - 8,
+          visible: parseFloat(slot.querySelector(".cl-paper").style.height) > 1 && textRight > rect.left + 8 && textLeft < rect.left + viewport.clientWidth - 8,
           sampleX: Math.floor(Math.min(Math.max(textLeft + (textRight - textLeft) * 0.85, rect.left + 8),
             rect.left + viewport.clientWidth - 8)),
         };
@@ -119,16 +119,16 @@ async function settle(page) {
 async function scrollLogical(page, column, y, phase = 0) {
   // Native limits describe the CURRENT row/column. Open the requested range
   // before moving along the other axis, as a reader would do.
-  await page.locator(".rm-viewport").focus();
+  await page.locator(".cl-viewport").focus();
   await page.keyboard.press("Home");
   await settle(page);
   for (const axis of y >= 0 ? ["y", "x"] : ["x", "y"]) {
-    await page.locator(".rm-viewport").evaluate((viewport, { column, y, phase, axis }) => {
-      const style = document.querySelector(".rm-plane").style;
-      const p = parseFloat(style.getPropertyValue("--rm-p"));
-      const origin = Number(document.querySelector(".rm-plane").dataset.rmOriginColumn);
-      const originY = parseFloat(document.querySelector(".rm-plane").dataset.rmOriginY);
-      if (axis === "x") viewport.scrollLeft = (column - origin) * p + phase + Number(document.querySelector(".rm-plane").dataset.rmLeading);
+    await page.locator(".cl-viewport").evaluate((viewport, { column, y, phase, axis }) => {
+      const style = document.querySelector(".cl-plane").style;
+      const p = parseFloat(style.getPropertyValue("--cl-p"));
+      const origin = Number(document.querySelector(".cl-plane").dataset.clOriginColumn);
+      const originY = parseFloat(document.querySelector(".cl-plane").dataset.clOriginY);
+      if (axis === "x") viewport.scrollLeft = (column - origin) * p + phase + Number(document.querySelector(".cl-plane").dataset.clLeading);
       else viewport.scrollTop = y - originY;
     }, { column, y, phase, axis });
     await settle(page);
@@ -137,21 +137,21 @@ async function scrollLogical(page, column, y, phase = 0) {
 
 test("スクロール後も固定高さの各段が続きの本文で描画される", { timeout: 120_000 }, async (t) => {
   const browser = await chromium.launch({
-    executablePath: process.env.RM_BROWSER_PATH || undefined,
+    executablePath: process.env.TEST_BROWSER_PATH || undefined,
   });
   try {
     for (const viewport of [{ width: 1600, height: 1000 }, { width: 390, height: 844 }]) {
       await t.test(`${viewport.width}px の表示領域`, async () => {
         const page = await browser.newPage({ reducedMotion: "reduce", viewport, deviceScaleFactor: 1 });
         try {
-          await page.addInitScript(() => localStorage.setItem("dispositif:reading-mode", "multi"));
+          await page.addInitScript(() => localStorage.setItem("dispositif:columns", "multi"));
           await page.goto(ARTICLE_URL, { waitUntil: "domcontentloaded" });
           // Synthetic row pixels use a flat canvas; the real list backdrop is
-          // exercised separately in reading-background.browser.test.mjs.
-          await page.addStyleTag({ content: "astro-dev-toolbar, .article-index-shell, .rm-backdrop { display: none !important; }" });
+          // exercised separately in column-background.browser.test.mjs.
+          await page.addStyleTag({ content: "astro-dev-toolbar, .article-index-shell, .cl-backdrop { display: none !important; }" });
           await page.evaluate(() => document.fonts.ready);
-          await page.waitForSelector("html.rm-active .rm-slot");
-          await page.locator(".rm-source").evaluate((source, { rowHeight, rowCount }) => {
+          await page.waitForSelector("html.cl-multi .cl-slot");
+          await page.locator(".cl-source").evaluate((source, { rowHeight, rowCount }) => {
             // Solid alternating rows make a missing lower section unambiguous;
             // ordinary article whitespace must not hide a rendering regression.
             source.innerHTML = Array.from({ length: rowCount }, (_, i) =>
@@ -159,7 +159,7 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
             ).join("");
           }, { rowHeight: ROW_HEIGHT, rowCount: ROW_COUNT });
           await page.waitForFunction((length) =>
-            parseFloat(document.querySelector(".rm-plane").style.getPropertyValue("--rm-l")) === length,
+            parseFloat(document.querySelector(".cl-plane").style.getPropertyValue("--cl-l")) === length,
           ROW_HEIGHT * ROW_COUNT);
           await settle(page);
           const initial = await layout(page);
@@ -168,7 +168,7 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
           // gestures must keep the current vertical text coordinate.
           for (const y of [0, Math.floor(initial.step / 2), initial.step - 1]) {
             await scrollLogical(page, 0, y);
-            await page.locator(".rm-viewport").focus();
+            await page.locator(".cl-viewport").focus();
             await page.keyboard.press("ArrowLeft");
             await settle(page);
             const moved = await layout(page);
@@ -181,7 +181,7 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
 
           // The user's example: down one text advance, then left one column.
           await scrollLogical(page, 0, initial.step);
-          await page.locator(".rm-viewport").focus();
+          await page.locator(".cl-viewport").focus();
           await page.keyboard.press("ArrowLeft");
           await settle(page);
           const negative = await layout(page);
@@ -224,7 +224,7 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
           await page.mouse.move(beforeWheel.left + 100, beforeWheel.top + 100);
           await page.mouse.wheel(97, 129);
           await page.waitForFunction(({ x, y }) => {
-            const viewport = document.querySelector(".rm-viewport");
+            const viewport = document.querySelector(".cl-viewport");
             return viewport.scrollLeft >= x + 96 && viewport.scrollTop >= y + 128;
           }, { x: beforeWheel.x, y: beforeWheel.nativeY });
           await settle(page);
@@ -244,8 +244,8 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
                 if (axis === "x") {
                   for (let i = 0; i < 8; i++) await page.keyboard.press(direction < 0 ? "ArrowLeft" : "ArrowRight");
                 } else {
-                  await page.locator(".rm-viewport").evaluate((viewport, direction) => {
-                    const step = parseFloat(document.querySelector(".rm-plane").style.getPropertyValue("--rm-step"));
+                  await page.locator(".cl-viewport").evaluate((viewport, direction) => {
+                    const step = parseFloat(document.querySelector(".cl-plane").style.getPropertyValue("--cl-step"));
                     viewport.scrollBy({ top: -direction * 8 * step, behavior: "instant" });
                   }, direction);
                 }
@@ -270,7 +270,7 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
             // across rebases until the logical article end is reached.
             let previous = -Infinity;
             for (let i = 0; i < 30; i++) {
-              await page.locator(".rm-viewport").evaluate((v) => { v.scrollLeft = v.scrollWidth; });
+              await page.locator(".cl-viewport").evaluate((v) => { v.scrollLeft = v.scrollWidth; });
               await settle(page);
               const s = await layout(page);
               const logicalX = s.x + s.origin * s.p;
@@ -287,7 +287,7 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
             const exterior = right.left + right.width - last.left - last.width;
             assert.ok(exterior >= right.edge - 1 && exterior <= right.p + right.edge + 1,
               "末尾の余白が1段幅を超えた");
-            await page.locator(".rm-viewport").focus();
+            await page.locator(".cl-viewport").focus();
             await page.keyboard.press("ArrowRight");
             await page.keyboard.press("ArrowRight");
             await page.mouse.move(right.left + right.width - 100, right.top + 100);
@@ -303,7 +303,7 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
             // At the last partial sheet, further vertical input must not grow
             // the range or move x. Repeated
             // wheel, scrollbar, and keyboard input cannot send the tail upward.
-            await page.locator(".rm-viewport").evaluate((v) => { v.scrollTop = v.scrollHeight; });
+            await page.locator(".cl-viewport").evaluate((v) => { v.scrollTop = v.scrollHeight; });
             await settle(page);
             const atBottom = await layout(page);
             const bottomColumn = Math.max(...atBottom.slots.filter((slot) => slot.visible).map((slot) => slot.k));
@@ -319,7 +319,7 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
                 - atBottom.x - atBottom.origin * atBottom.p) < 1);
             }
             await page.mouse.wheel(0, 600);
-            await page.locator(".rm-viewport").evaluate((v) => { v.scrollTop = 1e9; });
+            await page.locator(".cl-viewport").evaluate((v) => { v.scrollTop = 1e9; });
             await settle(page);
             const blocked = await layout(page);
             assert.ok(Math.abs(blocked.y - atBottom.y) < 1, "本文末尾の後ろに空白が増えた");
@@ -331,7 +331,7 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
 
           // Native edges either rebase or stop at the article's beginning.
           for (const edge of ["left", "right", "top", "bottom"]) {
-            await page.locator(".rm-viewport").evaluate((viewport, edge) => {
+            await page.locator(".cl-viewport").evaluate((viewport, edge) => {
               viewport.scrollTo({
                 left: edge === "left" ? 0 : edge === "right" ? viewport.scrollWidth : viewport.scrollLeft,
                 top: edge === "top" ? 0 : edge === "bottom" ? viewport.scrollHeight : viewport.scrollTop,
@@ -345,7 +345,7 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
             await assertPainted(page);
           }
           // Home/End work regardless of how far away the virtual origin is.
-          await page.locator(".rm-viewport").focus();
+          await page.locator(".cl-viewport").focus();
           for (const key of ["Home", "End"]) {
             await page.keyboard.press(key);
             await settle(page);
@@ -360,13 +360,13 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
           }
           await page.setViewportSize({ width: viewport.width, height: viewport.height - 130 });
           await page.waitForFunction(() =>
-            parseFloat(document.querySelector(".rm-plane").style.getPropertyValue("--rm-h"))
-              === document.querySelector(".rm-viewport").clientHeight);
+            parseFloat(document.querySelector(".cl-plane").style.getPropertyValue("--cl-h"))
+              === document.querySelector(".cl-viewport").clientHeight);
           await settle(page);
           await assertPainted(page);
           await assertNoOverlap(page);
         } catch (error) {
-          const path = join(tmpdir(), `dispositif-reading-paint-${viewport.width}.png`);
+          const path = join(tmpdir(), `dispositif-column-paint-${viewport.width}.png`);
           await page.screenshot({ path }).catch(() => {});
           t.diagnostic(`描画確認画像: ${path}`);
           throw error;
@@ -379,35 +379,35 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
     await t.test("有限なスクロール面より長い記事でもハッシュとHome/Endが使える", async () => {
       const page = await browser.newPage({ reducedMotion: "reduce", viewport: { width: 900, height: 800 } });
       try {
-        await page.addInitScript(() => localStorage.setItem("dispositif:reading-mode", "multi"));
+        await page.addInitScript(() => localStorage.setItem("dispositif:columns", "multi"));
         await page.goto(ARTICLE_URL);
-        await page.waitForSelector(".rm-slot");
-        await page.locator(".rm-source").evaluate((source) => {
-          source.innerHTML = '<h2 id="rm-far-start" style="margin:0;height:40px">先頭</h2><div style="height:1000000px"></div><h2 id="rm-far-end" style="margin:0;height:1000px;background:#0044aa">遠い見出し</h2>';
+        await page.waitForSelector(".cl-slot");
+        await page.locator(".cl-source").evaluate((source) => {
+          source.innerHTML = '<h2 id="cl-far-start" style="margin:0;height:40px">先頭</h2><div style="height:1000000px"></div><h2 id="cl-far-end" style="margin:0;height:1000px;background:#0044aa">遠い見出し</h2>';
         });
         await page.waitForFunction(() =>
-          parseFloat(document.querySelector(".rm-plane").style.getPropertyValue("--rm-l")) > 1000000);
+          parseFloat(document.querySelector(".cl-plane").style.getPropertyValue("--cl-l")) > 1000000);
         await settle(page);
-        assert.ok(await page.locator(".rm-viewport").evaluate((v) => v.scrollHeight <= 128 * v.clientHeight + 1),
+        assert.ok(await page.locator(".cl-viewport").evaluate((v) => v.scrollHeight <= 128 * v.clientHeight + 1),
           "本文の長さに応じてスクロール面まで大きくなった");
-        const count = await page.locator(".rm-content").count();
-        await page.evaluate(() => { location.hash = "rm-far-end"; });
+        const count = await page.locator(".cl-content").count();
+        await page.evaluate(() => { location.hash = "cl-far-end"; });
         await page.waitForFunction(() => {
-          const v = document.querySelector(".rm-viewport"), s = document.querySelector(".rm-plane").style;
-          const step = parseFloat(s.getPropertyValue("--rm-step"));
-          const target = document.getElementById("rm-far-end").getBoundingClientRect().top
-            - document.querySelector(".rm-source").getBoundingClientRect().top;
+          const v = document.querySelector(".cl-viewport"), s = document.querySelector(".cl-plane").style;
+          const step = parseFloat(s.getPropertyValue("--cl-step"));
+          const target = document.getElementById("cl-far-end").getBoundingClientRect().top
+            - document.querySelector(".cl-source").getBoundingClientRect().top;
           const vr = v.getBoundingClientRect();
-          return [...document.querySelectorAll(".rm-slot")].some((slot) => {
+          return [...document.querySelectorAll(".cl-slot")].some((slot) => {
             const r = slot.getBoundingClientRect();
-            const py = target - Number(slot.dataset.rmK) * step - v.scrollTop - parseFloat(document.querySelector(".rm-plane").dataset.rmOriginY);
+            const py = target - Number(slot.dataset.clK) * step - v.scrollTop - parseFloat(document.querySelector(".cl-plane").dataset.clOriginY);
             return r.left >= vr.left - 1 && r.right <= vr.right + 1 && py >= -1 && py < v.clientHeight;
           });
         });
         await settle(page);
         const atHash = await layout(page);
-        const headingT = await page.locator("#rm-far-end").evaluate((heading) =>
-          heading.getBoundingClientRect().top - document.querySelector(".rm-source").getBoundingClientRect().top);
+        const headingT = await page.locator("#cl-far-end").evaluate((heading) =>
+          heading.getBoundingClientRect().top - document.querySelector(".cl-source").getBoundingClientRect().top);
         const target = atHash.slots.filter((slot) => slot.visible).map((slot) => ({
           ...slot, py: headingT - slot.k * atHash.step - atHash.y,
         })).find((slot) => slot.py >= 0 && slot.py < atHash.h - 23);
@@ -416,7 +416,7 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
           x: target.sampleX, y: Math.floor(atHash.top + Math.min(target.py + 111, atHash.h - 23)),
         }]);
         assert.deepEqual(pixel, [0, 68, 170, 255], "遠い見出しの実際の描画が空白になった");
-        await page.locator(".rm-viewport").focus();
+        await page.locator(".cl-viewport").focus();
         for (const key of ["Home", "End"]) {
           await page.keyboard.press(key);
           await settle(page);
@@ -427,7 +427,7 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
             const py = s.l - 1 - slot.k * s.step - s.y;
             return py >= 0 && py < s.h;
           }));
-          assert.equal(await page.locator(".rm-content").count(), count);
+          assert.equal(await page.locator(".cl-content").count(), count);
         }
       } finally { await page.close(); }
     });
@@ -436,19 +436,19 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
       for (const width of [1600, 390]) {
         const page = await browser.newPage({ reducedMotion: "reduce", viewport: { width, height: 900 } });
         try {
-          await page.addInitScript(() => localStorage.setItem("dispositif:reading-mode", "multi"));
+          await page.addInitScript(() => localStorage.setItem("dispositif:columns", "multi"));
           await page.goto(ARTICLE_URL);
           await page.evaluate(() => document.fonts.ready);
-          await page.waitForSelector(".rm-slot");
-          await page.locator(".rm-source").evaluate((source) => {
-            source.innerHTML = '<div style="height:20000px"></div><h2 id="rm-tail-marker" data-test-tail style="height:80px;margin:0;background:#0044aa">末尾</h2>';
+          await page.waitForSelector(".cl-slot");
+          await page.locator(".cl-source").evaluate((source) => {
+            source.innerHTML = '<div style="height:20000px"></div><h2 id="cl-tail-marker" data-test-tail style="height:80px;margin:0;background:#0044aa">末尾</h2>';
           });
-          await page.waitForFunction(() => document.querySelector(".rm-plane").style.getPropertyValue("--rm-l") === "20080px");
+          await page.waitForFunction(() => document.querySelector(".cl-plane").style.getPropertyValue("--cl-l") === "20080px");
           await settle(page);
-          await page.evaluate(() => { location.hash = "rm-tail-marker"; });
+          await page.evaluate(() => { location.hash = "cl-tail-marker"; });
           await settle(page);
           const state = await layout(page);
-          const markers = await page.locator(".rm-slot [data-test-tail]").evaluateAll((nodes) =>
+          const markers = await page.locator(".cl-slot [data-test-tail]").evaluateAll((nodes) =>
             nodes.map((node) => {
               const r = node.getBoundingClientRect();
               return { x: r.left, y: r.top, width: r.width, bottom: r.bottom };
@@ -463,7 +463,7 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
           assert.deepEqual(pixel, [0, 68, 170, 255]);
           await page.setViewportSize({ width, height: 760 });
           await settle(page);
-          await page.locator(".rm-viewport").focus();
+          await page.locator(".cl-viewport").focus();
           await page.keyboard.press("End");
           await settle(page);
           const resized = await layout(page);
@@ -489,24 +489,24 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
     await t.test("画面より短い記事は1段で止まり、白紙の段を作らない", async () => {
       const page = await browser.newPage({ reducedMotion: "reduce", viewport: { width: 1600, height: 900 } });
       try {
-        await page.addInitScript(() => localStorage.setItem("dispositif:reading-mode", "multi"));
+        await page.addInitScript(() => localStorage.setItem("dispositif:columns", "multi"));
         await page.goto(ARTICLE_URL);
-        await page.waitForSelector(".rm-slot");
-        await page.locator(".rm-source").evaluate((source) => {
+        await page.waitForSelector(".cl-slot");
+        await page.locator(".cl-source").evaluate((source) => {
           source.innerHTML = '<div style="height:200px;background:#0044aa">短い記事</div>';
         });
-        await page.waitForFunction(() => parseFloat(document.querySelector(".rm-plane").style.getPropertyValue("--rm-l")) === 200);
+        await page.waitForFunction(() => parseFloat(document.querySelector(".cl-plane").style.getPropertyValue("--cl-l")) === 200);
         await settle(page);
-        await page.locator(".rm-viewport").focus();
+        await page.locator(".cl-viewport").focus();
         await page.keyboard.press("ArrowRight");
-        await page.locator(".rm-viewport").evaluate((v) => { v.scrollLeft = 1000000; });
+        await page.locator(".cl-viewport").evaluate((v) => { v.scrollLeft = 1000000; });
         await settle(page);
         assert.equal((await layout(page)).maxX, (await layout(page)).leading);
         assert.equal((await layout(page)).x, (await layout(page)).maxX);
-        assert.equal(await page.locator(".rm-slot").count(), 1);
+        assert.equal(await page.locator(".cl-slot").count(), 1);
         await page.keyboard.press("End");
         await page.keyboard.press("PageDown");
-        await page.locator(".rm-viewport").evaluate((v) => { v.scrollTop = 1e9; });
+        await page.locator(".cl-viewport").evaluate((v) => { v.scrollTop = 1e9; });
         await settle(page);
         assert.equal((await layout(page)).y, 0);
         assert.equal((await layout(page)).maxY, 0);
@@ -516,58 +516,58 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
     await t.test("全文1個と表示断片に抑え、元本文と印刷・1段表示を維持する", async () => {
       const page = await browser.newPage({ reducedMotion: "reduce", viewport: { width: 1280, height: 900 } });
       try {
-        await page.addInitScript(() => localStorage.setItem("dispositif:reading-mode", "multi"));
+        await page.addInitScript(() => localStorage.setItem("dispositif:columns", "multi"));
         await page.goto(ARTICLE_URL);
         await page.evaluate(() => document.fonts.ready);
-        await page.waitForSelector(".rm-slot .rm-source");
-        const original = await page.locator(".rm-source").elementHandle();
+        await page.waitForSelector(".cl-slot .cl-source");
+        const original = await page.locator(".cl-source").elementHandle();
         const initialPool = await layout(page);
         const poolSize = Math.ceil(initialPool.width / initialPool.p) + 1;
-        assert.equal(await page.locator(".rm-source, .rm-content").count(), poolSize);
-        assert.equal(await page.locator(".rm-content:not(.rm-source)").count(), poolSize - 1);
-        assert.equal(await page.locator("[data-rm-fragmented]").count(), poolSize - 1);
-        const fullSize = await page.locator(".rm-source").evaluate((source) => source.querySelectorAll("*").length);
-        assert.ok(await page.locator("[data-rm-fragmented]").evaluateAll((roots, fullSize) =>
+        assert.equal(await page.locator(".cl-source, .cl-content").count(), poolSize);
+        assert.equal(await page.locator(".cl-content:not(.cl-source)").count(), poolSize - 1);
+        assert.equal(await page.locator("[data-cl-fragmented]").count(), poolSize - 1);
+        const fullSize = await page.locator(".cl-source").evaluate((source) => source.querySelectorAll("*").length);
+        assert.ok(await page.locator("[data-cl-fragmented]").evaluateAll((roots, fullSize) =>
           roots.every((root) => root.querySelectorAll("*").length < fullSize / 2), fullSize),
         "各段に全文を複製している");
-        const firstId = await page.locator(".rm-source [id]").first().getAttribute("id");
+        const firstId = await page.locator(".cl-source [id]").first().getAttribute("id");
         assert.equal(await page.evaluate((id) => [...document.querySelectorAll("[id]")].filter((node) => node.id === id).length, firstId), 1);
-        await page.locator(".rm-viewport").focus();
+        await page.locator(".cl-viewport").focus();
         await page.keyboard.press("ArrowRight");
         await settle(page);
         const position = await layout(page);
         await page.emulateMedia({ media: "print" });
-        await page.waitForSelector(".rm-layout > .rm-source", { state: "attached" });
-        assert.ok(await page.locator(".rm-source").isVisible(), "印刷時に元本文が消えた");
-        assert.equal(await page.locator(".rm-content").count(), 0);
+        await page.waitForSelector(".cl-layout > .cl-source", { state: "attached" });
+        assert.ok(await page.locator(".cl-source").isVisible(), "印刷時に元本文が消えた");
+        assert.equal(await page.locator(".cl-content").count(), 0);
         await page.emulateMedia({ media: "screen" });
-        await page.waitForSelector(".rm-slot .rm-source");
+        await page.waitForSelector(".cl-slot .cl-source");
         await settle(page);
         const resumed = await layout(page);
         const readingPosition = (s) => (Math.floor((s.x - s.leading + 0.01) / s.p) + s.origin) * s.step + s.y;
         assert.ok(Math.abs(readingPosition(position) - readingPosition(resumed)) < 1, "印刷で読書位置がずれた");
         await page.setViewportSize({ width: 390, height: 844 });
         await page.waitForFunction(() => {
-          const v = document.querySelector(".rm-viewport"), p = parseFloat(document.querySelector(".rm-plane").style.getPropertyValue("--rm-p"));
-          return document.querySelectorAll(".rm-slot").length === Math.ceil(v.clientWidth / p) + 1;
+          const v = document.querySelector(".cl-viewport"), p = parseFloat(document.querySelector(".cl-plane").style.getPropertyValue("--cl-p"));
+          return document.querySelectorAll(".cl-slot").length === Math.ceil(v.clientWidth / p) + 1;
         });
-        assert.ok(await original.evaluate((source) => source.isConnected && !!source.closest(".rm-slot")));
+        assert.ok(await original.evaluate((source) => source.isConnected && !!source.closest(".cl-slot")));
         // Shrink to a single short column while the original's old column is
         // outside the wanted range. Its node and IDs must survive pool removal.
-        await page.locator(".rm-source").evaluate((source) => {
+        await page.locator(".cl-source").evaluate((source) => {
           source.innerHTML = '<div style="height:200px">短い記事</div>';
         });
-        await page.waitForFunction(() => document.querySelectorAll(".rm-slot").length === 1);
-        assert.equal(await page.locator(".rm-source, .rm-content").count(), 1);
-        assert.ok(await original.evaluate((source) => source.isConnected && !!source.closest(".rm-slot")));
+        await page.waitForFunction(() => document.querySelectorAll(".cl-slot").length === 1);
+        assert.equal(await page.locator(".cl-source, .cl-content").count(), 1);
+        assert.ok(await original.evaluate((source) => source.isConnected && !!source.closest(".cl-slot")));
         for (let i = 0; i < 2; i++) {
-          await toggleReadingMode(page);
-          assert.equal(await page.locator(".rm-content").count(), 0);
-          assert.ok(await original.evaluate((source) => source.parentElement.classList.contains("rm-layout")
+          await toggleColumns(page);
+          assert.equal(await page.locator(".cl-content").count(), 0);
+          assert.ok(await original.evaluate((source) => source.parentElement.classList.contains("cl-layout")
             && !source.style.width && !source.style.left && !source.style.translate));
-          await toggleReadingMode(page);
-          await page.waitForSelector(".rm-slot .rm-source");
-          assert.equal(await page.locator(".rm-source, .rm-content").count(), 1);
+          await toggleColumns(page);
+          await page.waitForSelector(".cl-slot .cl-source");
+          assert.equal(await page.locator(".cl-source, .cl-content").count(), 1);
         }
       } finally { await page.close(); }
     });
@@ -575,14 +575,14 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
     await t.test("数式記事の高速移動で本文全体のスタイルを再計算しない", async (t) => {
       const page = await browser.newPage({ reducedMotion: "reduce", viewport: { width: 1600, height: 900 } });
       try {
-        await page.addInitScript(() => localStorage.setItem("dispositif:reading-mode", "multi"));
+        await page.addInitScript(() => localStorage.setItem("dispositif:columns", "multi"));
         await page.goto(ARTICLE_URL);
         await page.evaluate(() => document.fonts.ready);
-        await page.waitForSelector(".rm-content mjx-container");
+        await page.waitForSelector(".cl-content mjx-container");
         await page.locator("astro-dev-toolbar").evaluateAll((nodes) => nodes.forEach((node) => node.remove()));
         await settle(page);
         const initial = await layout(page);
-        const sourceElements = await page.locator(".rm-source").evaluate((source) => source.getElementsByTagName("*").length);
+        const sourceElements = await page.locator(".cl-source").evaluate((source) => source.getElementsByTagName("*").length);
         const client = await page.context().newCDPSession(page);
         const events = [];
         client.on("Tracing.dataCollected", ({ value }) => events.push(...value));
@@ -611,7 +611,7 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
         // whole document (more than the article body) on every update.
         assert.ok(Math.max(...elements) < sourceElements,
           "段の移動で数式本文全体のスタイル再計算が発生している");
-        assert.equal(await page.locator(".rm-slot").count(), initial.slots.length);
+        assert.equal(await page.locator(".cl-slot").count(), initial.slots.length);
         await client.send("Emulation.setCPUThrottlingRate", { rate: 1 });
         await client.detach();
       } finally { await page.close(); }
@@ -621,32 +621,32 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
       for (const width of [1600, 390]) {
         const page = await browser.newPage({ reducedMotion: "reduce", viewport: { width, height: 900 } });
         try {
-          await page.addInitScript(() => localStorage.setItem("dispositif:reading-mode", "multi"));
+          await page.addInitScript(() => localStorage.setItem("dispositif:columns", "multi"));
           await page.goto(ARTICLE_URL);
           await page.evaluate(() => document.fonts.ready);
-          await page.waitForSelector(".rm-slot");
-          await page.locator(".rm-source").evaluate((source) => {
+          await page.waitForSelector(".cl-slot");
+          await page.locator(".cl-source").evaluate((source) => {
             source.innerHTML = '<div style="height:300000px;background:#0044aa"></div>';
           });
-          await page.waitForFunction(() => document.querySelector(".rm-plane").style.getPropertyValue("--rm-l") === "300000px");
+          await page.waitForFunction(() => document.querySelector(".cl-plane").style.getPropertyValue("--cl-l") === "300000px");
           await settle(page);
           const initial = await layout(page);
           const trace = await page.evaluateHandle(() => {
-            return { frames: new Set(document.querySelectorAll(".rm-slot")), source: document.querySelector(".rm-source") };
+            return { frames: new Set(document.querySelectorAll(".cl-slot")), source: document.querySelector(".cl-source") };
           });
           const session = await page.context().newCDPSession(page);
           const object = await session.send("Runtime.evaluate", {
-            expression: 'document.querySelector(".rm-viewport")',
+            expression: 'document.querySelector(".cl-viewport")',
           });
           const { listeners } = await session.send("DOMDebugger.getEventListeners", { objectId: object.result.objectId });
           assert.ok(!listeners.some((listener) => listener.type === "wheel" && !listener.passive),
             "非passiveなホイール処理がネイティブスクロールを待たせる");
           assert.ok(initial.maxX > 50 * initial.p, "ネイティブスクロール面が数段に制限されている");
           assert.ok(initial.slots.length <= Math.ceil(initial.width / initial.p) + 1);
-          assert.equal(await page.locator(".rm-content").count(), initial.slots.length,
+          assert.equal(await page.locator(".cl-content").count(), initial.slots.length,
             "表示枠の外に計測専用の全文が残っている");
-          assert.equal(await page.locator(".rm-slot .rm-source").count(), 1);
-          assert.equal(await page.locator(".rm-source").evaluate((source) => source.closest('[aria-hidden="true"]')), null);
+          assert.equal(await page.locator(".cl-slot .cl-source").count(), 1);
+          assert.equal(await page.locator(".cl-source").evaluate((source) => source.closest('[aria-hidden="true"]')), null);
           await page.mouse.move(initial.left + 100, initial.top + 150);
           for (let i = 0; i < 20; i++) {
             await page.mouse.wheel((i < 12 ? 1 : -1) * 1.7 * initial.p, 0);
@@ -657,9 +657,9 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
             const mounted = new Set(current.slots.map((slot) => slot.k));
             for (let k = first; k <= last; k++) assert.ok(mounted.has(k), "可視段が用意されていない");
           }
-          assert.ok(await trace.evaluate((state) => [...document.querySelectorAll(".rm-slot")].every((slot) => state.frames.has(slot))),
+          assert.ok(await trace.evaluate((state) => [...document.querySelectorAll(".cl-slot")].every((slot) => state.frames.has(slot))),
             "横移動で表示枠を作り直した");
-          await page.locator(".rm-viewport").focus();
+          await page.locator(".cl-viewport").focus();
           const beforeKey = await layout(page);
           await page.keyboard.press("ArrowRight");
           await settle(page);
@@ -683,28 +683,28 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
           if (width === 1600) {
             const count = initial.slots.length;
             await page.setViewportSize({ width: 1200, height: 900 });
-            await page.waitForFunction((count) => document.querySelectorAll(".rm-slot").length < count, count);
-            assert.ok(await trace.evaluate((state) => [...document.querySelectorAll(".rm-slot")].every((slot) => state.frames.has(slot))),
+            await page.waitForFunction((count) => document.querySelectorAll(".cl-slot").length < count, count);
+            assert.ok(await trace.evaluate((state) => [...document.querySelectorAll(".cl-slot")].every((slot) => state.frames.has(slot))),
               "枠を減らす際に残すべき枠まで削除した");
             await page.setViewportSize({ width, height: 900 });
-            await page.waitForFunction((count) => document.querySelectorAll(".rm-slot").length === count, count);
-            const retained = await trace.evaluate((state) => [...document.querySelectorAll(".rm-slot")].filter((slot) => state.frames.has(slot)).length);
+            await page.waitForFunction((count) => document.querySelectorAll(".cl-slot").length === count, count);
+            const retained = await trace.evaluate((state) => [...document.querySelectorAll(".cl-slot")].filter((slot) => state.frames.has(slot)).length);
             assert.equal(retained, count - 1, "枠を増やす際に既存の枠まで作り直した");
           }
           // A large wheel gesture over a formula/code-like scroller must still
           // belong to that element, rather than jumping the article.
-          await page.locator(".rm-viewport").focus();
+          await page.locator(".cl-viewport").focus();
           await page.keyboard.press("Home");
-          await page.locator(".rm-source > div").evaluate((body) => {
+          await page.locator(".cl-source > div").evaluate((body) => {
             body.innerHTML = '<div data-test-scroll style="height:80px;width:120px;overflow:auto"><div style="width:30000px;height:40px"></div></div>';
           });
           await settle(page);
-          const nested = page.locator('.rm-slot[data-rm-k="0"] [data-test-scroll]');
+          const nested = page.locator('.cl-slot[data-cl-k="0"] [data-test-scroll]');
           await nested.waitFor();
           const box = await nested.boundingBox();
           await page.mouse.move(box.x + 40, box.y + 40);
           await page.mouse.wheel(4000, 0);
-          await page.waitForFunction(() => document.querySelector('.rm-slot[data-rm-k="0"] [data-test-scroll]').scrollLeft > 3000);
+          await page.waitForFunction(() => document.querySelector('.cl-slot[data-cl-k="0"] [data-test-scroll]').scrollLeft > 3000);
           const nestedState = await layout(page);
           assert.ok(Math.abs(nestedState.x + nestedState.origin * nestedState.p - nestedState.leading) < 1, "数式やコードの横スクロールを奪った");
           await page.mouse.move(initial.left + 100, initial.top + 150);
@@ -717,7 +717,7 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
             await page.mouse.wheel(delta, 0);
             // Wait for the native scroll itself, not a fixed time: a slow CI
             // runner may apply it later. Poll with timers, since rAF is stubbed.
-            await page.waitForFunction((target) => Math.abs(document.querySelector(".rm-viewport").scrollLeft - target) < 1,
+            await page.waitForFunction((target) => Math.abs(document.querySelector(".cl-viewport").scrollLeft - target) < 1,
               before.x + delta, { polling: 20, timeout: 3000 }).catch(() => {});
             const state = await layout(page);
             assert.ok(Math.abs(state.x - before.x - delta) < 1, "JSの更新待ちで高速スクロールが止まった");
@@ -726,8 +726,8 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
           // Trigger a new scroll after restoring rAF to resume the reader.
           await page.mouse.wheel(initial.p * 1.7, 0);
           await settle(page);
-          assert.ok(await trace.evaluate((state) => document.querySelector(".rm-source") === state.source
-            && state.source.closest(".rm-slot")), "元本文のDOMが入れ替わった");
+          assert.ok(await trace.evaluate((state) => document.querySelector(".cl-source") === state.source
+            && state.source.closest(".cl-slot")), "元本文のDOMが入れ替わった");
           await originalRAF.dispose();
           await session.detach();
           await trace.dispose();

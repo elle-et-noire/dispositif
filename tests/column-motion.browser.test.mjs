@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { chromium } from "playwright-core";
-import { readingScrollbar } from "./reading-controls.mjs";
+import { columnScrollbar } from "./column-controls.mjs";
 
 const ARTICLE_URL = new URL("symmetric-polynomial/",
-  process.env.RM_BASE_URL ?? "http://localhost:4321/dispositif/").href;
+  process.env.TEST_BASE_URL ?? "http://localhost:4321/dispositif/").href;
 
 async function settle(page) {
   await page.evaluate(async () => {
@@ -14,41 +14,41 @@ async function settle(page) {
 
 async function state(page) {
   return page.evaluate(() => {
-    const v = document.querySelector(".rm-viewport"), plane = document.querySelector(".rm-plane");
-    const p = parseFloat(plane.style.getPropertyValue("--rm-p"));
-    const edge = parseFloat(plane.style.getPropertyValue("--rm-edge"));
-    const w = parseFloat(plane.style.getPropertyValue("--rm-w"));
-    const x = v.scrollLeft + Number(plane.dataset.rmOriginColumn) * p - Number(plane.dataset.rmLeading);
-    const y = v.scrollTop + Number(plane.dataset.rmOriginY);
+    const v = document.querySelector(".cl-viewport"), plane = document.querySelector(".cl-plane");
+    const p = parseFloat(plane.style.getPropertyValue("--cl-p"));
+    const edge = parseFloat(plane.style.getPropertyValue("--cl-edge"));
+    const w = parseFloat(plane.style.getPropertyValue("--cl-w"));
+    const x = v.scrollLeft + Number(plane.dataset.clOriginColumn) * p - Number(plane.dataset.clLeading);
+    const y = v.scrollTop + Number(plane.dataset.clOriginY);
     let first = Math.ceil((x - edge - 0.01) / p);
     let last = Math.floor((x + v.clientWidth - edge - w + 0.01) / p);
     if (first > last) first = last = Math.round((x + v.clientWidth / 2 - edge - w / 2) / p);
     return { x, y, p, w, edge, first, last, width: v.clientWidth, h: v.clientHeight,
-      step: parseFloat(plane.style.getPropertyValue("--rm-step")),
-      l: parseFloat(plane.style.getPropertyValue("--rm-l")),
-      animating: v.hasAttribute("data-rm-animating") };
+      step: parseFloat(plane.style.getPropertyValue("--cl-step")),
+      l: parseFloat(plane.style.getPropertyValue("--cl-l")),
+      animating: v.hasAttribute("data-cl-animating") };
   });
 }
 
 async function open(page) {
-  await page.addInitScript(() => localStorage.setItem("dispositif:reading-mode", "multi"));
+  await page.addInitScript(() => localStorage.setItem("dispositif:columns", "multi"));
   await page.goto(ARTICLE_URL);
-  await page.waitForSelector(".rm-slot");
+  await page.waitForSelector(".cl-slot");
   await page.evaluate(() => document.fonts.ready);
-  await page.locator(".rm-source").evaluate((source) => {
+  await page.locator(".cl-source").evaluate((source) => {
     source.innerHTML = '<div style="height:50000px;background:repeating-linear-gradient(#fff 0 30px,#e2e8f0 30px 60px)">本文</div>';
   });
-  await page.waitForFunction(() => document.querySelector(".rm-plane").style.getPropertyValue("--rm-l") === "50000px");
+  await page.waitForFunction(() => document.querySelector(".cl-plane").style.getPropertyValue("--cl-l") === "50000px");
   await settle(page);
-  await page.locator(".rm-viewport").focus();
+  await page.locator(".cl-viewport").focus();
 }
 
 test("先頭・末尾で外向きの矢印を押しても同じ位置へ再スクロールしない", { timeout: 45_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.RM_BROWSER_PATH || undefined });
+  const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER_PATH || undefined });
   const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
   try {
     await open(page);
-    await page.locator(".rm-viewport").evaluate((v) => {
+    await page.locator(".cl-viewport").evaluate((v) => {
       const original = v.scrollTo.bind(v);
       window.edgeScrollWrites = 0;
       v.scrollTo = (...args) => { window.edgeScrollWrites++; return original(...args); };
@@ -72,27 +72,27 @@ async function middle(page, phase = 100) {
   await page.keyboard.press("Home");
   await settle(page);
   await setY(page, 4000);
-  await page.locator(".rm-viewport").evaluate((v, phase) => {
-    const plane = document.querySelector(".rm-plane");
-    v.scrollLeft = phase - Number(plane.dataset.rmOriginColumn) * parseFloat(plane.style.getPropertyValue("--rm-p")) + Number(plane.dataset.rmLeading);
+  await page.locator(".cl-viewport").evaluate((v, phase) => {
+    const plane = document.querySelector(".cl-plane");
+    v.scrollLeft = phase - Number(plane.dataset.clOriginColumn) * parseFloat(plane.style.getPropertyValue("--cl-p")) + Number(plane.dataset.clLeading);
   }, phase);
   await settle(page);
 }
 
 async function setY(page, y) {
-  await page.locator(".rm-viewport").evaluate((v, y) => {
-    v.scrollTop = y - Number(document.querySelector(".rm-plane").dataset.rmOriginY);
+  await page.locator(".cl-viewport").evaluate((v, y) => {
+    v.scrollTop = y - Number(document.querySelector(".cl-plane").dataset.clOriginY);
   }, y);
   await settle(page);
 }
 
 async function animationDone(page) {
-  await page.waitForFunction(() => !document.querySelector(".rm-viewport").hasAttribute("data-rm-animating"));
+  await page.waitForFunction(() => !document.querySelector(".cl-viewport").hasAttribute("data-cl-animating"));
   await settle(page);
 }
 
 test("左右キーは途中の位置を通り、連打を合成し、逆入力・ホイール・タッチで中断できる", { timeout: 45_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.RM_BROWSER_PATH || undefined });
+  const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER_PATH || undefined });
   const page = await browser.newPage({ viewport: { width: 1600, height: 900 }, hasTouch: true });
   try {
     await open(page);
@@ -101,10 +101,10 @@ test("左右キーは途中の位置を通り、連打を合成し、逆入力�
     await page.evaluate(() => {
       window.motionFrames = [];
       const record = () => {
-        const v = document.querySelector(".rm-viewport"), plane = document.querySelector(".rm-plane");
-        const p = parseFloat(plane.style.getPropertyValue("--rm-p"));
-        window.motionFrames.push({ x: v.scrollLeft + Number(plane.dataset.rmOriginColumn) * p - Number(plane.dataset.rmLeading),
-          y: v.scrollTop + Number(plane.dataset.rmOriginY), t: performance.now() });
+        const v = document.querySelector(".cl-viewport"), plane = document.querySelector(".cl-plane");
+        const p = parseFloat(plane.style.getPropertyValue("--cl-p"));
+        window.motionFrames.push({ x: v.scrollLeft + Number(plane.dataset.clOriginColumn) * p - Number(plane.dataset.clLeading),
+          y: v.scrollTop + Number(plane.dataset.clOriginY), t: performance.now() });
         if (window.motionFrames.length < 30) requestAnimationFrame(record);
       };
       requestAnimationFrame(record);
@@ -131,8 +131,8 @@ test("左右キーは途中の位置を通り、連打を合成し、逆入力�
     await page.waitForTimeout(40);
     await page.evaluate(() => document.addEventListener("keydown", (event) => {
       if (event.key !== "ArrowLeft") return;
-      const v = document.querySelector(".rm-viewport"), plane = document.querySelector(".rm-plane");
-      window.reverseX = v.scrollLeft + Number(plane.dataset.rmOriginColumn) * parseFloat(plane.style.getPropertyValue("--rm-p")) - Number(plane.dataset.rmLeading);
+      const v = document.querySelector(".cl-viewport"), plane = document.querySelector(".cl-plane");
+      window.reverseX = v.scrollLeft + Number(plane.dataset.clOriginColumn) * parseFloat(plane.style.getPropertyValue("--cl-p")) - Number(plane.dataset.clLeading);
     }, { once: true, capture: true }));
     await page.keyboard.press("ArrowLeft");
     await animationDone(page);
@@ -141,7 +141,7 @@ test("左右キーは途中の位置を通り、連打を合成し、逆入力�
 
     await page.keyboard.press("ArrowRight");
     await page.waitForTimeout(40);
-    const box = await page.locator(".rm-viewport").boundingBox();
+    const box = await page.locator(".cl-viewport").boundingBox();
     await page.mouse.move(box.x + 100, box.y + 100);
     await page.mouse.wheel(0, 80);
     await settle(page);
@@ -172,7 +172,7 @@ test("左右キーは途中の位置を通り、連打を合成し、逆入力�
 });
 
 test("ヘッダーの横バーは3pxで下端に接し、本文の間隔は16pxでそろう", { timeout: 30_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.RM_BROWSER_PATH || undefined, ignoreDefaultArgs: ["--hide-scrollbars"] });
+  const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER_PATH || undefined, ignoreDefaultArgs: ["--hide-scrollbars"] });
   const page = await browser.newPage({ viewport: { width: 390, height: 900 } });
   try {
     await open(page);
@@ -181,13 +181,13 @@ test("ヘッダーの横バーは3pxで下端に接し、本文の間隔は16px�
       const header = document.querySelector("[data-site-header]").getBoundingClientRect();
       const toc = document.querySelector(".toc-header-scroll");
       const rect = toc.getBoundingClientRect();
-      const reader = document.querySelector(".rm-reader").getBoundingClientRect();
-      const first = document.querySelector('.rm-slot[data-rm-k="0"]').getBoundingClientRect();
+      const reader = document.querySelector(".cl-reader").getBoundingClientRect();
+      const first = document.querySelector('.cl-slot[data-cl-k="0"]').getBoundingClientRect();
       return { headerBottom: header.bottom, bottom: rect.bottom, left: rect.left,
         padding: getComputedStyle(toc).paddingBottom,
         height: getComputedStyle(toc, "::-webkit-scrollbar").height,
         readerGap: reader.top - header.bottom, leftMargin: first.left,
-        gap: parseFloat(document.querySelector(".rm-plane").style.getPropertyValue("--rm-p")) - first.width };
+        gap: parseFloat(document.querySelector(".cl-plane").style.getPropertyValue("--cl-p")) - first.width };
     });
     assert.equal(layout.height, "3px");
     assert.equal(layout.padding, "0px");
@@ -207,18 +207,18 @@ test("ヘッダーの横バーは3pxで下端に接し、本文の間隔は16px�
 });
 
 test("標準の横バーの矢印はクリック・長押しで本文だけを動かし、端で止まる", { timeout: 30_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.RM_BROWSER_PATH || undefined, ignoreDefaultArgs: ["--hide-scrollbars"] });
+  const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER_PATH || undefined, ignoreDefaultArgs: ["--hide-scrollbars"] });
   const page = await browser.newPage({ viewport: { width: 390, height: 900 } });
   try {
     await open(page);
-    const bar = await readingScrollbar(page);
+    const bar = await columnScrollbar(page);
     assert.equal(bar.height, 8);
     const left = bar.x - 8, right = bar.x + bar.width + 8, y = bar.y + bar.height / 2;
     const initial = await state(page);
     await page.mouse.click(left, y); await settle(page);
     assert.ok(Math.abs((await state(page)).x - initial.x) < 1, "先頭から左へ移動した");
     await page.mouse.click(right, y);
-    await page.waitForFunction(() => document.querySelector(".rm-viewport").scrollLeft >= 39);
+    await page.waitForFunction(() => document.querySelector(".cl-viewport").scrollLeft >= 39);
     await settle(page);
     const clicked = await state(page);
     assert.ok(Math.abs(clicked.x - initial.x - 40) < 2, "標準の右矢印で少しずつ動かせない");
