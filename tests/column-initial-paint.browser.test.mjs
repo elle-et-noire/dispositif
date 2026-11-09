@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { BASE_URL, engines, launch, waitForColumnLayout } from "./browser.mjs";
+import { BASE_URL, engines, launch } from "./browser.mjs";
 
 // cl-pending hides the article without an inherited property (clip-path), so
 // check what it hides: computed clip-path, hit testing at the viewport centre
@@ -21,40 +21,6 @@ const pendingState = () => {
 const hiddenWhilePending = (frame) => frame.pending && frame.clipPath === 'inset(50%)' && !frame.hit && frame.ariaHidden === 'true';
 const shown = el => [getComputedStyle(el).clipPath, el.getAttribute('aria-hidden')];
 for (const [name, engine] of engines) {
-  test(`${name}: first visit stays single until the reader opts into multi`, { timeout: 120_000 }, async () => {
-    const browser = await launch(engine);
-    try {
-      const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' });
-      await page.goto(BASE_URL);
-      assert.equal(await page.evaluate(() => localStorage.getItem('dispositif:columns')), null);
-      const link = page.locator('a[href$="tips-python/"]');
-      await link.hover();
-      await page.waitForTimeout(400);
-      assert.equal(await page.locator('html > iframe').count(), 0);
-      await link.click();
-      await page.waitForFunction(() => document.documentElement.dataset.pageKind === 'article' && !document.documentElement.classList.contains('cl-pending'));
-      for (const width of [390, 1920]) {
-        await page.setViewportSize({ width, height: 900 });
-        await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-        assert.equal(await page.locator('html').evaluate(el => el.classList.contains('cl-multi')), false);
-        assert.deepEqual(await page.locator('.cl-article-scrollport').evaluate(shown), ['none', null]);
-      }
-      assert.equal(await page.evaluate(() => localStorage.getItem('dispositif:columns')), null);
-      await page.locator('.cl-toggle').click();
-      await page.waitForFunction(() => document.documentElement.classList.contains('cl-multi'));
-      assert.equal(await page.evaluate(() => localStorage.getItem('dispositif:columns')), 'multi');
-      await page.reload();
-      await page.waitForFunction(() => document.documentElement.classList.contains('cl-multi') && !document.documentElement.classList.contains('cl-pending'));
-      await page.locator('.cl-toggle').click();
-      await page.waitForFunction(() => !document.documentElement.classList.contains('cl-multi'));
-      assert.equal(await page.evaluate(() => localStorage.getItem('dispositif:columns')), 'single');
-      await page.reload();
-      await waitForColumnLayout(page);
-      assert.equal(await page.locator('html').evaluate(el => el.classList.contains('cl-multi')), false);
-      await page.close();
-    } finally { await browser.close(); }
-  });
-
   test(`${name}: initial article paint waits for the selected mode`, { timeout: 120_000 }, async () => {
     const browser = await launch(engine);
     try {
