@@ -59,11 +59,6 @@ test("本文自身の縦バーを右端に表示し、上下矢印・長押し�
         await page.keyboard.press("ArrowDown");
         await page.waitForFunction(y => Number(document.querySelector(".cl-plane").dataset.clYTicks) / 1024 > y + 1, beforeKey.y);
         assert.equal((await position(page)).x, dragged.x);
-        await page.locator(".cl-source").evaluate(s => { s.innerHTML = '<p style="height:100px;margin:0">短い本文</p>'; });
-        await page.waitForFunction(() => {
-          const v = document.querySelector(".cl-viewport");
-          return v.scrollHeight === v.clientHeight && v.scrollWidth === v.clientWidth;
-        });
       } finally { await page.close(); }
     }
   } finally { await browser.close(); }

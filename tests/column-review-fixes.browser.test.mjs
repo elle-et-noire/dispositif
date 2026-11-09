@@ -116,7 +116,7 @@ test("キーボード由来でもdetail=1のクリックでは選択先へフォ
   try {
     await storeColumns(page, "multi");
     await page.goto(ARTICLE_URL);
-    await page.waitForSelector(".cl-slot");
+    await waitForColumnLayout(page);
     const link = page.locator('[data-toc-variant="header"] .toc-link').nth(1);
     await link.focus();
     await link.evaluate((el) => {
@@ -124,12 +124,17 @@ test("キーボード由来でもdetail=1のクリックでは選択先へフォ
       el.dispatchEvent(new MouseEvent("click", { detail: 1, bubbles: true, cancelable: true }));
     });
     await settle(page);
-    assert.equal(await page.evaluate(() => document.activeElement.tagName), "H2");
+    const focused = await page.evaluate(() => ({ tag: document.activeElement.tagName,
+      rect: document.activeElement.getBoundingClientRect().toJSON() }));
+    assert.equal(focused.tag, "H2");
+    assert.ok(focused.rect.x >= 0 && focused.rect.x < 1280 && focused.rect.y >= 0 && focused.rect.y < 900,
+      JSON.stringify(focused));
     await page.goto(new URL("nextjs-mdx/", BASE_URL).href);
-    await page.waitForSelector(".cl-slot");
+    await waitForColumnLayout(page);
     const summary = page.locator(".cl-source details summary").first();
     await summary.focus();
     await page.keyboard.press("Enter");
+    assert.equal(await summary.locator("..").evaluate((details) => details.open), true);
     const close = page.locator(".cl-source details .details-close-button--bottom").first();
     await close.focus();
     await close.evaluate((el) => {
@@ -139,8 +144,15 @@ test("キーボード由来でもdetail=1のクリックでは選択先へフォ
     await settle(page);
     assert.equal(await summary.locator("..").evaluate((details) => details.open), false);
     assert.equal(await summary.evaluate((el) => document.activeElement === el), true);
+    const rect = await summary.boundingBox();
+    assert.ok(rect.x >= 0 && rect.x < 1280 && rect.y >= 0 && rect.y < 900, JSON.stringify(rect));
   } finally { await browser.close(); }
 });
+
+// The single-column scroll offset, or the n-column logical point.
+const readingPoint = (page, mode) => page.evaluate((mode) => mode === "single"
+  ? document.querySelector(".cl-article-scrollport").scrollTop
+  : [document.querySelector(".cl-plane").dataset.clXTicks, document.querySelector(".cl-plane").dataset.clYTicks], mode);
 
 test("履歴復元では折りたたみの開閉状態を先に戻し、中や後の読書位置を保つ", { timeout: 90_000 }, async () => {
   const browser = await launch(chromium);
@@ -170,9 +182,7 @@ test("履歴復元では折りたたみの開閉状態を先に戻し、中や�
         if (mode === "multi") await original.evaluate((el) => { el.tabIndex = -1; el.focus(); });
         else await original.evaluate((el) => el.scrollIntoView({ block: "start" }));
         await settle(page);
-        const before = await page.evaluate((mode) => mode === "single"
-          ? document.querySelector(".cl-article-scrollport").scrollTop
-          : [document.querySelector(".cl-plane").dataset.clXTicks, document.querySelector(".cl-plane").dataset.clYTicks], mode);
+        const before = await readingPoint(page, mode);
         await page.locator(".cl-close:visible").click();
         await page.waitForSelector('html[data-page-kind="index"]');
         await page.goBack();
@@ -180,9 +190,7 @@ test("履歴復元では折りたたみの開閉状態を先に戻し、中や�
         await settle(page);
         assert.equal(await page.locator(".cl-source details").first().evaluate((d) => d.open), true, `${mode}: 詳細が閉じた`);
         assert.equal(await page.locator(".cl-source details").nth(1).evaluate((d) => d.open), false, `${mode}: 別の詳細が開いた`);
-        const after = await page.evaluate((mode) => mode === "single"
-          ? document.querySelector(".cl-article-scrollport").scrollTop
-          : [document.querySelector(".cl-plane").dataset.clXTicks, document.querySelector(".cl-plane").dataset.clYTicks], mode);
+        const after = await readingPoint(page, mode);
         assert.deepEqual(after, before, `${mode}, ${location}: 読書位置が変わった`);
         if (mode === "single") {
           const visible = location === "inside" ? page.locator(".cl-source details").first().locator("pre, p").last()
@@ -194,49 +202,18 @@ test("履歴復元では折りたたみの開閉状態を先に戻し、中や�
         await waitForColumnLayout(page);
         await settle(page);
         assert.equal(await page.locator(".cl-source details").first().evaluate((d) => d.open), true, `${mode}: 再読込で詳細が閉じた`);
-        const reloaded = await page.evaluate((mode) => mode === "single"
-          ? document.querySelector(".cl-article-scrollport").scrollTop
-          : [document.querySelector(".cl-plane").dataset.clXTicks, document.querySelector(".cl-plane").dataset.clYTicks], mode);
+        const reloaded = await readingPoint(page, mode);
         assert.deepEqual(reloaded, before, `${mode}, ${location}: 再読込で読書位置が変わった`);
-      } finally { await page.close(); }
-    }
-  } finally { await browser.close(); }
-});
-
-test("履歴から戻ると1段のスクロール位置とn段の縦横位置を復元する", { timeout: 45_000 }, async () => {
-  const browser = await launch(chromium);
-  try {
-    for (const mode of ["single", "multi"]) {
-      const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
-      try {
-        await storeColumns(page, mode);
-        await page.goto(ARTICLE_URL);
-        await waitForColumnLayout(page);
-        await settle(page);
-        if (mode === "multi") {
-          await page.locator(".cl-viewport").evaluate((v) => { v.scrollLeft += 500; v.scrollTop += 150; });
-        } else await page.locator(".cl-article-scrollport").evaluate((v) => { v.scrollTop = 2500; });
-        await settle(page);
-        const position = async () => page.evaluate((mode) => mode === "single"
-          ? document.querySelector(".cl-article-scrollport").scrollTop
-          : [document.querySelector(".cl-plane").dataset.clXTicks, document.querySelector(".cl-plane").dataset.clYTicks], mode);
-        const before = await position();
-        await page.locator(".cl-close:visible").click();
-        await page.waitForURL(BASE_URL);
-        await page.goBack();
-        await waitForColumnLayout(page);
-        await settle(page);
-        assert.deepEqual(await position(), before);
-        await page.reload();
-        await waitForColumnLayout(page);
-        await settle(page);
-        assert.deepEqual(await position(), before, "再読み込み後に履歴項目の位置を失った");
+        // The reload replaced the document; the entry still keeps its state
+        // when it is left forward and returned to.
         await page.goForward();
-        await page.waitForURL(BASE_URL);
+        await page.waitForSelector('html[data-page-kind="index"]');
         await page.goBack();
         await waitForColumnLayout(page);
         await settle(page);
-        assert.deepEqual(await position(), before, "再読み込み後の履歴移動で位置を失った");
+        assert.equal(await page.locator(".cl-source details").first().evaluate((d) => d.open), true, `${mode}: 再読込後の履歴移動で詳細が閉じた`);
+        const returned = await readingPoint(page, mode);
+        assert.deepEqual(returned, before, `${mode}, ${location}: 再読込後の履歴移動で読書位置が変わった`);
       } finally { await page.close(); }
     }
   } finally { await browser.close(); }
@@ -296,37 +273,6 @@ test("別の記事で表示モードを変えてから履歴で戻っても同�
       .filter((h) => h.textContent === name).map((h) => h.getBoundingClientRect().toJSON())
       .filter((r) => r.x >= 0 && r.x < innerWidth && r.y >= 60 && r.y < innerHeight), name);
     assert.ok(visible.some((r) => r.y < 130), JSON.stringify(visible));
-  } finally { await browser.close(); }
-});
-
-test("目次で選んだ見出しと、閉じた詳細の見出しに表示位置を合わせてフォーカスする", { timeout: 45_000 }, async () => {
-  const browser = await launch(chromium);
-  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
-  try {
-    await storeColumns(page, "multi");
-    await page.goto(ARTICLE_URL);
-    await page.waitForSelector(".cl-slot");
-    await page.locator('[data-toc-variant="header"] .toc-link').nth(1).focus();
-    await page.keyboard.press("Enter");
-    await settle(page);
-    const focused = await page.evaluate(() => ({ tag: document.activeElement.tagName,
-      rect: document.activeElement.getBoundingClientRect().toJSON() }));
-    assert.equal(focused.tag, "H2");
-    assert.ok(focused.rect.x >= 0 && focused.rect.x < 1280 && focused.rect.y >= 0 && focused.rect.y < 900,
-      JSON.stringify(focused));
-    await page.goto(new URL("nextjs-mdx/", BASE_URL).href);
-    await page.waitForSelector(".cl-slot");
-    const summary = page.locator(".cl-source details summary").first();
-    await summary.focus();
-    await page.keyboard.press("Enter");
-    assert.equal(await summary.locator("..").evaluate((details) => details.open), true);
-    await page.locator(".cl-source details .details-close-button--bottom").first().focus();
-    await page.keyboard.press("Enter");
-    await settle(page);
-    assert.equal(await summary.locator("..").evaluate((details) => details.open), false);
-    assert.equal(await summary.evaluate((el) => document.activeElement === el), true);
-    const rect = await summary.boundingBox();
-    assert.ok(rect.x >= 0 && rect.x < 1280 && rect.y >= 0 && rect.y < 900);
   } finally { await browser.close(); }
 });
 

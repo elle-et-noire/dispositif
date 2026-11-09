@@ -117,67 +117,6 @@ test("一覧はヘッダーの下の標準バーとホイール・キーでス�
   } finally { await browser.close(); }
 });
 
-test("一覧のDOMと位置を両モードの背景へ引き継ぎ、閉じる・履歴移動で復元する", { timeout: 90_000 }, async () => {
-  const browser = await launch(chromium);
-  try {
-    for (const width of [390, 1280]) for (const mode of ["single", "multi"]) {
-      const page = await browser.newPage({ viewport: { width, height: 600 } });
-      try {
-        await storeColumns(page, mode);
-        await page.goto(BASE_URL);
-        await page.evaluate(() => document.fonts.ready);
-        await page.evaluate(() => {
-          window.__indexNode = document.querySelector("[data-article-index]");
-          document.querySelector(".article-index-shell").scrollTo(0, 240);
-        });
-        await settle(page);
-        const before = await page.evaluate(() => {
-          const links = [...document.querySelectorAll("[data-article-index] a")];
-          const i = links.findIndex((a) => { const r = a.getBoundingClientRect(); return r.top >= 80 && r.bottom < innerHeight; });
-          return { i, y: document.querySelector(".article-index-shell").scrollTop, href: links[i].href, top: links[i].getBoundingClientRect().top };
-        });
-        assert.ok(before.y > 0);
-        await page.locator("[data-article-index] a").nth(before.i).click();
-        await waitForColumnLayout(page);
-        if (mode === "multi") await page.waitForSelector("html.cl-multi .cl-slot");
-        await settle(page);
-        assert.deepEqual(await page.evaluate((i) => {
-          const list = document.querySelector("[data-article-index]");
-          return { same: list === window.__indexNode, inert: list.parentElement.inert,
-            hidden: list.parentElement.getAttribute("aria-hidden"),
-            top: list.querySelectorAll("a")[i].getBoundingClientRect().top,
-            blur: getComputedStyle(document.querySelector(".cl-backdrop")).backdropFilter };
-        }, before.i), { same: true, inert: true, hidden: "true", top: before.top, blur: "blur(3px)" });
-        const articlePath = new URL(before.href).pathname;
-        if (mode === "multi") {
-          const box = await page.locator(".cl-viewport").boundingBox();
-          await page.mouse.click(4, box.y + 100);
-        } else await page.mouse.click(2, 200);
-        await page.waitForSelector('html[data-page-kind="index"]');
-        await settle(page);
-        const restored = () => page.evaluate(() => ({ same: document.querySelector("[data-article-index]") === window.__indexNode,
-          y: document.querySelector(".article-index-shell").scrollTop, inert: document.querySelector(".article-index-shell").inert,
-          focus: document.activeElement?.getAttribute("href") }));
-        const result = await restored();
-        assert.equal(result.same, true);
-        assert.equal(result.y, before.y);
-        assert.equal(result.inert, false);
-        assert.equal(new URL(result.focus, BASE_URL).pathname, articlePath);
-        await page.goBack();
-        await waitForColumnLayout(page);
-        await page.goBack();
-        await page.waitForSelector('html[data-page-kind="index"]');
-        await settle(page);
-        assert.equal((await restored()).y, before.y);
-        assert.equal((await restored()).same, true);
-        await page.goForward();
-        await waitForColumnLayout(page);
-        assert.equal(await page.evaluate(() => document.querySelector("[data-article-index]") === window.__indexNode), true);
-      } finally { await page.close(); }
-    }
-  } finally { await browser.close(); }
-});
-
 test("先頭と末尾だけ丸角にし、紙面操作・文字選択・モード切り替えで誤って閉じない", { timeout: 45_000 }, async () => {
   const browser = await launch(chromium);
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });

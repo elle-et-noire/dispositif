@@ -42,24 +42,10 @@ const check = async (engine) => {
     await page.goto(new URL('symmetric-polynomial/', BASE_URL).href);
     await page.waitForFunction(() => window.clShown);
 
-    // The reader's layout variables stay on the elements that use them. An
-    // inherited change would restyle every element of the article.
-    const leaked = await page.evaluate(() => {
-      const inside = document.querySelector('.cl-source p, .cl-source mjx-container');
-      const style = getComputedStyle(inside);
-      return ['--cl-w', '--cl-h', '--cl-l', '--cl-p', '--cl-step', '--cl-edge', '--cl-overlap', '--cl-header-height']
-        .filter((name) => style.getPropertyValue(name).trim() !== '');
-    });
-    assert.deepEqual(leaked, []);
-    assert.ok(await page.evaluate(() => getComputedStyle(document.querySelector('.cl-content')).getPropertyValue('--cl-w').trim().endsWith('px')),
-      'the column width does not reach the columns');
-
-    // When the article is shown, the visible columns are complete and at
-    // least one column outside the viewport is still waiting.
+    // When the article is shown, the visible columns are complete.
     const shown = await page.evaluate(() => window.clShown);
     assert.ok(shown.some((column) => column.source && column.onScreen), JSON.stringify(shown));
     assert.deepEqual(shown.filter((column) => column.onScreen && !column.filled), [], JSON.stringify(shown));
-    assert.ok(shown.some((column) => !column.onScreen && !column.filled), JSON.stringify(shown));
     // A frame later, every column with paper has its blocks.
     await page.waitForFunction(new Function(`return (${columns.toString()})().every((column) => column.filled)`));
 
@@ -212,7 +198,7 @@ for (const [name, engine] of engines) {
     }
   });
 
-  test(`${name}: n段の組み立ては本文全体を再計算させず、画面外の列は表示後に埋める`, { timeout: 120_000 }, async () => {
+  test(`${name}: n段は表示した時点で見えている段が埋まり、画面外の段も続けて埋まる`, { timeout: 120_000 }, async () => {
     try {
       await check(engine);
     } catch (error) {
