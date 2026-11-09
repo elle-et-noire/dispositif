@@ -4,7 +4,7 @@
 
 ## 方式（PR #14）
 
-CHTMLの字形の箱（`mjx-c`）には 𝑎 や + などの文字が入っている。そのままでは、Chromiumのアクセシビリティツリーでこれらの文字が構造なしに並ぶ（x^2 が「x2」になる）。そこで数式ごとに1つの画像として読ませる。
+CHTMLの字形の箱（`mjx-c`）には𝑎や+などの文字が入っている。そのままでは、Chromiumのアクセシビリティツリーでこれらの文字が構造なしに並ぶ（`x^2` が「x2」になる）。そこで数式ごとに1つの画像として読ませる。
 
 - 各数式の `mjx-container` に `role="img"` と、TeXのソースを `aria-label` として付ける（`lib/mathjax.ts`、`lib/math-speech.ts`）。前処理で足す前後の `\hspace` と、`\label`・`\tag` は除き、見えている式番号を末尾に「(1)」のように足す。字形の箱 `mjx-math` には `aria-hidden` を付け、二重に読まれないようにする（`tests/math-speech.browser.test.mjs`）。
 - `\eqref` を含む数式は中にリンクがある。`img` にするとリンクが支援技術から消えるのにTabでは止まるので、手を加えない。
@@ -13,7 +13,7 @@ CHTMLの字形の箱（`mjx-c`）には 𝑎 や + などの文字が入って�
 
 計測値と手順は、コミット `ea88223` の版のこの文書にある。
 
-- MathJaxの見えないMathML（`a11y/assistive-mml`）: 数式記事の要素数が約1.5倍になり、記事を開くまでがChromium・Firefoxとも遅くなった。費用の大半はMathMLのレイアウトだった。`content-visibility: auto` で戻すと、画面外の数式がアクセシビリティツリーから消えた。MathMLを数式として読み上げるMathCATなどは日本語に対応していない。
+- MathJaxの見えないMathML（`a11y/assistive-mml`）: 数式記事の要素数が増え、記事を開くまでがChromium・Firefoxとも遅くなった。費用の大半はMathMLのレイアウトだった。`content-visibility: auto` で戻すと、画面外の数式がアクセシビリティツリーから消えた。MathMLを数式として読み上げるMathCATなどは日本語に対応していない。
 - MathMLを `<template>` に入れ、表示後に少しずつ差し込む方式: 表示後に長い処理が続き、差し込むまで数式を読めない。本文の要素が増えるので、幅の変更や1段・n段の切り替えで本文を組み直すたびにFirefoxで遅くなる。日本語の読み上げでMathMLの利点が生きるか分からないので採らなかった。
 - 読み上げ文字列を作るSREは日本語の規則がないので使わない。
 - `role="math"` は、NVDAがMathMLのない要素を読まなかった報告があるので使わない。

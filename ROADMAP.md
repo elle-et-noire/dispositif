@@ -19,7 +19,7 @@
 - 外部リンクに `noopener noreferrer` が付いている
 - `lang="ja"`、`main`、`article`、`nav`、見出しなどの基本構造がある
 - `prefers-reduced-motion` と `:focus-visible` に対応している
-- 数式はビルド時に生成し、ブラウザ側でMathJaxを実行しない
+- 数式はビルド時に生成し、ブラウザー側でMathJaxを実行しない
 - キーボードで目次のリンクを選ぶと見出しへフォーカスが移り、次のTabで見出しの後の本文へ進む（1段のサイドバー・モバイル目次、n段の上部目次。`tests/toc.browser.test.mjs` で検査）
 
 CIで実行する検査と、各テストが確かめることは `README.md` の「テスト」にある。

@@ -1,6 +1,6 @@
 # [Dispositif](https://elle-et-noire.github.io/dispositif/)
 
-Astroベースの記事サイトです。記事はビルド時にMarkdownからHTMLへ変換し、数式はMathJax v4のCHTMLとして出力します。ブラウザ側ではMathJaxを実行せず、数式フォントも同一オリジンから配信します。支援技術には、各数式をTeXのソースで読ませます（`role="img"` と `aria-label`。理由は `docs/math-accessibility.md`）。
+Astroベースの記事サイトです。記事はビルド時にMarkdownからHTMLへ変換し、数式はMathJax v4のCHTMLとして出力します。ブラウザー側ではMathJaxを実行せず、数式フォントも同一オリジンから配信します。支援技術には、各数式をTeXのソースで読ませます（`role="img"` と `aria-label`。理由は `docs/math-accessibility.md`）。
 
 ## 構成
 
@@ -26,7 +26,7 @@ Astroベースの記事サイトです。記事はビルド時にMarkdownからH
 │   │   └── [slug].astro
 │   ├── scripts/            # 段組み、読書位置の履歴、数式フォントの先読み、背景の一覧
 │   └── styles/             # globals.css、column-layout.css
-└── tests/                  # ブラウザテスト（*.browser.test.mjs）と共通の準備処理（browser.mjs）・段組みの操作（column-controls.mjs）
+└── tests/                  # ブラウザーテスト（*.browser.test.mjs）と共通の準備処理（browser.mjs）・段組みの操作（column-controls.mjs）
 ```
 
 今後の予定と残っている課題は `ROADMAP.md` にまとめています。
@@ -48,7 +48,7 @@ npx astro dev logs
 npx astro dev stop
 ```
 
-数式フォントは `predev` / `prebuild` の `scripts/copy-math-fonts.mjs` で用意します。起動中の開発サーバーの配信を維持するため、フォントディレクトリは削除せず、変更のないファイルも書き直しません。
+数式フォントは `predev` / `prebuild` の `scripts/copy-math-fonts.mjs` で用意します。開発サーバーの起動中に再実行しても、フォントの配信は途切れません（理由はスクリプトのコメント）。
 
 ## テスト
 
@@ -65,11 +65,11 @@ npm run test:browser   # astro preview などを起動した状態で
 
 `npm test` は、段組みの座標（Home／Endの対称性・縦操作専用の余白・片軸操作・到達経路によらない位置・本文の被覆・有限平面・位置復元・ネイティブ座標の読み戻し、小数のネイティブ座標で往復しても投影原点が揺れないこと）、段組みの選択、読書位置の履歴、目次、数式フォント、数式の読み上げ名を確かめます。
 
-`npm run test:browser` は、開発サーバまたはビルド済みサイトのプレビューを起動した状態で実行します。初回と、`playwright-core` を更新した後は、`npx playwright-core install chromium firefox` で検証用ブラウザを用意します。既存の Chromium は `TEST_BROWSER_PATH`、別のサーバは `TEST_BASE_URL` で指定できます。ChromiumとFirefoxの両方で実行するテストは、`TEST_ENGINES=chromium` のように実行するブラウザを絞れます。対象サイトのURL、ブラウザの起動、段組みの開始待ちなど、テストに共通の準備処理は `tests/browser.mjs` にまとめています。段組みが始まる前にスクロールすると失われるので、記事を操作するテストは `waitForColumnLayout` で待ってから操作します。
+`npm run test:browser` は、開発サーバーまたはビルド済みサイトのプレビューを起動した状態で実行します。初回と、`playwright-core` を更新した後は、`npx playwright-core install chromium firefox` で検証用ブラウザーを用意します。既存のChromiumは `TEST_BROWSER_PATH`、別のサーバーは `TEST_BASE_URL` で指定できます。ChromiumとFirefoxの両方で実行するテストは、`TEST_ENGINES=chromium` のように実行するブラウザーを絞れます。対象サイトのURL、ブラウザーの起動、段組みの開始待ちなど、テストに共通の準備処理は `tests/browser.mjs` にまとめています。段組みが始まる前にスクロールすると失われるので、記事を操作するテストは `waitForColumnLayout` で待ってから操作します。
 
-各ブラウザテストが確かめることは次のとおりです。「両方」はChromiumとFirefox、それ以外はChromiumだけで実行します。
+各ブラウザーテストが確かめることは次のとおりです。「両方」はChromiumとFirefox、それ以外はChromiumだけで実行します。
 
-| `tests/<名前>.browser.test.mjs` | ブラウザ | 確かめること |
+| `tests/<名前>.browser.test.mjs` | ブラウザー | 確かめること |
 | --- | --- | --- |
 | `column-assembly` | 両方 | n段の本文が、一覧から開くときは差し替えの時点で、直接開く・再読み込みするときは最初のレイアウトから段の幅にあること。表示した時点で見えている段が埋まること |
 | `column-background` | Chromium | 一覧へ戻るときのフォーカス表示、背景の閉じるリンクがポインター専用であること、一覧のスクロール、紙面の角の形、誤って閉じないこと、印刷、上部目次の矢印 |
