@@ -135,9 +135,16 @@ for (const [name, engine] of engines) {
         const link = page.locator('a[href$="tips-wsl/"]');
         await link.scrollIntoViewIfNeeded();
         const listY = await indexScroll(page);
+        const cardTop = await link.evaluate(el => el.getBoundingClientRect().top);
         await link.click();
         await articleReady(page, 'tips-wsl');
         assert.equal(await isMulti(page), mode === 'multi');
+        // The index stays where it was behind the article, out of reach of
+        // focus and assistive technology.
+        assert.deepEqual(await page.locator('[data-article-index] a[href$="tips-wsl/"]').evaluate(el => {
+          const shell = el.closest('.article-index-shell');
+          return { top: el.getBoundingClientRect().top, inert: shell.inert, hidden: shell.getAttribute('aria-hidden') };
+        }), { top: cardTop, inert: true, hidden: 'true' });
         const length = await page.evaluate(() => history.length);
         const start = mode === 'multi' ? await stablePoint(page) : undefined;
         const toc = mode === 'multi' ? '[data-toc-variant="header"] .toc-link' : '[data-toc-variant="sidebar"] .toc-link';
@@ -149,8 +156,13 @@ for (const [name, engine] of engines) {
         if (mode === 'multi') {
           assert.notDeepEqual(await stablePoint(page), start);
           assert.equal(await page.evaluate(() => history.length), length, 'n-column contents links replace the entry');
-        } else assert.ok(await page.locator('.cl-article-scrollport').evaluate(el => el.scrollTop) > 0);
-        await page.locator('.cl-close').click();
+          // Clicking the gap beside the columns closes the article.
+          const box = await page.locator('.cl-viewport').boundingBox();
+          await page.mouse.click(4, box.y + 100);
+        } else {
+          assert.ok(await page.locator('.cl-article-scrollport').evaluate(el => el.scrollTop) > 0);
+          await page.locator('.cl-close').click();
+        }
         await indexReady(page);
         await frames(page);
         assert.equal(await indexScroll(page), listY);
