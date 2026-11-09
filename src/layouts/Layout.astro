@@ -2,7 +2,7 @@
 import { ClientRouter } from "astro:transitions";
 import "@fontsource-variable/nunito";
 import "@styles/globals.css";
-import "@styles/reading-mode.css";
+import "@styles/column-layout.css";
 import { withBase } from "@lib/base";
 import Toc from "@components/Toc.astro";
 import ArticleIndex from "@components/ArticleIndex.astro";
@@ -35,15 +35,15 @@ const {
       // destination before Astro swaps it in, since inline head scripts do not
       // run while Astro parses that document.
       const markPending = (root) => {
-        if (root.dataset.pageKind === "article") root.classList.add("rm-pending");
+        if (root.dataset.pageKind === "article") root.classList.add("cl-pending");
       };
       markPending(document.documentElement);
-      // rm-pending hides the article with clip-path, which leaves it in the
+      // cl-pending hides the article with clip-path, which leaves it in the
       // accessibility tree; aria-hidden keeps it out for the same span. The
-      // reader removes both in its first frame (reading-mode.ts), as does the
+      // reader removes both in its first frame (column-layout.ts), as does the
       // fallback below. Without JavaScript neither is set.
       const hideArticle = (doc) => {
-        const scrollport = doc.querySelector(".rm-article-scrollport");
+        const scrollport = doc.querySelector(".cl-article-scrollport");
         scrollport?.setAttribute("aria-hidden", "true");
         return Boolean(scrollport);
       };
@@ -53,9 +53,9 @@ const {
       // visibility, so toggling it restyles the whole article (~35-40 ms in
       // both engines). Instead, ignore Tab for the pending span, usually one
       // frame to a few hundred ms. Focus moved by script (the reader focuses a
-      // hash target before it clears rm-pending) is left alone.
+      // hash target before it clears cl-pending) is left alone.
       document.addEventListener("keydown", (event) => {
-        if (event.key === "Tab" && document.documentElement.classList.contains("rm-pending")) event.preventDefault();
+        if (event.key === "Tab" && document.documentElement.classList.contains("cl-pending")) event.preventDefault();
       }, { capture: true });
       // With n段 stored, put the article text in the reader's first column
       // before the swap, at the column width. Its first layout, during which
@@ -64,23 +64,23 @@ const {
       // width. The new document is not rendered yet, so moving it is free.
       // On a full page load, the observer below does the same while the article
       // is being parsed.
-      // ?view=multi or ?view=single in the destination URL wins over the
-      // stored mode (opensMulti() in reading-preference.ts). After a reader
+      // ?columns=multi or ?columns=single in the destination URL wins over the
+      // stored mode (opensMulti() in column-preference.ts). After a reader
       // toggles such a page, reloading it keeps the toggled mode, which this
       // guess ignores; the reader then undoes the premount (releasePremounted).
       const wantsColumn = (doc, url) => {
-        const view = new URLSearchParams(url.search).get("view");
-        let multi = view === "multi";
-        if (view !== "multi" && view !== "single") {
-          try { multi = localStorage.getItem("dispositif:reading-mode") === "multi"; } catch { /* storage is optional */ }
+        const columns = new URLSearchParams(url.search).get("columns");
+        let multi = columns === "multi";
+        if (columns !== "multi" && columns !== "single") {
+          try { multi = localStorage.getItem("dispositif:columns") === "multi"; } catch { /* storage is optional */ }
         }
         return multi && doc.documentElement.dataset.pageKind === "article" && !matchMedia("print").matches;
       };
       const premountColumn = (doc, url) => {
         if (!wantsColumn(doc, url)) return;
-        const source = doc.querySelector(".rm-source");
-        const reader = doc.querySelector(".rm-reader");
-        const plane = reader?.querySelector(".rm-plane");
+        const source = doc.querySelector(".cl-source");
+        const reader = doc.querySelector(".cl-reader");
+        const plane = reader?.querySelector(".cl-plane");
         if (!source || !plane || plane.firstChild || reader.nextElementSibling !== source) return;
         // The same structure as the reader's mountSlot().
         const part = (name) => {
@@ -88,36 +88,36 @@ const {
           element.className = name;
           return element;
         };
-        const track = part("rm-track"), slot = part("rm-slot"), shade = part("rm-shade"), paper = part("rm-paper");
+        const track = part("cl-track"), slot = part("cl-slot"), shade = part("cl-shade"), paper = part("cl-paper");
         shade.setAttribute("aria-hidden", "true");
         paper.setAttribute("aria-hidden", "true");
-        source.classList.add("rm-content");
+        source.classList.add("cl-content");
         // The reader replaces this with the same width in px.
-        source.style.width = "var(--rm-column-width)";
+        source.style.width = "var(--cl-column-width)";
         slot.append(source, shade, paper);
         track.append(slot);
         plane.append(track);
         reader.hidden = false;
         // The article's n段 layout too (not the header's, which is visible):
         // Firefox rebuilds the text's boxes when its ancestors change position.
-        doc.documentElement.classList.add("rm-premount");
+        doc.documentElement.classList.add("cl-premount");
       };
       // On a full page load, the head script runs before the body is parsed.
       // Mark the scrollport aria-hidden as soon as the parser attaches it, and
-      // in n段 move .rm-source as soon as it is attached (right after
-      // .rm-reader, ReadingMode.astro). The parser keeps appending the rest of
+      // in n段 move .cl-source as soon as it is attached (right after
+      // .cl-reader, ColumnLayout.astro). The parser keeps appending the rest of
       // the text to the moved element, so the frames rendered during the parse
       // lay it out in its column. Mutation callbacks run at the microtask
       // checkpoint after the parser task that inserted the element, before the
       // next rendering opportunity. Both elements come before the article
       // text, so the observer stops early. (An inline script in the body
       // would block the parser and cost Firefox a style pass.)
-      if (document.documentElement.classList.contains("rm-pending")) {
+      if (document.documentElement.classList.contains("cl-pending")) {
         let hidden = false;
         let column = wantsColumn(document, location);
         const observer = new MutationObserver(() => {
           if (!hidden) hidden = hideArticle(document);
-          if (column && document.querySelector(".rm-source")) {
+          if (column && document.querySelector(".cl-source")) {
             column = false;
             premountColumn(document, location);
           }
@@ -128,42 +128,42 @@ const {
       }
       // Undo premountColumn() for the single-column fallback below.
       const unmountColumn = () => {
-        const source = document.querySelector(".rm-plane .rm-source");
-        const reader = document.querySelector(".rm-reader");
-        document.documentElement.classList.remove("rm-premount");
+        const source = document.querySelector(".cl-plane .cl-source");
+        const reader = document.querySelector(".cl-reader");
+        document.documentElement.classList.remove("cl-premount");
         if (!source || !reader) return;
         reader.after(source);
-        source.classList.remove("rm-content");
+        source.classList.remove("cl-content");
         source.style.removeProperty("width");
-        reader.querySelector(".rm-plane").replaceChildren();
+        reader.querySelector(".cl-plane").replaceChildren();
         reader.hidden = true;
       };
       document.addEventListener("astro:before-swap", (event) => {
         markPending(event.newDocument.documentElement);
-        if (event.newDocument.documentElement.classList.contains("rm-pending")) hideArticle(event.newDocument);
+        if (event.newDocument.documentElement.classList.contains("cl-pending")) hideArticle(event.newDocument);
         // The address bar still shows the old page here.
         premountColumn(event.newDocument, event.to);
       });
       // If the reader bundle fails or stalls, leave a usable single-column
       // article instead of keeping the content hidden indefinitely.
       // Only one navigation can be pending, so a newer arm replaces the timer
-      // left by an earlier one. Once the reader has started (rm-ready), it
-      // owns clearing rm-pending: its first frame may be delayed for longer
+      // left by an earlier one. Once the reader has started (cl-ready), it
+      // owns clearing cl-pending: its first frame may be delayed for longer
       // than this timeout in a background tab, which is not a failure.
       let fallbackTimer;
       const armReaderFallback = () => {
         clearTimeout(fallbackTimer);
         const root = document.documentElement;
-        if (!root.classList.contains("rm-pending")) return;
+        if (!root.classList.contains("cl-pending")) return;
         fallbackTimer = setTimeout(() => {
-          if (root !== document.documentElement || !root.classList.contains("rm-pending")
-            || root.classList.contains("rm-ready")) return;
+          if (root !== document.documentElement || !root.classList.contains("cl-pending")
+            || root.classList.contains("cl-ready")) return;
           unmountColumn();
-          root.classList.add("rm-fallback");
-          root.classList.remove("rm-pending");
-          document.querySelector(".rm-article-scrollport")?.removeAttribute("aria-hidden");
+          root.classList.add("cl-fallback");
+          root.classList.remove("cl-pending");
+          document.querySelector(".cl-article-scrollport")?.removeAttribute("aria-hidden");
           // The table of contents skipped its position while pre-mounted (Toc.astro).
-          document.dispatchEvent(new CustomEvent("rm:off"));
+          document.dispatchEvent(new CustomEvent("cl:single"));
         }, 10000);
       };
       armReaderFallback();
@@ -174,7 +174,7 @@ const {
     <meta name="generator" content={Astro.generator} />
     <meta name="description" content={description} />
     <link rel="icon" href={withBase("favicon.ico")} />
-    <!-- The same page with ?view= (reading mode) is not another page. -->
+    <!-- The same page with ?columns= (the column layout) is not another page. -->
     <link rel="canonical" href={new URL(Astro.url.pathname, Astro.site)} />
     <title>{title}</title>
     <ClientRouter />

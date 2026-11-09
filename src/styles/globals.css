@@ -49,7 +49,7 @@
 }
 
 @media print {
-  [data-page-kind="article"] :is(.article-index-shell, .rm-backdrop) { display: none; }
+  [data-page-kind="article"] :is(.article-index-shell, .cl-backdrop) { display: none; }
 }
 
 html,
@@ -108,7 +108,7 @@ body {
   content: "»";
 }
 
-.rm-active .site-header--toc {
+.cl-multi .site-header--toc {
   z-index: 40;
   padding: 0;
   text-align: left;
@@ -185,7 +185,7 @@ body {
   line-height: 1.5;
 }
 
-.rm-active .site-header--toc .site-article-index { display: none; }
+.cl-multi .site-header--toc .site-article-index { display: none; }
 
 .toc-sidebar {
   position: sticky;
@@ -225,7 +225,7 @@ body {
 }
 
 /* Match main's article-local mobile disclosure and desktop sidebar. */
-.rm-mobile-toc { display: block; position: static; visibility: visible; }
+.cl-mobile-toc { display: block; position: static; visibility: visible; }
 .toc-mobile-toggle {
   display: flex;
   align-items: center;
@@ -238,7 +238,7 @@ body {
 }
 .toc-mobile-toggle::-webkit-details-marker { display: none; }
 .toc-mobile-toggle svg { transition: transform 150ms; }
-.rm-mobile-toc[open] .toc-mobile-toggle svg { transform: rotate(180deg); }
+.cl-mobile-toc[open] .toc-mobile-toggle svg { transform: rotate(180deg); }
 .toc-mobile-panel {
   position: absolute;
   right: 0;
@@ -256,14 +256,14 @@ body {
 }
 .toc-mobile-panel .toc-sidebar-title { width: 100%; }
 @media screen and (min-width: 768px) {
-  .rm-mobile-toc { display: none; }
+  .cl-mobile-toc { display: none; }
 }
 
 @media screen {
-  .rm-active .toc-header { display: block; min-height: 3.5rem; }
-  .rm-active .toc-toggle { display: none; }
+  .cl-multi .toc-header { display: block; min-height: 3.5rem; }
+  .cl-multi .toc-toggle { display: none; }
 
-  .rm-active .toc-header-row {
+  .cl-multi .toc-header-row {
     --toc-scrollbar-size: 3px;
     --toc-arrow-size: 12px;
     --toc-content-offset: 0.5rem;
@@ -272,7 +272,7 @@ body {
     height: 3.5rem;
   }
 
-  .rm-active .toc-scroll-arrow {
+  .cl-multi .toc-scroll-arrow {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -287,16 +287,16 @@ body {
     cursor: pointer;
     touch-action: none;
   }
-  .rm-active .toc-scroll-arrow svg {
+  .cl-multi .toc-scroll-arrow svg {
     display: block;
     flex: none;
     width: calc(var(--toc-arrow-size) * 0.8660254);
     height: var(--toc-arrow-size);
   }
-  .rm-active .toc-scroll-arrow:is(:hover, :focus-visible) { color: #324e73; }
-  .rm-active .toc-scroll-arrow:disabled { visibility: hidden; }
+  .cl-multi .toc-scroll-arrow:is(:hover, :focus-visible) { color: #324e73; }
+  .cl-multi .toc-scroll-arrow:disabled { visibility: hidden; }
 
-  .rm-active .toc-header-scroll {
+  .cl-multi .toc-header-scroll {
     --toc-scrollbar-thumb: #8290a2;
     position: static;
     min-width: 0;
@@ -312,23 +312,23 @@ body {
     scrollbar-color: var(--toc-scrollbar-thumb) transparent;
   }
 
-  .rm-active .toc-header-scroll:is(:hover, :focus-within, :focus-visible) {
+  .cl-multi .toc-header-scroll:is(:hover, :focus-within, :focus-visible) {
     --toc-scrollbar-thumb: #64748b;
   }
   @supports selector(::-webkit-scrollbar) {
     /* Standard thin/color settings override these per-axis styles in Chromium. */
-    .rm-active .toc-header-scroll { scrollbar-width: auto; scrollbar-color: auto; }
-    .rm-active .toc-header-scroll::-webkit-scrollbar { height: var(--toc-scrollbar-size); }
-    .rm-active .toc-header-scroll::-webkit-scrollbar-track { background: transparent; margin: 0; }
-    .rm-active .toc-header-scroll::-webkit-scrollbar-thumb {
+    .cl-multi .toc-header-scroll { scrollbar-width: auto; scrollbar-color: auto; }
+    .cl-multi .toc-header-scroll::-webkit-scrollbar { height: var(--toc-scrollbar-size); }
+    .cl-multi .toc-header-scroll::-webkit-scrollbar-track { background: transparent; margin: 0; }
+    .cl-multi .toc-header-scroll::-webkit-scrollbar-thumb {
       background: var(--toc-scrollbar-thumb);
       border: 0;
       border-radius: 0;
     }
-    .rm-active .toc-header-scroll::-webkit-scrollbar-button { display: none; }
+    .cl-multi .toc-header-scroll::-webkit-scrollbar-button { display: none; }
   }
 
-  .rm-active .toc-list {
+  .cl-multi .toc-list {
     flex: none;
     display: flex;
     align-items: stretch;
@@ -337,9 +337,9 @@ body {
     min-width: 100%;
   }
 
-  .rm-active .toc-list-item { width: auto; }
+  .cl-multi .toc-list-item { width: auto; }
 
-  .rm-active .toc-list-item .toc-link {
+  .cl-multi .toc-list-item .toc-link {
     display: block;
     writing-mode: horizontal-tb;
     height: 100%;
@@ -362,7 +362,7 @@ body {
   border-inline-start-color: #324e73;
 }
 
-.rm-active .is-active-li > .toc-link {
+.cl-multi .is-active-li > .toc-link {
   border-bottom-color: #324e73;
 }
 

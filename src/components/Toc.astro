@@ -19,7 +19,7 @@ const { headings, variant = "header" } = Astro.props;
       </div>
     </nav>
   ) : variant === "mobile" ? (
-    <details data-toc data-toc-variant="mobile" class="rm-mobile-toc not-prose">
+    <details data-toc data-toc-variant="mobile" class="cl-mobile-toc not-prose">
       <summary class="toc-mobile-toggle" aria-label="目次を開閉">
         <svg aria-hidden="true" viewBox="0 0 30 30" width="30" height="30">
           <path d="m5 10 10 10 10-10" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" />
@@ -82,15 +82,15 @@ const { headings, variant = "header" } = Astro.props;
       const summary = nav.querySelector<HTMLElement>("summary");
       const disclosure = nav instanceof HTMLDetailsElement ? nav : null;
       const isHorizontal = () => nav.dataset.tocVariant === "header"
-        && document.documentElement.classList.contains("rm-active");
-      let readingOpen = false;
-      const syncReadingDisclosure = () => {
+        && document.documentElement.classList.contains("cl-multi");
+      let multiOpen = false;
+      const syncMultiDisclosure = () => {
         if (!disclosure) return;
         if (isHorizontal()) {
-          readingOpen = true;
+          multiOpen = true;
           disclosure.open = true;
-        } else if (readingOpen) {
-          readingOpen = false;
+        } else if (multiOpen) {
+          multiOpen = false;
           disclosure.open = false;
         }
       };
@@ -197,20 +197,20 @@ const { headings, variant = "header" } = Astro.props;
         .map((item) => document.getElementById(item.dataset.tocId ?? ""))
         .filter((heading): heading is HTMLElement => heading !== null);
 
-      const articleScrollport = document.querySelector<HTMLElement>(".rm-article-scrollport");
+      const articleScrollport = document.querySelector<HTMLElement>(".cl-article-scrollport");
       const pageScroller = articleScrollport ?? document.scrollingElement!;
 
       const activeOffset = () => headings[0]
         ? (Number.parseFloat(getComputedStyle(headings[0]).scrollMarginTop) || 64) + 1
         : 64;
 
-      // In n段 the reader picks the heading (rm:heading). While the article is
-      // pre-mounted for it (rm-premount, Layout.astro), reading positions here
+      // In n段 the reader picks the heading (cl:heading). While the article is
+      // pre-mounted for it (cl-premount, Layout.astro), reading positions here
       // would only force a layout of the whole article; if the reader starts
-      // in 1段 instead, it sends rm:off, which syncs.
+      // in 1段 instead, it sends cl:single, which syncs.
       const syncActiveToScrollPosition = () => {
         const { classList } = document.documentElement;
-        if (classList.contains("rm-active") || classList.contains("rm-premount")) return;
+        if (classList.contains("cl-multi") || classList.contains("cl-premount")) return;
         const offset = activeOffset();
         const current =
           [...headings]
@@ -276,19 +276,19 @@ const { headings, variant = "header" } = Astro.props;
         scrollContainer.scrollBy({ left: delta, behavior: "instant" });
       }, { passive: false });
 
-      const readingHeading = (event: Event) => {
-        syncReadingDisclosure();
+      const onHeading = (event: Event) => {
+        syncMultiDisclosure();
         activate((event as CustomEvent<{ id: string }>).detail.id);
         syncArrows();
       };
-      const readingOff = () => {
-        syncReadingDisclosure();
+      const onSingle = () => {
+        syncMultiDisclosure();
         syncActiveToScrollPosition();
         stopRepeat();
         syncArrows();
       };
-      document.addEventListener("rm:heading", readingHeading);
-      document.addEventListener("rm:off", readingOff);
+      document.addEventListener("cl:heading", onHeading);
+      document.addEventListener("cl:single", onSingle);
 
       document.addEventListener(
         "astro:before-swap",
@@ -298,8 +298,8 @@ const { headings, variant = "header" } = Astro.props;
           controller.abort();
           stopRepeat();
           window.cancelAnimationFrame(scrollAnimationFrame);
-          document.removeEventListener("rm:heading", readingHeading);
-          document.removeEventListener("rm:off", readingOff);
+          document.removeEventListener("cl:heading", onHeading);
+          document.removeEventListener("cl:single", onSingle);
         },
         { once: true },
       );
@@ -373,9 +373,9 @@ const { headings, variant = "header" } = Astro.props;
           if (!heading) return;
           event.preventDefault();
           close();
-          // Reading mode handles the native plane during capture. Its header
+          // The n段 layout handles the native plane during capture. Its header
           // stays visible; only single-column reading uses a disclosure.
-          if (document.documentElement.classList.contains("rm-active")) return;
+          if (document.documentElement.classList.contains("cl-multi")) return;
           await scrollToHeading(heading);
           history.replaceState(history.state, "", `#${encodeURIComponent(id)}`);
           activate(id);

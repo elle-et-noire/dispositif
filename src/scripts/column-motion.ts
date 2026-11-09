@@ -1,4 +1,4 @@
-import { ticks, horizontalDestination, type ReadingPoint as Point, type ReadingLayout } from "./reading-coordinates";
+import { ticks, horizontalDestination, type ReadingPoint as Point, type ColumnMetrics } from "./column-coordinates";
 interface ColumnAnimation {
   from: Point;
   to: Point;
@@ -7,12 +7,12 @@ interface ColumnAnimation {
 }
 
 /** Interruptible, time-based motion only for explicit column keys. */
-export class ReadingMotion {
+export class ColumnMotion {
   private animation: ColumnAnimation | undefined;
   private frame = 0;
 
   constructor(
-    private geometry: () => ReadingLayout | undefined,
+    private geometry: () => ColumnMetrics | undefined,
     private current: () => Point,
     private move: (point: Point) => void,
     private reducedMotion: MediaQueryList,

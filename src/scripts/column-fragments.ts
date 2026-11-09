@@ -24,7 +24,7 @@ interface RenderedRange {
 }
 
 /** One measured article; other columns contain only nearby, whole blocks. */
-export class ReadingFragments {
+export class ColumnFragments {
   private blocks: Block[] = [];
   private bottomBounds: number[] = [];
   private boxes = new Map<FragmentElement, Box>();
@@ -109,11 +109,11 @@ export class ReadingFragments {
 
   createContent() {
     const content = this.source.cloneNode(false) as HTMLElement;
-    content.classList.remove("rm-source");
-    content.classList.add("rm-content");
+    content.classList.remove("cl-source");
+    content.classList.add("cl-content");
     content.removeAttribute("id");
     content.removeAttribute("style");
-    content.dataset.rmFragmented = "";
+    content.dataset.clFragmented = "";
     return content;
   }
 
@@ -131,7 +131,7 @@ export class ReadingFragments {
     const copiedDetails = copy.matches("details")
       ? [copy as HTMLDetailsElement, ...copy.querySelectorAll<HTMLDetailsElement>("details")]
       : [...copy.querySelectorAll<HTMLDetailsElement>("details")];
-    copiedDetails.forEach((details, i) => { details.dataset.rmDetails = String(this.details.get(originalDetails[i])); });
+    copiedDetails.forEach((details, i) => { details.dataset.clDetails = String(this.details.get(originalDetails[i])); });
     const controls = "a, button, input, select, textarea, summary, [tabindex], [contenteditable], audio, video";
     const interactive = [...copy.querySelectorAll<HTMLElement>(controls)];
     if (copy instanceof HTMLElement && copy.matches(controls)) interactive.push(copy);

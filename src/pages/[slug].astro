@@ -2,9 +2,9 @@
 import Layout from "@layouts/Layout.astro";
 import DateInfo from "@components/DateInfo.astro";
 import ArticleInteractions from "@components/ArticleInteractions.astro";
-import ReadingMode from "@components/ReadingMode.astro";
-import ReadingSingleIcon from "../icons/reading-single.svg";
-import ReadingMultiIcon from "../icons/reading-multi.svg";
+import ColumnLayout from "@components/ColumnLayout.astro";
+import SingleColumnIcon from "../icons/single-column.svg";
+import MultiColumnIcon from "../icons/multi-column.svg";
 import Toc from "@components/Toc.astro";
 import { markdownToHtml } from "@lib/convert";
 import { mathFontFaces, separateMathFontFaces } from "@lib/math-fonts";
@@ -55,53 +55,53 @@ const headings = getHeadings(content);
 
   <div
     aria-hidden="true"
-    class="rm-backdrop fixed inset-0 z-10 block cursor-pointer bg-[#76ddfc]/15 backdrop-blur-[3px]"
+    class="cl-backdrop fixed inset-0 z-10 block cursor-pointer bg-[#76ddfc]/15 backdrop-blur-[3px]"
   ></div>
 
-  <div class="rm-article-scrollport" tabindex="0" role="region" aria-label="記事本文">
+  <div class="cl-article-scrollport" tabindex="0" role="region" aria-label="記事本文">
     {/* Pointer-only: the background around the paper. Keyboard and screen
-        reader users get the same action from .rm-close, so this link is kept
+        reader users get the same action from .cl-close, so this link is kept
         out of the Tab order and the accessibility tree. */}
     <a
       href={withBase()}
       data-astro-prefetch="hover"
       tabindex="-1"
       aria-hidden="true"
-      class="rm-dismiss block cursor-pointer"
+      class="cl-dismiss block cursor-pointer"
     ></a>
-    <article class="rm-article prose relative z-20 mx-auto mt-8 flex w-[calc(100%-1rem)] max-w-[68rem] flex-col px-4 pb-16 md:pl-16 md:pr-4">
-      <div class="rm-layout grid min-w-0 grid-cols-1">
-        <aside class="rm-sidebar">
-          <div class="rm-sidebar-stack">
-            <div class="rm-toolbar not-prose">
-              <button class="rm-toggle" type="button" aria-pressed="false" aria-label="n段表示" title="n段表示に切り替える">
-                <ReadingMultiIcon class="rm-toggle-to-multi" aria-hidden="true" />
-                <ReadingSingleIcon class="rm-toggle-to-single" aria-hidden="true" />
+    <article class="cl-article prose relative z-20 mx-auto mt-8 flex w-[calc(100%-1rem)] max-w-[68rem] flex-col px-4 pb-16 md:pl-16 md:pr-4">
+      <div class="cl-layout grid min-w-0 grid-cols-1">
+        <aside class="cl-sidebar">
+          <div class="cl-sidebar-stack">
+            <div class="cl-toolbar not-prose">
+              <button class="cl-toggle" type="button" aria-pressed="false" aria-label="n段表示" title="n段表示に切り替える">
+                <MultiColumnIcon class="cl-toggle-to-multi" aria-hidden="true" />
+                <SingleColumnIcon class="cl-toggle-to-single" aria-hidden="true" />
               </button>
               <Toc headings={headings} variant="mobile" />
               <a
                 href={withBase()}
                 data-astro-prefetch="hover"
                 aria-label="記事を閉じて一覧へ戻る"
-                class="rm-close"
+                class="cl-close"
               >
                 <span class="batsu" aria-hidden="true"></span>
               </a>
             </div>
-            <div class="rm-toc hidden md:flex">
+            <div class="cl-toc hidden md:flex">
               <Toc headings={headings} variant="sidebar" />
             </div>
           </div>
         </aside>
-        <ReadingMode>
-          <div class="rm-source min-w-0 w-full font-noto-sans">
+        <ColumnLayout>
+          <div class="cl-source min-w-0 w-full font-noto-sans">
             <h1 class="mb-1 text-lg font-semibold text-[#101828] sm:text-3xl md:mb-3 md:text-4xl">
               {data.title}
             </h1>
             <DateInfo data={data} class="text-xs sm:text-base" />
             <div class="post" set:html={html} />
           </div>
-        </ReadingMode>
+        </ColumnLayout>
       </div>
     </article>
   </div>
