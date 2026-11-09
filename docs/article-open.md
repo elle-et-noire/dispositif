@@ -22,7 +22,7 @@ TRACE=0 node scripts/measure-article-open.mjs http://localhost:4321/dispositif/ 
 npx astro preview stop
 ```
 
-`ENGINES`・`ARTICLES`・`MODES`・`CACHES` で条件を絞り、`NAV=direct` で直接の読み込みを測ります。各変数の意味は `scripts/measure-article-open.mjs` の冒頭にあります。トレースは時間を延ばすので、壁時計の比較は `TRACE=0` で行います。計測中に他の重い処理があると回ごとに±30ms程度揺れるので、小さな差は12回以上交互に測って確かめます。
+`ENGINES`・`ARTICLES`・`MODES`・`CACHES` で条件を絞り、`NAV=direct` で直接の読み込みを測ります。各変数の意味は `scripts/measure-article-open.mjs` の冒頭にあります。トレースは時間を延ばすので、壁時計の比較は `TRACE=0` で行います。計測中に他の重い処理があると回ごとの値が揺れるので、小さな差は12回以上交互に測って確かめます。
 
 Lighthouseや回線を遅くした計測では、GitHub Pagesと同じくgzipで配信します。`python -m http.server` は圧縮せずにHTMLを送るので、FCPと帯域の条件が変わり、比較に使えません。
 
@@ -34,10 +34,10 @@ Lighthouseや回線を遅くした計測では、GitHub Pagesと同じくgzipで
 git show 7812f3e:docs/article-open-history.md
 ```
 
-一覧でホバーした記事を、画面外のiframeでn段まで組み立てておく方式（2026-11-05）は採りませんでした。数式記事ではCPUとメモリの負荷が大きく、ホバーして開かなければその負荷が無駄になり、Firefoxではクリックまでに準備が終わらなかったためです。計測スクリプトと生データはタグ `reading-preload-investigation-20261105` にあります。
+一覧でホバーした記事を、画面外のiframeでn段まで組み立てておく方式は採りませんでした。数式記事ではCPUとメモリの負荷が大きく、ホバーして開かなければその負荷が無駄になり、Firefoxではクリックまでに準備が終わらなかったためです。計測スクリプトと生データはタグ `reading-preload-investigation-20261105` にあります。
 
 ## 残っている課題
 
 - n段では、本文全体を段の幅でレイアウトする1回と、画面内の段の複製のスタイル計算・レイアウト・描画が残る。減らすには、ブロック単位で組み立てるなど組み立て方そのものを変える必要がある（内訳はPR #3）。
-- Chromiumのn段で、`page-load→visible` に11〜15msのスタイル計算が残る。原因は未調査。
-- Chromiumの `after-swap→page-load` の約31msの内訳は未調査。
+- Chromiumのn段で、`page-load→visible` にスタイル計算が残る。原因は未調査（計測はPR #7）。
+- Chromiumの `after-swap→page-load` の内訳は未調査（計測はPR #7）。
