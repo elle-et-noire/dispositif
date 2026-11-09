@@ -23,7 +23,7 @@ Astroベースの記事サイトです。記事はビルド時にMarkdownからH
 │   ├── pages/
 │   │   ├── index.astro
 │   │   └── [slug].astro
-│   ├── scripts/            # 段組み、数式フォントの先読み、背景の一覧
+│   ├── scripts/            # 段組み、読書位置の履歴、数式フォントの先読み、背景の一覧
 │   └── styles/             # globals.css、column-layout.css
 └── tests/                  # ブラウザテスト（*.browser.test.mjs）
 ```
@@ -113,7 +113,7 @@ Home／Endの対称性・縦操作専用の余白・片軸操作・到達経路�
 
 `tests/column-review-fixes.browser.test.mjs` は本文内リンク・ハッシュ・再読み込み・モード切り替え時の読書位置と、目次・折りたたみのキーボードフォーカスを確認します。`tests/column-edges.browser.test.mjs` は切り替えボタンが直接表示されること、実際のネイティブ横バーのドラッグ、Home / Endで先頭・末尾の基準配置へ到達できることを検証します。`tests/column-margins.browser.test.mjs` は本文の余白が横移動と一緒に画面外へ流れ、横バーの左右余白が固定されることを確認します。
 
-`tests/column-motion.browser.test.mjs` は左右キーのアニメーション・連打・中断・動きを減らす設定、固定した横バーと流れる本文の余白を確認します。
+`tests/column-motion.browser.test.mjs` は左右キーのアニメーション・連打・中断・動きを減らす設定と、標準の横バーの矢印のクリック・長押しで本文だけが動き、端で止まることを確認します。
 
 `tests/column-scroll-performance.browser.test.mjs` は100%・110%・112.5%・125%・150%相当の拡大表示で、段内の横移動が実際に進みながら本文・背景・レールのスタイルと本文DOMを更新しないことを確認します。小数のネイティブ座標で往復しても投影原点が揺れず、誤差が蓄積しないことはユニットテストで確認します。
 
