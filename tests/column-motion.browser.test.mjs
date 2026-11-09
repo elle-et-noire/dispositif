@@ -23,7 +23,6 @@ async function state(page) {
     let last = Math.floor((x + v.clientWidth - edge - w + 0.01) / p);
     if (first > last) first = last = Math.round((x + v.clientWidth / 2 - edge - w / 2) / p);
     return { x, y, p, w, edge, first, last, width: v.clientWidth, h: v.clientHeight,
-      step: parseFloat(plane.style.getPropertyValue("--cl-step")),
       l: parseFloat(plane.style.getPropertyValue("--cl-l")),
       animating: v.hasAttribute("data-cl-animating") };
   });

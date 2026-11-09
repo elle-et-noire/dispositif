@@ -88,13 +88,12 @@ const {
           element.className = name;
           return element;
         };
-        const track = part("cl-track"), slot = part("cl-slot"), shade = part("cl-shade"), paper = part("cl-paper");
-        shade.setAttribute("aria-hidden", "true");
+        const track = part("cl-track"), slot = part("cl-slot"), paper = part("cl-paper");
         paper.setAttribute("aria-hidden", "true");
         source.classList.add("cl-content");
         // The reader replaces this with the same width in px.
         source.style.width = "var(--cl-column-width)";
-        slot.append(source, shade, paper);
+        slot.append(source, paper);
         track.append(slot);
         plane.append(track);
         reader.hidden = false;

@@ -33,10 +33,10 @@ async function readingState(page) {
     const plane = document.querySelector(".cl-plane");
     const source = document.querySelector(".cl-source");
     const p = parseFloat(plane.style.getPropertyValue("--cl-p"));
-    const step = parseFloat(plane.style.getPropertyValue("--cl-step"));
+    const h = parseFloat(plane.style.getPropertyValue("--cl-h"));
     const origin = Number(document.querySelector(".cl-plane").dataset.clOriginColumn);
     const originY = parseFloat(document.querySelector(".cl-plane").dataset.clOriginY);
-    const t = (Math.floor((viewport.scrollLeft - Number(plane.dataset.clLeading) + 0.01) / p) + origin) * step + viewport.scrollTop + originY;
+    const t = (Math.floor((viewport.scrollLeft - Number(plane.dataset.clLeading) + 0.01) / p) + origin) * h + viewport.scrollTop + originY;
     const top = source.getBoundingClientRect().top;
     const headings = [...source.querySelectorAll("h2[id], h3[id]")];
     const current = [...headings].reverse().find((heading) =>
@@ -114,13 +114,13 @@ test("1段のサイドバー目次とn段の上部目次を切り替えて使え
             const viewport = document.querySelector(".cl-viewport");
             const plane = document.querySelector(".cl-plane");
             const source = document.querySelector(".cl-source");
-            const step = parseFloat(plane.style.getPropertyValue("--cl-step"));
+            const h = parseFloat(plane.style.getPropertyValue("--cl-h"));
             const originY = parseFloat(document.querySelector(".cl-plane").dataset.clOriginY);
             const target = document.getElementById(id).getBoundingClientRect().top - source.getBoundingClientRect().top;
             const vr = viewport.getBoundingClientRect();
             return [...document.querySelectorAll(".cl-slot")].some((slot) => {
               const rect = slot.getBoundingClientRect();
-              const py = target - Number(slot.dataset.clK) * step - viewport.scrollTop - originY;
+              const py = target - Number(slot.dataset.clK) * h - viewport.scrollTop - originY;
               return rect.left >= vr.left - 1 && rect.right <= vr.right + 1 && py >= -1 && py < viewport.clientHeight;
             });
           }, lastId);

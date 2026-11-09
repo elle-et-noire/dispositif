@@ -6,9 +6,7 @@
 @property --cl-h { syntax: "*"; inherits: false; }
 @property --cl-p { syntax: "*"; inherits: false; }
 @property --cl-l { syntax: "*"; inherits: false; }
-@property --cl-step { syntax: "*"; inherits: false; }
 @property --cl-edge { syntax: "*"; inherits: false; }
-@property --cl-overlap { syntax: "*"; inherits: false; }
 @property --cl-header-height { syntax: "*"; inherits: false; }
 
 :root {
@@ -297,7 +295,6 @@
     left: 0;
     --cl-w: inherit;
     --cl-h: inherit;
-    --cl-overlap: inherit;
     width: var(--cl-w);
     height: 100%;
     /* Clip on the rail, which moves with the native scroll plane. A clip on
@@ -309,7 +306,6 @@
   .cl-slot {
     --cl-w: inherit;
     --cl-h: inherit;
-    --cl-overlap: inherit;
     position: sticky;
     top: 0;
     width: var(--cl-w);
@@ -343,50 +339,13 @@
     font-family: var(--font-noto-sans);
   }
 
-  /* Clip overlap shading to the same paper bounds, including tiny tails. */
-  .cl-shade {
-    --cl-overlap: inherit;
-    position: absolute;
-    left: 0;
-    width: 100%;
-    overflow: hidden;
-    border-radius: 0;
-    z-index: 2;
-    pointer-events: none;
-  }
-
-  .cl-shade::before,
-  .cl-shade::after {
-    --cl-overlap: inherit;
-    position: absolute;
-    right: 0;
-    left: 0;
-    z-index: 2;
-    height: var(--cl-overlap);
-    content: "";
-    pointer-events: none;
-  }
-
-  .cl-shade::before {
-    top: var(--cl-shade-top, 0px);
-    background: linear-gradient(color-mix(in srgb, var(--cl-surface) 45%, transparent), transparent);
-  }
-
-  .cl-shade::after {
-    bottom: var(--cl-shade-bottom, 0px);
-    background: linear-gradient(transparent, color-mix(in srgb, var(--cl-surface) 45%, transparent));
-  }
-
-  .cl-slot[data-cl-head] .cl-shade::before,
-  .cl-slot[data-cl-tail] .cl-shade::after { display: none; }
-
-  /* Keep changing edge styles on the surface siblings. Inherited custom
+  /* Keep changing edge styles on the surface sibling. Inherited custom
      properties on the slot would invalidate the entire MathJax subtree. */
-  .cl-slot[data-cl-head] > :is(.cl-paper, .cl-shade) {
+  .cl-slot[data-cl-head] > .cl-paper {
     border-top-left-radius: var(--note-radius);
     border-top-right-radius: var(--note-radius);
   }
-  .cl-slot[data-cl-tail] > :is(.cl-paper, .cl-shade) {
+  .cl-slot[data-cl-tail] > .cl-paper {
     border-bottom-left-radius: var(--note-radius);
     border-bottom-right-radius: var(--note-radius);
   }

@@ -111,7 +111,6 @@ export function initializeColumnLayout() {
   let rangeStart = NaN;
   const placements = new WeakMap<HTMLElement, {
     left: number; translate: string; clip: string; paperTop: number; paperHeight: number;
-    shadeTop: number; shadeBottom: number;
   }>();
   let dirty = true;
   let activeHeading = "";
@@ -204,10 +203,6 @@ export function initializeColumnLayout() {
     slot.className = "cl-slot";
     if (content !== source) slot.setAttribute("aria-hidden", "true");
     slot.appendChild(content);
-    const shade = document.createElement("div");
-    shade.className = "cl-shade";
-    shade.setAttribute("aria-hidden", "true");
-    slot.appendChild(shade);
     const paper = document.createElement("div");
     paper.className = "cl-paper";
     paper.setAttribute("aria-hidden", "true");
@@ -273,18 +268,15 @@ export function initializeColumnLayout() {
       const content = slot.firstElementChild as HTMLElement;
       const track = slot.parentElement!;
       const paper = slot.lastElementChild as HTMLElement;
-      const shade = paper.previousElementSibling as HTMLElement;
-      const fromTicks = ticks(k * state.layout.step + state.point.y);
+      const fromTicks = ticks(k * state.layout.h + state.point.y);
       const surface = paperWindow(fromTicks, state.layout);
       const from = toCss(fromTicks), paperTop = toCss(surface.top), paperHeight = toCss(surface.height);
-      const shift = toCss(surface.shift);
       const left = geometry.leading + geometry.edge + (k - geometry.originColumn) * geometry.p;
-      const top = -(k * geometry.step + geometry.originY) + shift;
+      const top = -(k * geometry.h + geometry.originY);
       const clipped = from < 0 || from + geometry.h > geometry.l;
       const clip = paperHeight === 0 ? "inset(50%)" : clipped
         ? `polygon(-4px ${nativeY + paperTop}px, calc(100% + 4px) ${nativeY + paperTop}px, calc(100% + 4px) ${nativeY + paperTop + paperHeight}px, -4px ${nativeY + paperTop + paperHeight}px)`
         : "inset(0px -4px)";
-      const shadeTop = shift - paperTop, shadeBottom = paperTop + paperHeight - geometry.h - shift;
       const previous = placements.get(slot);
       if (previous?.left !== left) track.style.left = `${left}px`;
       // Translate the text in both axes. Moving its layout left offset would
@@ -297,23 +289,17 @@ export function initializeColumnLayout() {
       const translate = `${devicePixels(left, pixel)}px ${devicePixels(top, pixel)}px`;
       if (previous?.translate !== translate) content.style.translate = translate;
       if (previous?.clip !== clip) track.style.clipPath = clip;
-      if (previous?.paperTop !== paperTop) {
-        paper.style.top = shade.style.top = `${paperTop}px`;
-      }
-      if (previous?.paperHeight !== paperHeight) {
-        paper.style.height = shade.style.height = `${paperHeight}px`;
-      }
-      if (previous?.shadeTop !== shadeTop) shade.style.setProperty("--cl-shade-top", `${shadeTop}px`);
-      if (previous?.shadeBottom !== shadeBottom) shade.style.setProperty("--cl-shade-bottom", `${shadeBottom}px`);
+      if (previous?.paperTop !== paperTop) paper.style.top = `${paperTop}px`;
+      if (previous?.paperHeight !== paperHeight) paper.style.height = `${paperHeight}px`;
       slot.toggleAttribute("data-cl-head", from <= 0);
       slot.toggleAttribute("data-cl-tail", from + geometry.h >= geometry.l);
-      placements.set(slot, { left, translate, clip, paperTop, paperHeight, shadeTop, shadeBottom });
+      placements.set(slot, { left, translate, clip, paperTop, paperHeight });
       // Slots outside the article have no visible paper. Keep their existing
       // fragments until they become visible instead of cloning/removing blocks
       // that would immediately be clipped away.
       if (content === source || paperHeight === 0) continue;
       if (includeOffscreen || (left < nativeX + viewportWidth && left + geometry.w > nativeX)) {
-        fragments.render(content, toCss(fromTicks - surface.shift), geometry.h, geometry.l);
+        fragments.render(content, from, geometry.h, geometry.l);
       } else if (!offscreenFrame) {
         offscreenFrame = requestAnimationFrame(() => { offscreenFrame = 0; updateSlots(true); });
       }
@@ -412,7 +398,7 @@ export function initializeColumnLayout() {
     fragments.measure(dirty);
     headings = Array.from(source.querySelectorAll<HTMLElement>("h2[id], h3[id]"),
       (heading) => ({ id: heading.id, t: offsetOf(heading) }));
-    const layout = createLayout(w, gap, h, 0, l, viewport.clientWidth, edge);
+    const layout = createLayout(w, gap, h, l, viewport.clientWidth, edge);
     // Layout changes preserve the logical anchor; ordinary observations never
     // reconstruct application state from native positions.
     if (reading && sameLayout(layout, reading.layout)) {
@@ -423,8 +409,6 @@ export function initializeColumnLayout() {
     navigationHeading = undefined;
     motion.reset();
     plane.style.setProperty("--cl-p", `${toCss(layout.p)}px`);
-    plane.style.setProperty("--cl-step", `${h}px`);
-    plane.style.setProperty("--cl-overlap", "0px");
     plane.style.setProperty("--cl-l", `${l}px`);
     plane.style.setProperty("--cl-edge", `${edge}px`);
     const lengthOnly = reading && (Object.keys(layout) as (keyof ColumnMetrics)[])
@@ -469,7 +453,7 @@ export function initializeColumnLayout() {
     if (!reading) return;
     motion.reset();
     reading.navigate(fromCss(offsetOf(target)));
-    preferredSourceColumn = Math.floor((fromCss(offsetOf(target)) - reading.point.y) / reading.layout.step);
+    preferredSourceColumn = Math.floor((fromCss(offsetOf(target)) - reading.point.y) / reading.layout.h);
     rangeStart = NaN;
     present(true);
     if (target.matches("h2[id], h3[id]")) {
@@ -717,7 +701,7 @@ export function initializeColumnLayout() {
       const direction = event.key === "PageUp" || (event.key === " " && event.shiftKey) ? -1 : 1;
       motion.reset();
       const count = visibleColumnCount(reading.point, reading.layout);
-      reading.vertical(ticks(reading.point.y + direction * count * reading.layout.step));
+      reading.vertical(ticks(reading.point.y + direction * count * reading.layout.h));
       present(true);
     } else if (event.key === "Home" || event.key === "End") {
       goToEdge(event.key === "End");
