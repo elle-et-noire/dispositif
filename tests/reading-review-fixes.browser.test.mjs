@@ -14,7 +14,7 @@ test("本文内リンクの履歴ごとに位置と折りたたみを保存し�
   try {
     await page.addInitScript(() => localStorage.setItem("dispositif:reading-mode", "single"));
     await page.goto(new URL("nextjs-mdx/", BASE).href);
-    await page.waitForSelector(".rm-ready");
+    await page.waitForSelector("html.rm-ready:not(.rm-pending)");
     await page.evaluate(() => document.fonts.ready);
     await page.locator(".rm-source details summary").first().click();
     const link = page.locator('.rm-source a[href^="#"]').filter({ hasText: "参考文献" }).first();
@@ -45,7 +45,7 @@ test("本文内リンクの履歴ごとに位置と折りたたみを保存し�
     await page.locator(".rm-close:visible").click();
     await page.waitForSelector('html[data-page-kind="index"]');
     await page.goBack();
-    await page.waitForSelector('html[data-page-kind="article"].rm-ready');
+    await page.waitForSelector('html[data-page-kind="article"].rm-ready:not(.rm-pending)');
     await settle(page);
     assert.deepEqual(await snapshot(), destination);
   } finally { await browser.close(); }
@@ -57,7 +57,7 @@ test("直接のハッシュ変更でも履歴項目を区別し、一覧から�
   try {
     await page.addInitScript(() => localStorage.setItem("dispositif:reading-mode", "single"));
     await page.goto(ARTICLE);
-    await page.waitForSelector(".rm-ready");
+    await page.waitForSelector("html.rm-ready:not(.rm-pending)");
     await settle(page);
     await page.locator(".rm-article-scrollport").evaluate((v) => { v.scrollTop = 2500; });
     await settle(page);
@@ -71,7 +71,7 @@ test("直接のハッシュ変更でも履歴項目を区別し、一覧から�
     await page.locator(".rm-close:visible").click();
     await page.waitForSelector('html[data-page-kind="index"]');
     await page.goBack();
-    await page.waitForSelector('html[data-page-kind="article"].rm-ready');
+    await page.waitForSelector('html[data-page-kind="article"].rm-ready:not(.rm-pending)');
     await settle(page);
     assert.deepEqual(await page.evaluate(() => ({ key: history.state.dispositifReadingKey,
       top: document.querySelector(".rm-article-scrollport").scrollTop })), hashState);
@@ -91,7 +91,7 @@ test("直接のハッシュ変更後に段を切り替えて戻っても元の�
   try {
     await page.addInitScript(() => localStorage.setItem("dispositif:reading-mode", "single"));
     await page.goto(ARTICLE);
-    await page.waitForSelector(".rm-ready");
+    await page.waitForSelector("html.rm-ready:not(.rm-pending)");
     await page.evaluate(() => document.fonts.ready);
     const heading = page.locator(".rm-source h2").nth(5);
     const name = await heading.innerText();
@@ -151,7 +151,7 @@ test("履歴復元では折りたたみの開閉状態を先に戻し、中や�
       try {
         await page.addInitScript((mode) => localStorage.setItem("dispositif:reading-mode", mode), mode);
         await page.goto(new URL("nextjs-mdx/", BASE).href);
-        await page.waitForSelector(".rm-ready");
+        await page.waitForSelector("html.rm-ready:not(.rm-pending)");
         await page.evaluate(() => document.fonts.ready);
         await settle(page);
         const summary = page.locator(".rm-source details summary").first();
@@ -177,7 +177,7 @@ test("履歴復元では折りたたみの開閉状態を先に戻し、中や�
         await page.locator(".rm-close:visible").click();
         await page.waitForSelector('html[data-page-kind="index"]');
         await page.goBack();
-        await page.waitForSelector('html[data-page-kind="article"].rm-ready');
+        await page.waitForSelector('html[data-page-kind="article"].rm-ready:not(.rm-pending)');
         await settle(page);
         assert.equal(await page.locator(".rm-source details").first().evaluate((d) => d.open), true, `${mode}: 詳細が閉じた`);
         assert.equal(await page.locator(".rm-source details").nth(1).evaluate((d) => d.open), false, `${mode}: 別の詳細が開いた`);
@@ -192,7 +192,7 @@ test("履歴復元では折りたたみの開閉状態を先に戻し、中や�
           assert.ok(rect && rect.y < 700 && rect.y + rect.height > 0, `${mode}, ${location}: 対象が画面外`);
         }
         await page.reload();
-        await page.waitForSelector('html[data-page-kind="article"].rm-ready');
+        await page.waitForSelector('html[data-page-kind="article"].rm-ready:not(.rm-pending)');
         await settle(page);
         assert.equal(await page.locator(".rm-source details").first().evaluate((d) => d.open), true, `${mode}: 再読込で詳細が閉じた`);
         const reloaded = await page.evaluate((mode) => mode === "single"
@@ -212,7 +212,7 @@ test("履歴から戻ると1段のスクロール位置とn段の縦横位置を
       try {
         await page.addInitScript((mode) => localStorage.setItem("dispositif:reading-mode", mode), mode);
         await page.goto(ARTICLE);
-        await page.waitForSelector(".rm-ready");
+        await page.waitForSelector("html.rm-ready:not(.rm-pending)");
         await settle(page);
         if (mode === "multi") {
           await page.locator(".rm-viewport").evaluate((v) => { v.scrollLeft += 500; v.scrollTop += 150; });
@@ -225,17 +225,17 @@ test("履歴から戻ると1段のスクロール位置とn段の縦横位置を
         await page.locator(".rm-close:visible").click();
         await page.waitForURL(BASE);
         await page.goBack();
-        await page.waitForSelector(".rm-ready");
+        await page.waitForSelector("html.rm-ready:not(.rm-pending)");
         await settle(page);
         assert.deepEqual(await position(), before);
         await page.reload();
-        await page.waitForSelector(".rm-ready");
+        await page.waitForSelector("html.rm-ready:not(.rm-pending)");
         await settle(page);
         assert.deepEqual(await position(), before, "再読み込み後に履歴項目の位置を失った");
         await page.goForward();
         await page.waitForURL(BASE);
         await page.goBack();
-        await page.waitForSelector(".rm-ready");
+        await page.waitForSelector("html.rm-ready:not(.rm-pending)");
         await settle(page);
         assert.deepEqual(await position(), before, "再読み込み後の履歴移動で位置を失った");
       } finally { await page.close(); }
@@ -249,7 +249,7 @@ test("本文の幅が変わっても段の切り替えで同じ見出しの位�
   try {
     await page.addInitScript(() => localStorage.setItem("dispositif:reading-mode", "single"));
     await page.goto(ARTICLE);
-    await page.waitForSelector(".rm-ready");
+    await page.waitForSelector("html.rm-ready:not(.rm-pending)");
     await page.evaluate(() => document.fonts.ready);
     const heading = page.locator(".rm-source h2").nth(6);
     const id = await heading.getAttribute("id");
@@ -275,7 +275,7 @@ test("別の記事で表示モードを変えてから履歴で戻っても同�
   try {
     await page.addInitScript(() => localStorage.setItem("dispositif:reading-mode", "single"));
     await page.goto(ARTICLE);
-    await page.waitForSelector(".rm-ready");
+    await page.waitForSelector("html.rm-ready:not(.rm-pending)");
     await page.evaluate(() => document.fonts.ready);
     const heading = page.locator(".rm-source h2").nth(6);
     const name = await heading.innerText();
@@ -283,7 +283,7 @@ test("別の記事で表示モードを変えてから履歴で戻っても同�
     await page.locator(".rm-close:visible").click();
     await page.waitForURL(BASE);
     await page.locator('[data-article-index] a[href*="nextjs-mdx"]').click();
-    await page.waitForSelector(".rm-ready");
+    await page.waitForSelector("html.rm-ready:not(.rm-pending)");
     await page.locator(".rm-toggle").click();
     await page.waitForSelector("html.rm-active .rm-slot");
     await page.goBack();
@@ -353,7 +353,7 @@ test("最初のフレームより前に記事を離れても、その履歴項�
       window.cancelAnimationFrame = (id) => { if (held?.delete(id)) return; cancel(id); };
     });
     await page.goto(new URL("nextjs-mdx/", BASE).href);
-    await page.waitForSelector(".rm-ready");
+    await page.waitForSelector("html.rm-ready:not(.rm-pending)");
     await page.evaluate(() => document.fonts.ready);
     await page.locator(".rm-source details summary").first().click();
     await page.locator(".rm-article-scrollport").evaluate((v) => { v.scrollTop = 1500; });
@@ -391,7 +391,7 @@ test("保存済みの履歴が壊れていても、新しい読書位置を保�
       sessionStorage.setItem("dispositif:reading-history", "{damaged");
     });
     await page.goto(ARTICLE);
-    await page.waitForSelector(".rm-ready");
+    await page.waitForSelector("html.rm-ready:not(.rm-pending)");
     await settle(page);
     await page.locator(".rm-article-scrollport").evaluate((v) => { v.scrollTop = 1200; });
     await settle(page);
@@ -408,7 +408,7 @@ test("n段表示で折りたたみをクリックしても表示位置を動か�
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     await page.addInitScript(() => localStorage.setItem("dispositif:reading-mode", "multi"));
     await page.goto(new URL("nextjs-mdx/", BASE).href);
-    await page.waitForSelector(".rm-ready");
+    await page.waitForSelector("html.rm-ready:not(.rm-pending)");
     await page.evaluate(() => document.fonts.ready);
     return page;
   };
@@ -483,7 +483,7 @@ for (const [name, engine] of Object.entries({ chromium, firefox })) {
       const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
       await page.addInitScript(() => localStorage.setItem("dispositif:reading-mode", "multi"));
       await page.goto(new URL("nextjs-mdx/", BASE).href);
-      await page.waitForSelector(".rm-ready");
+      await page.waitForSelector("html.rm-ready:not(.rm-pending)");
       await page.evaluate(() => document.fonts.ready);
       await settle(page);
       const state = await page.evaluate(async ({ change, measured }) => {

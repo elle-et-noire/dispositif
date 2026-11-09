@@ -115,7 +115,7 @@ test("1段の標準バー越しに背景ヘッダーが透け、キー・矢印�
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     await page.addInitScript(() => localStorage.setItem("dispositif:reading-mode", "single"));
     await page.goto(ARTICLE_URL);
-    await page.waitForSelector(".rm-ready");
+    await page.waitForSelector("html.rm-ready:not(.rm-pending)");
     await page.evaluate(() => document.fonts.ready);
     const scroller = page.locator(".rm-article-scrollport");
     const sizes = await scroller.evaluate((el) => ({ root: document.documentElement.clientWidth,
@@ -178,7 +178,7 @@ test("ノート外の左右・上下の背景でも標準のホイール操作�
         await page.addInitScript(() => localStorage.setItem("dispositif:reading-mode", "single"));
         await page.goto(ARTICLE_URL);
         if (javaScriptEnabled) {
-          await page.waitForSelector(".rm-ready");
+          await page.waitForSelector("html.rm-ready:not(.rm-pending)");
           await page.evaluate(() => document.fonts.ready);
         }
         await page.locator("astro-dev-toolbar").evaluateAll((nodes) => nodes.forEach((node) => node.remove()));
