@@ -1,10 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { chromium } from "playwright-core";
-import { toggleReadingMode, readingScrollbar } from "./reading-controls.mjs";
+import { toggleColumns, columnScrollbar } from "./column-controls.mjs";
+import { ARTICLE_URL, launch, storeColumns } from "./browser.mjs";
 
-const ARTICLE_URL = new URL("symmetric-polynomial/",
-  process.env.RM_BASE_URL ?? "http://localhost:4321/dispositif/").href;
 
 async function settle(page) {
   await page.evaluate(async () => {
@@ -14,56 +13,56 @@ async function settle(page) {
 
 async function state(page) {
   return page.evaluate(() => {
-    const viewport = document.querySelector(".rm-viewport");
-    const plane = document.querySelector(".rm-plane");
-    const p = parseFloat(plane.style.getPropertyValue("--rm-p"));
-    const w = parseFloat(plane.style.getPropertyValue("--rm-w"));
-    const step = parseFloat(plane.style.getPropertyValue("--rm-step"));
-    const edge = parseFloat(plane.style.getPropertyValue("--rm-edge"));
-    const x = viewport.scrollLeft + Number(plane.dataset.rmOriginColumn) * p - Number(plane.dataset.rmLeading);
-    const y = viewport.scrollTop + Number(plane.dataset.rmOriginY);
+    const viewport = document.querySelector(".cl-viewport");
+    const plane = document.querySelector(".cl-plane");
+    const p = parseFloat(plane.style.getPropertyValue("--cl-p"));
+    const w = parseFloat(plane.style.getPropertyValue("--cl-w"));
+    const step = parseFloat(plane.style.getPropertyValue("--cl-step"));
+    const edge = parseFloat(plane.style.getPropertyValue("--cl-edge"));
+    const x = viewport.scrollLeft + Number(plane.dataset.clOriginColumn) * p - Number(plane.dataset.clLeading);
+    const y = viewport.scrollTop + Number(plane.dataset.clOriginY);
     let first = Math.ceil((x - edge - 0.01) / p);
     let last = Math.floor((x + viewport.clientWidth - edge - w + 0.01) / p);
     if (first > last) first = last = Math.round((x + viewport.clientWidth / 2 - edge - w / 2) / p);
     return { x, y, p, w, step, first, last, edge, width: viewport.clientWidth,
-      h: viewport.clientHeight, l: parseFloat(plane.style.getPropertyValue("--rm-l")),
-      hasEnd: [...document.querySelectorAll(".rm-slot")].some(slot => {
+      h: viewport.clientHeight, l: parseFloat(plane.style.getPropertyValue("--cl-l")),
+      hasEnd: [...document.querySelectorAll(".cl-slot")].some(slot => {
         const r = slot.getBoundingClientRect(), v = viewport.getBoundingClientRect();
         return r.left >= v.left - 1 && r.right <= v.right + 1
-          && parseFloat(slot.querySelector(".rm-paper").style.height) >= viewport.clientHeight - 1
-          && Math.abs(Number(slot.dataset.rmK) * step + y + viewport.clientHeight - parseFloat(plane.style.getPropertyValue("--rm-l"))) < 2;
+          && parseFloat(slot.querySelector(".cl-paper").style.height) >= viewport.clientHeight - 1
+          && Math.abs(Number(slot.dataset.clK) * step + y + viewport.clientHeight - parseFloat(plane.style.getPropertyValue("--cl-l"))) < 2;
       }) };
   });
 }
 
 test("切り替えボタンを直接表示し、標準バーとHome・Endで先頭・末尾へ到達できる", { timeout: 45_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.RM_BROWSER_PATH || undefined, ignoreDefaultArgs: ["--hide-scrollbars"] });
+  const browser = await launch(chromium, { ignoreDefaultArgs: ["--hide-scrollbars"] });
   try {
     for (const width of [390, 1280]) {
       const page = await browser.newPage({ viewport: { width, height: 900 } });
       try {
-        await page.addInitScript(() => localStorage.setItem("dispositif:reading-mode", "multi"));
+        await storeColumns(page, "multi");
         await page.goto(ARTICLE_URL);
-        await page.waitForSelector(".rm-slot");
+        await page.waitForSelector(".cl-slot");
         await page.evaluate(() => document.fonts.ready);
         await settle(page);
-        const rect = await page.locator(".rm-viewport").boundingBox();
+        const rect = await page.locator(".cl-viewport").boundingBox();
         assert.ok(Math.abs(rect.x) < 1);
         assert.ok(Math.abs(width - rect.x - rect.width) < 1);
-        assert.equal(await page.locator(".rm-settings, [data-rm-overlap], [data-rm-edge]").count(), 0);
-        assert.equal(await page.locator("[data-site-header] .rm-toggle").isVisible(), true);
-        assert.equal(await page.locator("article .rm-toolbar").count(), 0);
+        assert.equal(await page.locator(".cl-settings, [data-cl-overlap], [data-cl-edge]").count(), 0);
+        assert.equal(await page.locator("[data-site-header] .cl-toggle").isVisible(), true);
+        assert.equal(await page.locator("article .cl-toolbar").count(), 0);
         // Use the real native scrollbar, with Chromium's headless hiding off.
-        const bar = await readingScrollbar(page);
+        const bar = await columnScrollbar(page);
         await page.mouse.move(bar.center, bar.y + bar.height / 2);
         await page.mouse.down();
         await page.mouse.move(bar.x + bar.width - 6, bar.y + bar.height / 2, { steps: 12 });
         await page.mouse.up();
         await settle(page);
         assert.ok((await state(page)).x > 100, "横バーをドラッグできない");
-        await page.locator(".rm-viewport").focus();
+        await page.locator(".cl-viewport").focus();
         await page.keyboard.press("ArrowRight");
-        assert.equal(await page.locator(".rm-viewport").evaluate((el) => getComputedStyle(el).outlineStyle), "none");
+        assert.equal(await page.locator(".cl-viewport").evaluate((el) => getComputedStyle(el).outlineStyle), "none");
         await page.keyboard.press("End");
         await settle(page);
         const end = await state(page);
@@ -72,12 +71,12 @@ test("切り替えボタンを直接表示し、標準バーとHome・Endで先�
         await settle(page);
         const start = await state(page);
         assert.ok(Math.abs(start.x) < 2 && Math.abs(start.y) < 2);
-        await toggleReadingMode(page);
+        await toggleColumns(page);
         await settle(page);
-        assert.equal(await page.locator("article .rm-toolbar").count(), 1);
-        assert.equal(await page.locator(".rm-settings-toggle").count(), 0);
-        assert.equal(await page.locator(".rm-toolbar > .rm-toggle").isVisible(), true);
-        await toggleReadingMode(page);
+        assert.equal(await page.locator("article .cl-toolbar").count(), 1);
+        assert.equal(await page.locator(".cl-settings-toggle").count(), 0);
+        assert.equal(await page.locator(".cl-toolbar > .cl-toggle").isVisible(), true);
+        await toggleColumns(page);
         await settle(page);
         await page.mouse.click(rect.x + 30, rect.y + 300);
       } finally { await page.close(); }

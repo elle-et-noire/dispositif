@@ -1,0 +1,415 @@
+/* The reader sets these from JS on .cl-plane and .cl-article. A change to an
+   inherited custom property restyles every element below it, about 100 ms for
+   the whole of a math article, so they do not inherit. The few elements that
+   use them take them from their parent explicitly. */
+@property --cl-w { syntax: "*"; inherits: false; }
+@property --cl-h { syntax: "*"; inherits: false; }
+@property --cl-p { syntax: "*"; inherits: false; }
+@property --cl-l { syntax: "*"; inherits: false; }
+@property --cl-step { syntax: "*"; inherits: false; }
+@property --cl-edge { syntax: "*"; inherits: false; }
+@property --cl-overlap { syntax: "*"; inherits: false; }
+@property --cl-header-height { syntax: "*"; inherits: false; }
+
+:root {
+  --cl-column-width: min(38em, calc(100vw - 2rem));
+  --cl-gap: 1rem;
+  --cl-edge-space: 1rem;
+  --cl-column-padding: clamp(1rem, 2vw, 1.5rem);
+  --cl-reader-space: 1rem;
+  --cl-surface: var(--note-surface);
+  --cl-ink: #324e73;
+  --cl-scrollbar-size: 8px;
+}
+
+.cl-toolbar {
+  position: relative;
+  z-index: 30;
+  display: flex;
+  flex: none;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.5rem;
+  padding-top: 1rem;
+  visibility: hidden;
+  color: var(--cl-ink);
+  font: 500 0.85rem/1.5 var(--font-system);
+}
+
+.cl-close { display: block; height: 2rem; flex: none; visibility: visible; }
+
+.cl-toggle {
+  display: none;
+  visibility: visible;
+  align-self: center;
+  align-items: flex-start;
+  justify-content: center;
+  flex: none;
+  width: 30px;
+  height: 2rem;
+  border: 0;
+  padding: 0;
+  color: var(--cl-ink);
+  background: transparent;
+  cursor: pointer;
+}
+
+.cl-ready .cl-toggle { display: inline-flex; }
+.cl-toggle svg { width: 30px; height: 30px; color: inherit; }
+.cl-toggle-to-single { display: none; }
+.cl-toggle[aria-pressed="true"] .cl-toggle-to-multi { display: none; }
+.cl-toggle[aria-pressed="true"] .cl-toggle-to-single { display: block; }
+.cl-toggle:hover { color: #112b45; }
+
+/* Resolve em/min()/calc() and the gap in CSS, including while the reader is off. */
+.cl-ruler {
+  position: fixed;
+  width: var(--cl-column-width);
+  margin-right: var(--cl-gap);
+  height: var(--cl-gap);
+  padding-right: var(--cl-edge-space);
+  overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.cl-ruler > div { width: calc(100% + 10px); height: 1px; }
+
+.cl-reader[hidden] { display: none; }
+
+.cl-article {
+  border-radius: var(--note-radius);
+  background: var(--note-surface);
+  box-shadow: var(--note-shadow);
+}
+
+@media screen {
+  /* Avoid painting the single-column source before the initial mode is known. */
+  /* clip-path is not inherited: visibility (or anything inherited) would
+     restyle every element of the article when cl-pending is removed. It
+     also clips the fixed n段 article inside. Layout.astro hides the
+     scrollport from assistive technology for the same span (aria-hidden). */
+  html.cl-pending .cl-article-scrollport { clip-path: inset(50%); }
+  html[data-page-kind="article"],
+  html[data-page-kind="article"] body { overflow: hidden; }
+
+  /* An element's native transparent track reveals the actual header/backdrop.
+     Keep those layers outside this scrollport rather than tinting the canvas. */
+  .cl-article-scrollport {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    overflow: auto;
+    overscroll-behavior: contain;
+    background: transparent;
+  }
+  /* Cover the whole scrollable background in normal flow. A fixed link would
+     route wheel input to the document instead of this article scrollport. */
+  .cl-dismiss { grid-area: 1 / 1; align-self: stretch; }
+  .cl-article { grid-area: 1 / 1; margin-bottom: 3rem; }
+  :is(.cl-multi, .cl-premount) .cl-article-scrollport { overflow: hidden; }
+
+  .cl-layout { grid-template-rows: 3rem auto; }
+  .cl-source { grid-column: 1; grid-row: 2; }
+  .cl-sidebar {
+    grid-column: 1;
+    grid-row: 1 / 3;
+    min-width: 0;
+    pointer-events: none;
+  }
+  .cl-sidebar-stack {
+    position: sticky;
+    top: 0;
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100svh - 1rem);
+  }
+  .cl-sidebar-stack :is(.cl-toolbar, .cl-toc) { pointer-events: auto; }
+  .cl-sidebar-stack .cl-toc { flex: 1; min-height: 0; }
+  .cl-sidebar-stack .toc-sidebar {
+    position: static;
+    top: auto;
+    flex: 1;
+    min-height: 0;
+    max-height: none;
+  }
+
+  :is(.cl-multi, .cl-premount) :is(.cl-sidebar, .cl-mobile-toc) { display: none; }
+
+  html.cl-multi,
+  .cl-multi body { overflow: hidden; }
+
+  .cl-multi [data-site-header] {
+    z-index: 40;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 3.5rem;
+    padding: 0;
+  }
+  /* Unscoped: with .cl-multi in front, a compound without a class or tag on
+     the right makes Chromium restyle the whole document when cl-multi is
+     set on <html>. Outside n段 the header is not a flex container, so these
+     have no effect there. */
+  [data-site-header] > :not(.cl-toolbar) { flex: 1; min-width: 0; }
+  .cl-multi [data-site-header] > .cl-toolbar {
+    position: relative;
+    top: auto;
+    right: auto;
+    flex: none;
+    padding: 0 1rem 0 0;
+  }
+  /* .cl-premount: the n段 article before the reader starts (Layout.astro). */
+  :is(.cl-multi, .cl-premount) .cl-article {
+    position: fixed;
+    inset: var(--cl-header-height, 3rem) 0 0;
+    display: flex;
+    width: 100%;
+    max-width: none;
+    height: calc(100dvh - var(--cl-header-height, 3rem));
+    margin: 0;
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  :is(.cl-multi, .cl-premount) .cl-layout {
+    flex: 1;
+    min-height: 0;
+    grid-template-rows: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Measure and display the same padded box, including MathJax's available
+     line width. Keep vertical space outside the shared scrolling window so
+     no lines are covered at the transition between adjacent columns.
+     These do not depend on .cl-multi: a column mounted before the swap
+     (Layout.astro) must already have the reader's styles. */
+  .cl-plane .cl-content {
+    padding-inline: var(--cl-column-padding);
+  }
+
+  .cl-plane .cl-content > h1 {
+    margin-top: var(--cl-column-padding);
+  }
+
+  /* Wrap code inside the column: a horizontal scroller nested in the
+     horizontally scrolling reader would catch swipes meant for the columns.
+     Continuation lines hang after the line number (up to two digits). */
+  .cl-plane .cl-content pre code { min-width: 0; }
+  .cl-plane .cl-content pre code > [data-line] {
+    --cl-code-number: calc(2ch + 0.75rem);
+    padding-inline-start: var(--cl-code-number);
+    text-indent: calc(-1 * var(--cl-code-number));
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .cl-plane .cl-content pre code > [data-line]::before {
+    min-width: 2ch;
+    text-indent: 0;
+  }
+  .cl-plane .cl-content pre code[data-show-line-numbers="false"] > [data-line],
+  .cl-plane .cl-content pre code:not([data-show-line-numbers]) > [data-line] {
+    --cl-code-number: 0px;
+  }
+
+  .cl-reader {
+    position: relative;
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
+    min-height: 0;
+    overflow: clip;
+    margin-inline: 0;
+    margin-block: var(--cl-reader-space);
+  }
+
+  .cl-viewport {
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    overscroll-behavior: contain;
+    scroll-snap-type: none;
+    overflow-anchor: none;
+  }
+
+  :is([data-page-kind="index"] .article-index-shell, .cl-article-scrollport, .cl-viewport) {
+    scrollbar-width: thin;
+    scrollbar-color: #94a3b8 transparent;
+  }
+
+  :is([data-page-kind="index"] .article-index-shell, .cl-article-scrollport):focus-visible { outline: 1px solid var(--cl-ink); outline-offset: -1px; }
+  .cl-viewport:focus-visible { outline: none; }
+
+  /* Native bars and buttons scroll the text directly, without JS proxies. */
+  @supports selector(::-webkit-scrollbar) {
+    :is([data-page-kind="index"] .article-index-shell, .cl-article-scrollport, .cl-viewport) { scrollbar-width: auto; scrollbar-color: auto; }
+    :is([data-page-kind="index"] .article-index-shell, .cl-article-scrollport, .cl-viewport)::-webkit-scrollbar { width: var(--cl-scrollbar-size); height: var(--cl-scrollbar-size); background: transparent; }
+    :is([data-page-kind="index"] .article-index-shell, .cl-article-scrollport, .cl-viewport)::-webkit-scrollbar-thumb { border-radius: 4px; background: #94a3b8; }
+    :is([data-page-kind="index"] .article-index-shell, .cl-article-scrollport, .cl-viewport)::-webkit-scrollbar-track,
+    :is([data-page-kind="index"] .article-index-shell, .cl-article-scrollport, .cl-viewport)::-webkit-scrollbar-corner { background: transparent; }
+    :is([data-page-kind="index"] .article-index-shell, .cl-article-scrollport, .cl-viewport)::-webkit-scrollbar-button { display: none; }
+    :is([data-page-kind="index"] .article-index-shell, .cl-article-scrollport, .cl-viewport)::-webkit-scrollbar-button:horizontal:decrement:start,
+    :is([data-page-kind="index"] .article-index-shell, .cl-article-scrollport, .cl-viewport)::-webkit-scrollbar-button:horizontal:increment:end,
+    :is([data-page-kind="index"] .article-index-shell, .cl-article-scrollport, .cl-viewport)::-webkit-scrollbar-button:vertical:decrement:start,
+    :is([data-page-kind="index"] .article-index-shell, .cl-article-scrollport, .cl-viewport)::-webkit-scrollbar-button:vertical:increment:end {
+      display: block;
+      background-position: center;
+      background-repeat: no-repeat;
+      background-size: 8px 8px;
+    }
+    :is([data-page-kind="index"] .article-index-shell, .cl-article-scrollport, .cl-viewport)::-webkit-scrollbar-button:horizontal:decrement:start,
+    :is([data-page-kind="index"] .article-index-shell, .cl-article-scrollport, .cl-viewport)::-webkit-scrollbar-button:horizontal:increment:end { width: 16px; }
+    :is([data-page-kind="index"] .article-index-shell, .cl-article-scrollport, .cl-viewport)::-webkit-scrollbar-button:vertical:decrement:start,
+    :is([data-page-kind="index"] .article-index-shell, .cl-article-scrollport, .cl-viewport)::-webkit-scrollbar-button:vertical:increment:end { height: 16px; }
+    :is([data-page-kind="index"] .article-index-shell, .cl-article-scrollport, .cl-viewport)::-webkit-scrollbar-button:horizontal:decrement:start {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath d='M6 0 1 4l5 4Z' fill='%2364748b'/%3E%3C/svg%3E");
+    }
+    :is([data-page-kind="index"] .article-index-shell, .cl-article-scrollport, .cl-viewport)::-webkit-scrollbar-button:horizontal:increment:end {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath d='m2 0 5 4-5 4Z' fill='%2364748b'/%3E%3C/svg%3E");
+    }
+    :is([data-page-kind="index"] .article-index-shell, .cl-article-scrollport, .cl-viewport)::-webkit-scrollbar-button:vertical:decrement:start {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath d='M0 6 4 1l4 5Z' fill='%2364748b'/%3E%3C/svg%3E");
+    }
+    :is([data-page-kind="index"] .article-index-shell, .cl-article-scrollport, .cl-viewport)::-webkit-scrollbar-button:vertical:increment:end {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath d='m0 2 4 5 4-5Z' fill='%2364748b'/%3E%3C/svg%3E");
+    }
+  }
+
+  .cl-plane {
+    position: relative;
+    isolation: isolate;
+    overflow: clip;
+    /* Make this scrolling plane the containing block for .cl-content's fixed
+       positioning. The text scrolls natively with the plane, independently of
+       the sticky window. No scroll-event translation is needed. */
+    transform: translate(0);
+  }
+
+  .cl-track {
+    position: absolute;
+    top: 0;
+    /* left is set only when recycling a slot or rebasing the native plane. */
+    left: 0;
+    --cl-w: inherit;
+    --cl-h: inherit;
+    --cl-overlap: inherit;
+    width: var(--cl-w);
+    height: 100%;
+    /* Clip on the rail, which moves with the native scroll plane. A clip on
+       the sticky window can retain its old paint bounds and discard incoming
+       text even though the text's bounding rectangle has moved correctly. */
+    clip-path: inset(0 -4px);
+  }
+
+  .cl-slot {
+    --cl-w: inherit;
+    --cl-h: inherit;
+    --cl-overlap: inherit;
+    position: sticky;
+    top: 0;
+    width: var(--cl-w);
+    height: var(--cl-h);
+    isolation: isolate;
+    /* The shared viewport clips all windows vertically to exactly H. Keep this
+       sticky box unclipped so the plane-relative text can keep painting. */
+  }
+
+  /* A separate sibling keeps surface updates out of the MathJax tree. */
+  .cl-paper {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    z-index: -1;
+    background: var(--cl-surface);
+    border-radius: 0;
+    box-shadow: var(--note-shadow);
+    pointer-events: none;
+  }
+
+  .cl-content {
+    --cl-w: inherit;
+    position: fixed;
+    top: 0;
+    left: 0;
+    display: flow-root;
+    width: var(--cl-w);
+    /* JS sets non-inherited offsets; native scrolling moves the whole plane. */
+    translate: 0;
+    font-family: var(--font-noto-sans);
+  }
+
+  /* Clip overlap shading to the same paper bounds, including tiny tails. */
+  .cl-shade {
+    --cl-overlap: inherit;
+    position: absolute;
+    left: 0;
+    width: 100%;
+    overflow: hidden;
+    border-radius: 0;
+    z-index: 2;
+    pointer-events: none;
+  }
+
+  .cl-shade::before,
+  .cl-shade::after {
+    --cl-overlap: inherit;
+    position: absolute;
+    right: 0;
+    left: 0;
+    z-index: 2;
+    height: var(--cl-overlap);
+    content: "";
+    pointer-events: none;
+  }
+
+  .cl-shade::before {
+    top: var(--cl-shade-top, 0px);
+    background: linear-gradient(color-mix(in srgb, var(--cl-surface) 45%, transparent), transparent);
+  }
+
+  .cl-shade::after {
+    bottom: var(--cl-shade-bottom, 0px);
+    background: linear-gradient(transparent, color-mix(in srgb, var(--cl-surface) 45%, transparent));
+  }
+
+  .cl-slot[data-cl-head] .cl-shade::before,
+  .cl-slot[data-cl-tail] .cl-shade::after { display: none; }
+
+  /* Keep changing edge styles on the surface siblings. Inherited custom
+     properties on the slot would invalidate the entire MathJax subtree. */
+  .cl-slot[data-cl-head] > :is(.cl-paper, .cl-shade) {
+    border-top-left-radius: var(--note-radius);
+    border-top-right-radius: var(--note-radius);
+  }
+  .cl-slot[data-cl-tail] > :is(.cl-paper, .cl-shade) {
+    border-bottom-left-radius: var(--note-radius);
+    border-bottom-right-radius: var(--note-radius);
+  }
+
+}
+
+@media screen and (min-width: 768px) {
+  .cl-layout {
+    grid-template-columns: minmax(0, 1fr) 13rem;
+    column-gap: 2rem;
+  }
+  .cl-sidebar { grid-column: 2; }
+}
+
+@media print {
+  .site-header--toc { display: none; }
+  .cl-article { margin-top: 0; }
+  .cl-source { width: 100% !important; }
+  .cl-dismiss,
+  .cl-reader,
+  .cl-sidebar,
+  .cl-toolbar,
+  .cl-toc,
+  .cl-toggle,
+  .cl-ruler { display: none !important; }
+}

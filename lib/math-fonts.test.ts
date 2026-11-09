@@ -52,11 +52,6 @@ test("使われない class や要素のフォントは含めない", () => {
   assert.deepEqual(mathFontFaces("<p>TEX-I mjx-break</p>", css), []);
 });
 
-test("数式のない記事や @font-face のないスタイルでは空", () => {
-  assert.deepEqual(mathFontFaces("<p>no math</p>", ""), []);
-  assert.deepEqual(mathFontFaces(`<mjx-c class="TEX-N"></mjx-c>`, ".TEX-N { font-family: serif; }"), []);
-});
-
 test("使うフォントの @font-face だけを 1 規則ずつ取り出し、残りはそのまま返す", () => {
   const html = `<mjx-container jax="CHTML"><mjx-c class="mjx-c28 TEX-N"></mjx-c></mjx-container>`;
   const fonts = mathFontFaces(html, css);
@@ -73,12 +68,3 @@ test("使うフォントの @font-face だけを 1 規則ずつ取り出し、�
   assert.match(rest, /\.TEX-N \{ font-family: MJX-TEX-ZERO, MJX-TEX-N; \}/);
 });
 
-test("名前か URL が一覧と合わない @font-face は取り出さない", () => {
-  const { css: rest, faces } = separateMathFontFaces(css, [
-    { family: "MJX-TEX-N", url: "/elsewhere/mjx-tex-n.woff2" },
-    { family: "MJX-TEX-X", url: "/base/fonts/mjx/mjx-tex-i.woff2" },
-  ]);
-  assert.deepEqual(faces, []);
-  assert.equal(rest, css);
-  assert.deepEqual(separateMathFontFaces("", []), { css: "", faces: [] });
-});

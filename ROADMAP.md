@@ -10,7 +10,7 @@
 
 ## 残っている作業（2026-11-09時点）
 
-急がない作業（記事一覧の改善、Content Collectionsへの移行、単体テスト・ブラウザテスト・内部リンク検査の追加、画像・favicon・フォント・クライアントJavaScriptの見直し、読書モードの表示速度の残り）は外した。表示速度の残りの課題は `docs/reading-preload-investigation.md` の冒頭にある。
+急がない作業（記事一覧の改善、Content Collectionsへの移行、単体テスト・ブラウザテスト・内部リンク検査の追加、画像・favicon・フォント・クライアントJavaScriptの見直し、段組みの表示速度の残り）は外した。表示速度の残りの課題は `docs/column-preload-investigation.md` の冒頭にある。
 
 | 作業 | 節 |
 | --- | --- |

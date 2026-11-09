@@ -1,23 +1,20 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { chromium, firefox } from 'playwright-core';
+import { BASE_URL, engines, launch, storeColumns, waitForColumnLayout } from "./browser.mjs";
 
-const base = process.env.RM_BASE_URL ?? 'http://localhost:4321/dispositif/';
-const selected = process.env.RM_ENGINES?.split(',');
-const engines = Object.entries({ chromium, firefox }).filter(([name]) => !selected || selected.includes(name));
 
 const mathFontRequests = page => page.evaluate(() => performance.getEntriesByType('resource')
   .map(entry => new URL(entry.name).pathname).filter(path => path.includes('/fonts/mjx/')).sort());
 
 for (const [name, engine] of engines) {
   test(`${name}: hovering an article link loads exactly its math fonts`, { timeout: 120_000 }, async () => {
-    const browser = await engine.launch();
+    const browser = await launch(engine);
     try {
       const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
       const errors = [];
       context.on('page', page => page.on('pageerror', error => errors.push(String(error))));
       const page = await context.newPage();
-      await page.goto(base);
+      await page.goto(BASE_URL);
       await page.evaluate(() => document.fonts.ready);
       const familiesBefore = await page.evaluate(() => [...document.fonts].filter(face => face.status === 'loaded').map(face => face.family));
 
@@ -41,7 +38,7 @@ for (const [name, engine] of engines) {
       assert.deepEqual(await mathFontRequests(page), [], 'a brief pass should not prefetch');
 
       const fonts = JSON.parse(await math.getAttribute('data-math-fonts'));
-      const expected = fonts.map(([, url]) => new URL(url, base).pathname).sort();
+      const expected = fonts.map(([, url]) => new URL(url, BASE_URL).pathname).sort();
       assert.ok(expected.length > 0 && expected.every(path => path.endsWith('.woff2')));
       assert.ok(fonts.every(([family]) => family.startsWith('MJX-')), JSON.stringify(fonts));
       await math.hover();
@@ -62,8 +59,8 @@ for (const [name, engine] of engines) {
 
       const clickedAt = await page.evaluate(() => performance.now());
       await math.click();
-      await page.waitForFunction(() => document.documentElement.classList.contains('rm-ready')
-        && !document.documentElement.classList.contains('rm-pending') && location.pathname.endsWith('/symmetric-polynomial/'));
+      await page.waitForFunction(() => document.documentElement.classList.contains('cl-ready')
+        && !document.documentElement.classList.contains('cl-pending') && location.pathname.endsWith('/symmetric-polynomial/'));
       assert.equal(await page.evaluate(() => document.querySelectorAll('mjx-container').length > 0), true);
       // The article uses the loaded faces instead of loading its own copies:
       // its @font-face rules and <link rel="preload"> for them are dropped
@@ -85,15 +82,15 @@ for (const [name, engine] of engines) {
 // right after it and lays the whole article out again.
 for (const [name, engine] of engines) {
   test(`${name}: after a hover, opening the math article loads no math font again`, { timeout: 120_000 }, async () => {
-    const browser = await engine.launch();
+    const browser = await launch(engine);
     try {
       const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
       const errors = [];
       context.on('page', page => page.on('pageerror', error => errors.push(String(error))));
       for (const mode of ['multi', 'single']) {
         const page = await context.newPage();
-        await page.addInitScript(mode => localStorage.setItem('dispositif:reading-mode', mode), mode);
-        await page.goto(base);
+        await storeColumns(page, mode);
+        await page.goto(BASE_URL);
         await page.evaluate(() => document.fonts.ready);
         const math = page.locator('a[href$="symmetric-polynomial/"]');
         const fonts = JSON.parse(await math.getAttribute('data-math-fonts'));
@@ -111,8 +108,8 @@ for (const [name, engine] of engines) {
           return performance.now();
         });
         await math.click();
-        await page.waitForFunction(() => document.documentElement.classList.contains('rm-ready')
-          && !document.documentElement.classList.contains('rm-pending') && location.pathname.endsWith('/symmetric-polynomial/'));
+        await page.waitForFunction(() => document.documentElement.classList.contains('cl-ready')
+          && !document.documentElement.classList.contains('cl-pending') && location.pathname.endsWith('/symmetric-polynomial/'));
         await page.evaluate(() => document.fonts.ready);
         await page.waitForTimeout(300);
         const state = await page.evaluate(({ clickedAt, families }) => {
@@ -125,7 +122,7 @@ for (const [name, engine] of engines) {
             loads: window.mathFontLoads,
             faces: [...document.fonts].filter(face => families.includes(face.family))
               .map(({ family, status }) => ({ family, status })),
-            math: document.querySelectorAll('.rm-article mjx-container').length,
+            math: document.querySelectorAll('.cl-article mjx-container').length,
             glyphs: [width('20px MJX-TEX-N, monospace'), width('20px monospace')],
           };
         }, { clickedAt, families });
@@ -145,7 +142,7 @@ for (const [name, engine] of engines) {
   });
 
   test(`${name}: math faces still loading keep the article's rules; back, forward and another math article reuse loaded ones`, { timeout: 120_000 }, async () => {
-    const browser = await engine.launch();
+    const browser = await launch(engine);
     try {
       const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
       const errors = [];
@@ -157,7 +154,7 @@ for (const [name, engine] of engines) {
         if (slow) await new Promise(resolve => setTimeout(resolve, 1500));
         await route.continue();
       });
-      await page.goto(base);
+      await page.goto(BASE_URL);
       await page.evaluate(() => document.fonts.ready);
       const familiesOf = async slug => JSON.parse(await page.locator(`a[href$="${slug}/"]`).getAttribute('data-math-fonts'))
         .map(([family]) => family);
@@ -167,7 +164,7 @@ for (const [name, engine] of engines) {
       await page.waitForTimeout(300);
       await math.click();
       await page.waitForURL('**/symmetric-polynomial/');
-      await page.waitForSelector('html.rm-ready:not(.rm-pending)');
+      await waitForColumnLayout(page);
       const kept = await page.evaluate(() => [...document.querySelectorAll('style[data-math-font]')].map(style => style.dataset.mathFont));
       assert.deepEqual(kept.sort(), [...families].sort(), 'rules of faces not yet loaded must stay');
       await page.evaluate(() => document.fonts.ready);
@@ -180,7 +177,7 @@ for (const [name, engine] of engines) {
         preload: document.querySelectorAll('link[data-math-font-preload]').length,
         unloaded: [...document.fonts].filter(face => families.includes(face.family) && face.status !== 'loaded')
           .map(face => `${face.family}:${face.status}`),
-        math: document.querySelectorAll('.rm-article mjx-container').length,
+        math: document.querySelectorAll('.cl-article mjx-container').length,
         swapped: window.sameDocument === true,
       }), families);
       // Each step waits for Astro's swap: the URL changes before it.
@@ -189,8 +186,8 @@ for (const [name, engine] of engines) {
           document.addEventListener('astro:page-load', () => resolve(), { once: true })));
         await action();
         await swapped;
-        await page.waitForFunction(() => !document.querySelector('.rm-article')
-          || document.documentElement.classList.contains('rm-ready'));
+        await page.waitForFunction(() => !document.querySelector('.cl-article')
+          || document.documentElement.classList.contains('cl-ready'));
         await page.evaluate(() => document.fonts.ready);
       };
       // Back to the index and forward again: the faces loaded on hover serve the article.

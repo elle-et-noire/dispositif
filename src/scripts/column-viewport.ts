@@ -1,9 +1,9 @@
-import { fromCss, ticks, toCss, type ReadingLayout, type ReadingPoint, type Tick } from "./reading-coordinates.ts";
-import { cssGeometry, nativeWindow, type NativeWindow, type ReadingGeometry } from "./reading-geometry.ts";
+import { fromCss, ticks, toCss, type ColumnMetrics, type ReadingPoint, type Tick } from "./column-coordinates.ts";
+import { cssGeometry, nativeWindow, type NativeWindow, type ColumnGeometry } from "./column-geometry.ts";
 
 export interface NativeMovement { x?: Tick; y?: Tick }
 /** The sole boundary between browser floats and integer application positions. */
-export class ReadingViewport {
+export class ColumnViewport {
   private window?: NativeWindow;
   private lastX = 0;
   private lastY = 0;
@@ -42,7 +42,7 @@ export class ReadingViewport {
     }
     return movement;
   }
-  place(point: ReadingPoint, layout: ReadingLayout, force = false): ReadingGeometry {
+  place(point: ReadingPoint, layout: ColumnMetrics, force = false): ColumnGeometry {
     const next = nativeWindow(point, layout, this.window);
     const changed = !this.window || next.x.origin !== this.window.x.origin || next.y.origin !== this.window.y.origin
       || next.x.span !== this.window.x.span || next.y.span !== this.window.y.span;
@@ -66,11 +66,11 @@ export class ReadingViewport {
       const text = String(value);
       if (data[key] !== text) data[key] = text;
     };
-    update("rmOriginColumn", view.originColumn);
-    update("rmOriginY", view.originY);
-    update("rmLeading", view.leading);
-    update("rmXTicks", point.x);
-    update("rmYTicks", point.y);
+    update("clOriginColumn", view.originColumn);
+    update("clOriginY", view.originY);
+    update("clLeading", view.leading);
+    update("clXTicks", point.x);
+    update("clYTicks", point.y);
     return view;
   }
 }

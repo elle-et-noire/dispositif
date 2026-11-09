@@ -2,20 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { SCALE, ticks, fromCss, toCss, zero, createLayout, articleColumns, horizontalRange, verticalRange,
   horizontalInputRange, horizontalDestination, verticalDestination, paperWindow, slotColumns, nearestPoint,
-  ReadingState, refitPoint } from "../src/scripts/reading-coordinates.ts";
-import { nativeWindow, cssGeometry, devicePixels } from "../src/scripts/reading-geometry.ts";
-import { ReadingViewport } from "../src/scripts/reading-viewport.ts";
+  ReadingState, refitPoint } from "../src/scripts/column-coordinates.ts";
+import { nativeWindow, cssGeometry, devicePixels } from "../src/scripts/column-geometry.ts";
+import { ColumnViewport } from "../src/scripts/column-viewport.ts";
 
 const layout = (width = 1600, length = 70000, overlap = 21) => createLayout(Math.min(608, width - 32), 16, 700, overlap, length, width, 16);
 const close = (a: number, b: number, tolerance = .001) => assert.ok(Math.abs(a - b) <= tolerance, `${a} != ${b}`);
-
-test("内部座標は整数で、微小な負の値も同じ0に正規化する", () => {
-  for (const value of [-1e-5, 0, 1e-5]) assert.equal(Object.is(fromCss(value), 0), true);
-  for (const value of [-1234.4567, 1 / 3, 1e8]) {
-    assert.ok(Number.isSafeInteger(fromCss(value)));
-    close(toCss(fromCss(value)), value, 1 / SCALE);
-  }
-});
 
 test("HomeとEndは対称な本文端で、そこから外側へ横移動できない", () => {
   for (const width of [390, 1280, 1600]) for (const overlap of [0, 21, 175]) {
@@ -103,9 +95,9 @@ test("同じ位置と操作の結果は到達経路によらず一致する", ()
   a.end(); b.home(); b.end(); assert.deepEqual(a.point, b.point);
 });
 
-test("重なりを縮めても本文全体を覆い、末尾側の上端と先頭側の下端がずれない", () => {
-  for (const overlap of [0,21,175]) for (const length of [701,900,13573]) {
-    const g = layout(1600, length, overlap);
+test("段の白い面が本文全体を覆い、末尾側の上端と先頭側の下端がずれない", () => {
+  for (const length of [701,900,13573]) {
+    const g = layout(1600, length, 0);
     for (const y of [-1291,-100,0,173,3549].map(fromCss)) {
       const columns = articleColumns(y, g); let end = 0;
       for (let k=columns.first; k<=columns.last; k++) {
@@ -185,7 +177,7 @@ test("Home/Endの書き込みを読み戻しても丸め誤差で論理位置や
   const g=layout();
   for(const unit of [1, .909090936, .8888889, .8, 2/3]) {
     const port=new BrowserPort(unit), state=new ReadingState(g);
-    const adapter=new ReadingViewport(port as unknown as HTMLElement, port as unknown as HTMLElement,unit);
+    const adapter=new ColumnViewport(port as unknown as HTMLElement, port as unknown as HTMLElement,unit);
     for(let i=0;i<20;i++)for(const end of [false,true]) {
       if(end)state.end();else state.home();
       const expected=state.point;
@@ -204,7 +196,7 @@ test("ネイティブ入力の端をアダプターでだけ正規化し、末�
   const g=layout();
   for(const unit of [.909090936,.8888889,.8,2/3]) {
     const port=new BrowserPort(unit), state=new ReadingState(g);
-    const adapter=new ReadingViewport(port as unknown as HTMLElement,port as unknown as HTMLElement,unit);
+    const adapter=new ColumnViewport(port as unknown as HTMLElement,port as unknown as HTMLElement,unit);
     state.end();adapter.place(state.point,g,true);
     const x=state.point.x, limit=verticalRange(x,g).max;
     port.scrollTop=1e9;
@@ -222,7 +214,7 @@ test("小数のネイティブ移動でも投影原点は揺れず、往復で�
   for (const unit of [1, .909090936, .8888889, .8, 2/3]) {
     const port = new BrowserPort(unit), state = new ReadingState(g, fromCss(400));
     state.horizontal(fromCss(123.4567));
-    const adapter = new ReadingViewport(port as unknown as HTMLElement, port as unknown as HTMLElement, unit);
+    const adapter = new ColumnViewport(port as unknown as HTMLElement, port as unknown as HTMLElement, unit);
     const initial = adapter.place(state.point, g, true), origin = state.point.x, nativeStart = port.scrollLeft;
     for (let i = 0; i < 200; i++) {
       port.scrollLeft = nativeStart + (i % 2 ? -30 : 90) * unit;

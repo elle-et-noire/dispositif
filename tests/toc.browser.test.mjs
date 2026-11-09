@@ -1,10 +1,9 @@
-import { toggleReadingMode } from "./reading-controls.mjs";
+import { toggleColumns } from "./column-controls.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { chromium } from "playwright-core";
+import { BASE_URL, ARTICLE_URL, launch, storeColumns } from "./browser.mjs";
 
-const BASE_URL = process.env.RM_BASE_URL ?? "http://localhost:4321/dispositif/";
-const ARTICLE_URL = new URL("symmetric-polynomial/", BASE_URL).href;
 
 async function waitForActiveItem(page) {
   await page.waitForFunction(() => {
@@ -30,14 +29,14 @@ async function openToc(page) {
 
 async function readingState(page) {
   return page.evaluate(() => {
-    const viewport = document.querySelector(".rm-viewport");
-    const plane = document.querySelector(".rm-plane");
-    const source = document.querySelector(".rm-source");
-    const p = parseFloat(plane.style.getPropertyValue("--rm-p"));
-    const step = parseFloat(plane.style.getPropertyValue("--rm-step"));
-    const origin = Number(document.querySelector(".rm-plane").dataset.rmOriginColumn);
-    const originY = parseFloat(document.querySelector(".rm-plane").dataset.rmOriginY);
-    const t = (Math.floor((viewport.scrollLeft - Number(plane.dataset.rmLeading) + 0.01) / p) + origin) * step + viewport.scrollTop + originY;
+    const viewport = document.querySelector(".cl-viewport");
+    const plane = document.querySelector(".cl-plane");
+    const source = document.querySelector(".cl-source");
+    const p = parseFloat(plane.style.getPropertyValue("--cl-p"));
+    const step = parseFloat(plane.style.getPropertyValue("--cl-step"));
+    const origin = Number(document.querySelector(".cl-plane").dataset.clOriginColumn);
+    const originY = parseFloat(document.querySelector(".cl-plane").dataset.clOriginY);
+    const t = (Math.floor((viewport.scrollLeft - Number(plane.dataset.clLeading) + 0.01) / p) + origin) * step + viewport.scrollTop + originY;
     const top = source.getBoundingClientRect().top;
     const headings = [...source.querySelectorAll("h2[id], h3[id]")];
     const current = [...headings].reverse().find((heading) =>
@@ -47,28 +46,28 @@ async function readingState(page) {
 }
 
 test("1段のサイドバー目次とn段の上部目次を切り替えて使える", { timeout: 90_000 }, async (t) => {
-  const browser = await chromium.launch({ executablePath: process.env.RM_BROWSER_PATH || undefined });
+  const browser = await launch(chromium);
   try {
     for (const width of [1600, 390]) {
       await t.test(`${width}px の上部目次`, async () => {
         const page = await browser.newPage({ viewport: { width, height: 900 } });
         try {
-          await page.addInitScript(() => localStorage.setItem("dispositif:reading-mode", "multi"));
+          await storeColumns(page, "multi");
           await page.goto(ARTICLE_URL, { waitUntil: "domcontentloaded" });
           await page.evaluate(() => document.fonts.ready);
-          await page.waitForSelector('html.rm-active [data-toc-variant=header][data-ready="true"]');
+          await page.waitForSelector('html.cl-multi [data-toc-variant=header][data-ready="true"]');
           assert.equal(await page.locator("[data-toc-variant=header]").evaluate((toc) => toc.open), true);
           assert.equal(await page.locator(".toc-toggle").isVisible(), false);
           assert.equal(await page.locator("[data-toc-variant=header] [data-toc-scroll]").isVisible(), true);
           const beforeOpening = await readingState(page);
-          const viewportBefore = await page.locator(".rm-viewport").boundingBox();
+          const viewportBefore = await page.locator(".cl-viewport").boundingBox();
           await openToc(page);
           assert.deepEqual(await readingState(page), beforeOpening);
-          assert.deepEqual(await page.locator(".rm-viewport").boundingBox(), viewportBefore);
+          assert.deepEqual(await page.locator(".cl-viewport").boundingBox(), viewportBefore);
           assert.equal(await page.locator("[data-toc-variant=header]").count(), 1);
           assert.equal(await page.locator("[data-site-header] [data-toc-variant=header]").count(), 1);
-          assert.equal(await page.locator("article [data-toc-variant=header], article .rm-toolbar").count(), 0);
-          assert.equal(await page.locator("[data-site-header] .rm-toggle").count(), 1);
+          assert.equal(await page.locator("article [data-toc-variant=header], article .cl-toolbar").count(), 0);
+          assert.equal(await page.locator("[data-site-header] .cl-toggle").count(), 1);
           assert.equal(await page.locator("[data-toc-variant=sidebar]").isVisible(), false);
 
           const dimensions = await page.locator("[data-toc-variant=header] [data-toc-scroll]").evaluate((container) => ({
@@ -95,7 +94,7 @@ test("1段のサイドバー目次とn段の上部目次を切り替えて使え
           assert.ok(dimensions.headings.every((heading) => heading.mode === "horizontal-tb" && heading.height <= 40));
           assert.ok(dimensions.scrollHeight <= dimensions.height + 1);
           assert.ok(Math.max(...dimensions.centers) - Math.min(...dimensions.centers) < 1);
-          assert.ok(await page.locator(".rm-viewport").evaluate((viewport, width) =>
+          assert.ok(await page.locator(".cl-viewport").evaluate((viewport, width) =>
             viewport.clientWidth >= width - 56, width));
 
           // Browsing the header must not move the article's scroll plane.
@@ -112,16 +111,16 @@ test("1段のサイドバー目次とn段の上部目次を切り替えて使え
           await lastLink.click();
           assert.equal(await page.locator("[data-toc-variant=header]").evaluate((toc) => toc.open), true);
           await page.waitForFunction((id) => {
-            const viewport = document.querySelector(".rm-viewport");
-            const plane = document.querySelector(".rm-plane");
-            const source = document.querySelector(".rm-source");
-            const step = parseFloat(plane.style.getPropertyValue("--rm-step"));
-            const originY = parseFloat(document.querySelector(".rm-plane").dataset.rmOriginY);
+            const viewport = document.querySelector(".cl-viewport");
+            const plane = document.querySelector(".cl-plane");
+            const source = document.querySelector(".cl-source");
+            const step = parseFloat(plane.style.getPropertyValue("--cl-step"));
+            const originY = parseFloat(document.querySelector(".cl-plane").dataset.clOriginY);
             const target = document.getElementById(id).getBoundingClientRect().top - source.getBoundingClientRect().top;
             const vr = viewport.getBoundingClientRect();
-            return [...document.querySelectorAll(".rm-slot")].some((slot) => {
+            return [...document.querySelectorAll(".cl-slot")].some((slot) => {
               const rect = slot.getBoundingClientRect();
-              const py = target - Number(slot.dataset.rmK) * step - viewport.scrollTop - originY;
+              const py = target - Number(slot.dataset.clK) * step - viewport.scrollTop - originY;
               return rect.left >= vr.left - 1 && rect.right <= vr.right + 1 && py >= -1 && py < viewport.clientHeight;
             });
           }, lastId);
@@ -133,28 +132,28 @@ test("1段のサイドバー目次とn段の上部目次を切り替えて使え
           const beforeResize = await readingState(page);
           await page.setViewportSize({ width: width === 1600 ? 900 : 350, height: 780 });
           await page.waitForFunction(() =>
-            parseFloat(document.querySelector(".rm-plane").style.getPropertyValue("--rm-h"))
-              === document.querySelector(".rm-viewport").clientHeight);
+            parseFloat(document.querySelector(".cl-plane").style.getPropertyValue("--cl-h"))
+              === document.querySelector(".cl-viewport").clientHeight);
           await waitForActiveItem(page);
           const afterResize = await readingState(page);
           assert.ok(Math.abs(beforeResize.t - afterResize.t) < 1);
           assert.equal(await page.locator('[data-toc-variant=header] [aria-current="location"]').evaluate((link) =>
             decodeURIComponent(link.hash.slice(1))), afterResize.id);
-          await page.locator(".rm-viewport").focus();
+          await page.locator(".cl-viewport").focus();
           await page.keyboard.press("Home");
           await page.waitForFunction(() =>
             document.querySelector("[data-toc-variant=header] .toc-link").getAttribute("aria-current") === "location");
           await openToc(page);
-          // Reading mode never folds the horizontal header, including after
+          // The n段 layout never folds the horizontal header, including after
           // navigation, Escape, focus changes and clicks outside the list.
           await page.keyboard.press("Escape");
           assert.equal(await page.locator("[data-toc-variant=header]").evaluate((toc) => toc.open), true);
           await waitForActiveItem(page);
-          await page.locator(".rm-viewport").click({ position: { x: 20, y: 400 } });
+          await page.locator(".cl-viewport").click({ position: { x: 20, y: 400 } });
           assert.equal(await page.locator("[data-toc-variant=header]").evaluate((toc) => toc.open), true);
 
           // Single-column reading uses a persistent sidebar on wide screens.
-          await toggleReadingMode(page);
+          await toggleColumns(page);
           await openToc(page);
           const singleToc = page.locator(width >= 768 ? "[data-toc-variant=sidebar]" : "[data-toc-variant=mobile]");
           const singleLayout = await singleToc.locator("[data-toc-scroll]").evaluate((container) => ({
@@ -174,7 +173,7 @@ test("1段のサイドバー目次とn段の上部目次を切り替えて使え
             assert.equal(await page.locator(".toc-toggle").isVisible(), false);
             assert.equal(await page.locator(".site-article-index").isVisible(), true);
             const side = await singleToc.boundingBox();
-            const source = await page.locator(".rm-source").boundingBox();
+            const source = await page.locator(".cl-source").boundingBox();
             assert.ok(side.x >= source.x + source.width + 16, "目次が本文の横にない");
           } else {
             assert.equal(await page.locator("[data-toc-variant=sidebar]").isVisible(), false);
@@ -202,13 +201,13 @@ test("1段のサイドバー目次とn段の上部目次を切り替えて使え
           await page.emulateMedia({ media: "print" });
           assert.equal(await page.locator("[data-site-header]").evaluate((header) =>
             getComputedStyle(header).display), "none");
-          assert.equal(await page.locator(".rm-source").evaluate((source) =>
+          assert.equal(await page.locator(".cl-source").evaluate((source) =>
             getComputedStyle(source).position), "static");
-          assert.equal(await page.locator(".rm-toc").isVisible(), false);
+          assert.equal(await page.locator(".cl-toc").isVisible(), false);
           await page.emulateMedia({ media: "screen" });
           await page.keyboard.press("Escape");
 
-          await page.locator(".rm-toolbar > a").click();
+          await page.locator(".cl-toolbar > a").click();
           await page.waitForURL(BASE_URL);
           assert.equal(await page.locator("[data-toc-variant=header]").count(), 0);
           assert.equal(await page.locator("[data-site-header] a").innerText(), "記事一覧");
@@ -226,9 +225,9 @@ test("1段のサイドバー目次とn段の上部目次を切り替えて使え
     await t.test("長い見出しも横書きの一行で表示し、低い画面でも本文を確保する", async () => {
       const page = await browser.newPage({ viewport: { width: 390, height: 500 } });
       try {
-        await page.addInitScript(() => localStorage.setItem("dispositif:reading-mode", "multi"));
+        await storeColumns(page, "multi");
         await page.goto(new URL("tips-typst/", BASE_URL).href);
-        await page.waitForSelector("html.rm-active");
+        await page.waitForSelector("html.cl-multi");
         await page.evaluate(() => document.fonts.ready);
         await page.waitForSelector('[data-toc-variant=header][open]');
         const dimensions = await page.locator("[data-toc-variant=header] .toc-link").evaluateAll((links) => links.map((link) => {
@@ -246,7 +245,7 @@ test("1段のサイドバー目次とn段の上部目次を切り替えて使え
         assert.ok(long.width > short.width + 10, "長い見出しの本文が省略されている");
         const panel = await page.locator("[data-toc-variant=header] [data-toc-scroll]").boundingBox();
         assert.ok(panel.y + panel.height <= 56);
-        const viewport = await page.locator(".rm-viewport").boundingBox();
+        const viewport = await page.locator(".cl-viewport").boundingBox();
         assert.ok(viewport.height > 350, "目次が本文の高さを圧迫している");
       } finally { await page.close(); }
     });
@@ -259,10 +258,10 @@ test("1段のサイドバー目次とn段の上部目次を切り替えて使え
       await t.test(`${mode} ${width}px: キーボードで目次から移動すると、次のTabは見出しの後の本文へ進む`, async () => {
         const page = await browser.newPage({ viewport: { width, height: 900 } });
         try {
-          await page.addInitScript((mode) => localStorage.setItem("dispositif:reading-mode", mode), mode);
+          await storeColumns(page, mode);
           await page.goto(new URL("tips-typst/", BASE_URL).href);
           await page.waitForSelector(`[data-toc-variant=${variant}][data-ready="true"]`, { state: "attached" });
-          await page.waitForFunction((multi) => document.documentElement.classList.contains("rm-active") === multi,
+          await page.waitForFunction((multi) => document.documentElement.classList.contains("cl-multi") === multi,
             mode === "multi");
           await page.evaluate(() => document.fonts.ready);
           if (variant === "mobile") {
@@ -277,7 +276,7 @@ test("1段のサイドバー目次とn段の上部目次を切り替えて使え
           await page.waitForFunction((id) => document.activeElement === document.getElementById(id), id);
           assert.equal(await page.evaluate(() => document.activeElement.matches(":focus-visible")), true,
             "見出しのフォーカス表示が出ていない");
-          // The first tabbable element after the heading. Reading-mode slots
+          // The first tabbable element after the heading. n段 slots
           // are inert copies; the focusable original follows the heading.
           const expected = await page.evaluate((id) => {
             const heading = document.getElementById(id);
@@ -312,7 +311,7 @@ test("1段のサイドバー目次とn段の上部目次を切り替えて使え
           inset: parseFloat(getComputedStyle(document.getElementById(id)).scrollMarginTop),
         }), id);
         assert.ok(position.heading >= position.inset - 1);
-        assert.equal(await page.locator(".rm-slot").count(), 0);
+        assert.equal(await page.locator(".cl-slot").count(), 0);
       } finally {
         await page.close();
       }

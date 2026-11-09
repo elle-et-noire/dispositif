@@ -1,22 +1,22 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { chromium } from "playwright-core";
+import { BASE_URL, launch, storeColumns, waitForColumnLayout } from "./browser.mjs";
 
-const BASE_URL = process.env.RM_BASE_URL ?? "http://localhost:4321/dispositif/";
 
 // Screen readers get each formula as an image named by its TeX source
 // (lib/mathjax.ts, labelForScreenReaders), not as the glyph boxes' characters.
 test("数式は TeX のソースを名前にした画像として読み上げの対象になり、字形の文字は外れる", { timeout: 60_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.RM_BROWSER_PATH || undefined });
+  const browser = await launch(chromium);
   try {
     for (const mode of ["single", "multi"]) {
       const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
       try {
-        await page.addInitScript((mode) => localStorage.setItem("dispositif:reading-mode", mode), mode);
+        await storeColumns(page, mode);
         await page.goto(new URL("symmetric-polynomial/", BASE_URL).href);
-        await page.waitForSelector('html[data-page-kind="article"].rm-ready:not(.rm-pending)');
+        await waitForColumnLayout(page);
         const markup = await page.evaluate(() => {
-          const containers = [...document.querySelectorAll(".rm-source mjx-container")];
+          const containers = [...document.querySelectorAll(".cl-source mjx-container")];
           return {
             count: containers.length,
             unlabeled: containers.filter((c) => !c.querySelector("a")
@@ -38,7 +38,7 @@ test("数式は TeX のソースを名前にした画像として読み上げの
         for (const n of nodes.filter((n) => !n.ignored && n.role?.value === "image" && n.backendDOMNodeId)) {
           const { object } = await cdp.send("DOM.resolveNode", { backendNodeId: n.backendDOMNodeId });
           const { result } = await cdp.send("Runtime.callFunctionOn", { objectId: object.objectId,
-            functionDeclaration: "function () { return !!this.closest('.rm-source'); }", returnByValue: true });
+            functionDeclaration: "function () { return !!this.closest('.cl-source'); }", returnByValue: true });
           if (result.value) images.push(n);
         }
         // Mathematical alphanumeric symbols (𝑥, 𝜆, …) only appear in the glyph boxes.

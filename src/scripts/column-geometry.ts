@@ -1,5 +1,5 @@
 import { ceilDiv, floorDiv, fromCss, ticks, toCss, horizontalInputRange, verticalInputRange,
-  type ReadingLayout, type ReadingPoint, type ReadingRange, type Tick } from "./reading-coordinates.ts";
+  type ColumnMetrics, type ReadingPoint, type ReadingRange, type Tick } from "./column-coordinates.ts";
 
 export const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), Math.max(min, max));
 
@@ -13,7 +13,7 @@ export const devicePixels = (value: number, unit: number) => {
 };
 
 /** CSS-only projection. Never use these browser-rounded values as app state. */
-export interface ReadingGeometry {
+export interface ColumnGeometry {
   w: number; p: number; h: number; step: number; l: number;
   viewportWidth: number; edge: number; unit: number;
   originColumn: number; originY: number; leading: number;
@@ -31,7 +31,7 @@ function axisWindow(value: Tick, range: ReadingRange, capacity: Tick, period: Ti
   origin = ticks(clamp(origin, range.min, Math.max(range.min, range.max - span)));
   return { origin, span, min: range.min, max: range.max, first: origin === range.min, last: origin + span === range.max };
 }
-export function nativeWindow(point: ReadingPoint, g: ReadingLayout, previous?: NativeWindow): NativeWindow {
+export function nativeWindow(point: ReadingPoint, g: ColumnMetrics, previous?: NativeWindow): NativeWindow {
   const capacity = Math.max(128, ceilDiv(g.viewportWidth, g.p) + 32);
   const x = axisWindow(point.x, horizontalInputRange(point, g), ticks((capacity - 2) * g.p), g.p, previous?.x);
   const y = axisWindow(point.y, verticalInputRange(point, g), ticks(127 * g.h), g.h, previous?.y);
@@ -39,7 +39,7 @@ export function nativeWindow(point: ReadingPoint, g: ReadingLayout, previous?: N
   const count = g.l <= g.h ? 1 : Math.max(1, ceilDiv(x.origin + x.span + g.viewportWidth - g.edge, g.p) - column);
   return { x, y, column, count };
 }
-export function cssGeometry(g: ReadingLayout, point: ReadingPoint, window: NativeWindow, nativeX: number, nativeY: number, unit: number): ReadingGeometry {
+export function cssGeometry(g: ColumnMetrics, point: ReadingPoint, window: NativeWindow, nativeX: number, nativeY: number, unit: number): ColumnGeometry {
   return { w: toCss(g.w), p: toCss(g.p), h: toCss(g.h), step: toCss(g.step), l: toCss(g.l),
     viewportWidth: toCss(g.viewportWidth), edge: toCss(g.edge), unit,
     // Share the adapter's integer grid: native scrolling then leaves these

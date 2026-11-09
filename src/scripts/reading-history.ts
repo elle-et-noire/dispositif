@@ -1,11 +1,11 @@
-import type { ReadingLayout, ReadingPoint } from "./reading-coordinates";
+import type { ColumnMetrics, ReadingPoint } from "./column-coordinates";
 
 // Pure helpers for the per-history-entry reading positions kept in
 // sessionStorage. The reader owns storage access; these only decide what to
 // keep, so the merge rules can be tested without a browser.
 
 export type HistoryPosition = {
-  mode: "single" | "multi"; position: number; point?: ReadingPoint; layout?: ReadingLayout;
+  mode: "single" | "multi"; position: number; point?: ReadingPoint; layout?: ColumnMetrics;
   anchor?: { path: number[]; ratio: number; width: number };
   details?: boolean[];
 };
