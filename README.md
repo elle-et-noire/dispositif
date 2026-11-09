@@ -10,7 +10,7 @@ Astroベースの記事サイトです。記事はビルド時にMarkdownからH
 │   ├── article-open.md                  # 記事を開くまでの処理、計測方法、採らなかった方式
 │   ├── column-layout.md                 # 段組みの実装
 │   └── math-accessibility.md            # 数式の読み上げの方式と理由
-├── lib/                    # 記事取得、Markdown前処理、MathJax変換、単体テスト（*.test.ts）
+├── lib/                    # 記事取得、Markdown前処理、MathJax変換、数式フォントの抽出、数式の読み上げ名、目次、単体テスト（*.test.ts）
 ├── post/                   # Markdown記事
 ├── public/
 │   └── fonts/mjx/          # predev / prebuildで生成
@@ -108,7 +108,7 @@ npm run test:browser   # astro preview などを起動した状態で
 - 目次: 1段では本文の右側に縦に並べ、閉じるボタン・切り替えアイコンと一緒にスクロールに追従させます。狭い画面では記事右上の矢印で開閉し、見出しの選択・外側のクリック・Escで閉じます。n段では上部に横一列に並べ、閉じません。収まらない見出しはスクロールバー・タッチ・ホイール・左右の三角ボタンで送ります。どちらも読書中の見出しを強調して表示範囲に収め、目次の中を動かしても本文の位置は変わりません。JavaScript無効時も1段の目次とリンクを使えます。
 - 一覧へ戻る: 右上の閉じるボタン（1段の広い画面ではヘッダーの「記事一覧」も）で戻ります。紙面の外の背景をクリックしても戻れますが、このリンクはポインター専用で、Tab移動と読み上げの対象から外しています。
 
-アイコンの編集元は `src/icons/single-column.svg` と `src/icons/multi-column.svg` です。段幅・間隔・色・スクロールバーの太さは、`src/styles/column-layout.css` の `:root` のCSS変数で調整できます。段の組み立て方、座標と移動範囲、スクロールの扱い、保存の仕組み、制約は `docs/column-layout.md` にあります。
+アイコンの編集元は `src/icons/single-column.svg` と `src/icons/multi-column.svg` です。段幅・間隔・n段の紙面と文字の色・スクロールバーの太さは、`src/styles/column-layout.css` の `:root` のCSS変数で調整できます。紙面の色・影・丸角は `src/styles/globals.css` の `--note-*` で1段・n段に共通です。段の組み立て方、座標と移動範囲、スクロールの扱い、保存の仕組み、制約は `docs/column-layout.md` にあります。
 
 ## 記事を開くまでの処理
 
