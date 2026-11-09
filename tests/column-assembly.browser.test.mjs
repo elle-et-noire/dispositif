@@ -1,10 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { chromium, firefox } from 'playwright-core';
+import { BASE_URL, engines, launch } from "./browser.mjs";
 
-const base = process.env.TEST_BASE_URL ?? 'http://localhost:4321/dispositif/';
-const selected = process.env.TEST_ENGINES?.split(',');
-const engines = Object.entries({ chromium, firefox }).filter(([name]) => !selected || selected.includes(name));
 
 // Columns that a slot shows but that lie outside the viewport, and whether
 // each has its copied blocks yet. Columns outside the article have no paper.
@@ -25,7 +22,7 @@ const columns = () => {
 };
 
 const check = async (engine) => {
-  const browser = await engine.launch();
+  const browser = await launch(engine);
   try {
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     await context.addInitScript((columnsSource) => {
@@ -42,7 +39,7 @@ const check = async (engine) => {
     const errors = [];
     const page = await context.newPage();
     page.on('pageerror', (error) => errors.push(String(error)));
-    await page.goto(new URL('symmetric-polynomial/', base).href);
+    await page.goto(new URL('symmetric-polynomial/', BASE_URL).href);
     await page.waitForFunction(() => window.clShown);
 
     // The reader's layout variables stay on the elements that use them. An
@@ -77,7 +74,7 @@ const check = async (engine) => {
 // With n段 stored, opening an article from the index lays the text out only at
 // the column width: at the swap, the original already sits in the first column.
 const checkPremount = async (engine) => {
-  const browser = await engine.launch();
+  const browser = await launch(engine);
   try {
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     await context.addInitScript(() => {
@@ -86,7 +83,7 @@ const checkPremount = async (engine) => {
     const errors = [];
     const page = await context.newPage();
     page.on('pageerror', (error) => errors.push(String(error)));
-    await page.goto(base);
+    await page.goto(BASE_URL);
     await page.evaluate(() => {
       window.clWidths = [];
       document.addEventListener('astro:after-swap', () => {
@@ -125,7 +122,7 @@ const checkPremount = async (engine) => {
 // at, from the first frame on. Frames of the original while it is still empty
 // are ignored.
 const checkDirectPremount = async (engine) => {
-  const browser = await engine.launch();
+  const browser = await launch(engine);
   try {
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     await context.addInitScript(() => {
@@ -167,7 +164,7 @@ const checkDirectPremount = async (engine) => {
       const { clXTicks, clYTicks } = document.querySelector('.cl-plane').dataset;
       return [clXTicks, clYTicks];
     });
-    const article = new URL('symmetric-polynomial/', base).href;
+    const article = new URL('symmetric-polynomial/', BASE_URL).href;
     await page.goto(article);
     await shown('direct');
     // A reload restores the saved reading position after the same premount.

@@ -2,18 +2,17 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { chromium } from "playwright-core";
 import { toggleColumns } from "./column-controls.mjs";
+import { BASE_URL, ARTICLE_URL, launch, storeColumns, waitForColumnLayout } from "./browser.mjs";
 
-const BASE_URL = process.env.TEST_BASE_URL ?? "http://localhost:4321/dispositif/";
-const ARTICLE_URL = new URL("symmetric-polynomial/", BASE_URL).href;
 const settle = (page) => page.evaluate(async () => {
   for (let i = 0; i < 3; i++) await new Promise(requestAnimationFrame);
 });
 
 test("一覧へ戻るとき、ポインターでは復元直後の枠を抑え、キーボードでは表示する", { timeout: 45_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER_PATH || undefined });
+  const browser = await launch(chromium);
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   try {
-    await page.addInitScript(() => localStorage.setItem("dispositif:columns", "multi"));
+    await storeColumns(page, "multi");
     await page.goto(BASE_URL);
     const card = page.locator("[data-article-index] a").first();
     const href = await card.getAttribute("href");
@@ -56,14 +55,14 @@ test("一覧へ戻るとき、ポインターでは復元直後の枠を抑え�
 });
 
 test("背景の閉じるリンクはポインター専用で、Tab移動と読み上げでは閉じるボタンだけを使う", { timeout: 60_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER_PATH || undefined });
+  const browser = await launch(chromium);
   try {
     for (const width of [390, 1280]) for (const mode of ["single", "multi"]) {
       const page = await browser.newPage({ viewport: { width, height: 600 } });
       try {
-        await page.addInitScript((mode) => localStorage.setItem("dispositif:columns", mode), mode);
+        await storeColumns(page, mode);
         await page.goto(ARTICLE_URL);
-        await page.waitForSelector('html[data-page-kind="article"].cl-ready');
+        await waitForColumnLayout(page);
         if (mode === "multi") await page.waitForSelector("html.cl-multi .cl-slot");
         await settle(page);
         const close = page.getByRole("link", { name: "記事を閉じて一覧へ戻る" });
@@ -83,8 +82,7 @@ test("背景の閉じるリンクはポインター専用で、Tab移動と読�
 });
 
 test("一覧はヘッダーの下の標準バーとホイール・キーでスクロールする", { timeout: 45_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER_PATH || undefined,
-    ignoreDefaultArgs: ["--hide-scrollbars"] });
+  const browser = await launch(chromium, { ignoreDefaultArgs: ["--hide-scrollbars"] });
   try {
     for (const width of [390, 1280]) {
       const page = await browser.newPage({ viewport: { width, height: 600 } });
@@ -120,12 +118,12 @@ test("一覧はヘッダーの下の標準バーとホイール・キーでス�
 });
 
 test("一覧のDOMと位置を両モードの背景へ引き継ぎ、閉じる・履歴移動で復元する", { timeout: 90_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER_PATH || undefined });
+  const browser = await launch(chromium);
   try {
     for (const width of [390, 1280]) for (const mode of ["single", "multi"]) {
       const page = await browser.newPage({ viewport: { width, height: 600 } });
       try {
-        await page.addInitScript((mode) => localStorage.setItem("dispositif:columns", mode), mode);
+        await storeColumns(page, mode);
         await page.goto(BASE_URL);
         await page.evaluate(() => document.fonts.ready);
         await page.evaluate(() => {
@@ -140,7 +138,7 @@ test("一覧のDOMと位置を両モードの背景へ引き継ぎ、閉じる�
         });
         assert.ok(before.y > 0);
         await page.locator("[data-article-index] a").nth(before.i).click();
-        await page.waitForSelector('html[data-page-kind="article"].cl-ready');
+        await waitForColumnLayout(page);
         if (mode === "multi") await page.waitForSelector("html.cl-multi .cl-slot");
         await settle(page);
         assert.deepEqual(await page.evaluate((i) => {
@@ -166,14 +164,14 @@ test("一覧のDOMと位置を両モードの背景へ引き継ぎ、閉じる�
         assert.equal(result.inert, false);
         assert.equal(new URL(result.focus, BASE_URL).pathname, articlePath);
         await page.goBack();
-        await page.waitForSelector('html[data-page-kind="article"].cl-ready');
+        await waitForColumnLayout(page);
         await page.goBack();
         await page.waitForSelector('html[data-page-kind="index"]');
         await settle(page);
         assert.equal((await restored()).y, before.y);
         assert.equal((await restored()).same, true);
         await page.goForward();
-        await page.waitForSelector('html[data-page-kind="article"].cl-ready');
+        await waitForColumnLayout(page);
         assert.equal(await page.evaluate(() => document.querySelector("[data-article-index]") === window.__indexNode), true);
       } finally { await page.close(); }
     }
@@ -181,10 +179,10 @@ test("一覧のDOMと位置を両モードの背景へ引き継ぎ、閉じる�
 });
 
 test("先頭と末尾だけ丸角にし、紙面操作・文字選択・モード切り替えで誤って閉じない", { timeout: 45_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER_PATH || undefined });
+  const browser = await launch(chromium);
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   try {
-    await page.addInitScript(() => localStorage.setItem("dispositif:columns", "multi"));
+    await storeColumns(page, "multi");
     await page.goto(ARTICLE_URL);
     await page.waitForSelector(".cl-slot");
     await page.evaluate(() => document.fonts.ready);
@@ -235,10 +233,10 @@ test("先頭と末尾だけ丸角にし、紙面操作・文字選択・モー�
 });
 
 test("目次の矢印は移動できる方向だけ表示し、クリック・長押し・キーで目次だけを動かす", { timeout: 45_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER_PATH || undefined });
+  const browser = await launch(chromium);
   const page = await browser.newPage({ viewport: { width: 390, height: 900 } });
   try {
-    await page.addInitScript(() => localStorage.setItem("dispositif:columns", "multi"));
+    await storeColumns(page, "multi");
     await page.goto(ARTICLE_URL);
     await page.waitForSelector(".cl-slot");
     const toc = page.locator(".toc-header-scroll");

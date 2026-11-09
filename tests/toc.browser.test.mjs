@@ -2,9 +2,8 @@ import { toggleColumns } from "./column-controls.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { chromium } from "playwright-core";
+import { BASE_URL, ARTICLE_URL, launch, storeColumns } from "./browser.mjs";
 
-const BASE_URL = process.env.TEST_BASE_URL ?? "http://localhost:4321/dispositif/";
-const ARTICLE_URL = new URL("symmetric-polynomial/", BASE_URL).href;
 
 async function waitForActiveItem(page) {
   await page.waitForFunction(() => {
@@ -47,13 +46,13 @@ async function readingState(page) {
 }
 
 test("1段のサイドバー目次とn段の上部目次を切り替えて使える", { timeout: 90_000 }, async (t) => {
-  const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER_PATH || undefined });
+  const browser = await launch(chromium);
   try {
     for (const width of [1600, 390]) {
       await t.test(`${width}px の上部目次`, async () => {
         const page = await browser.newPage({ viewport: { width, height: 900 } });
         try {
-          await page.addInitScript(() => localStorage.setItem("dispositif:columns", "multi"));
+          await storeColumns(page, "multi");
           await page.goto(ARTICLE_URL, { waitUntil: "domcontentloaded" });
           await page.evaluate(() => document.fonts.ready);
           await page.waitForSelector('html.cl-multi [data-toc-variant=header][data-ready="true"]');
@@ -226,7 +225,7 @@ test("1段のサイドバー目次とn段の上部目次を切り替えて使え
     await t.test("長い見出しも横書きの一行で表示し、低い画面でも本文を確保する", async () => {
       const page = await browser.newPage({ viewport: { width: 390, height: 500 } });
       try {
-        await page.addInitScript(() => localStorage.setItem("dispositif:columns", "multi"));
+        await storeColumns(page, "multi");
         await page.goto(new URL("tips-typst/", BASE_URL).href);
         await page.waitForSelector("html.cl-multi");
         await page.evaluate(() => document.fonts.ready);
@@ -259,7 +258,7 @@ test("1段のサイドバー目次とn段の上部目次を切り替えて使え
       await t.test(`${mode} ${width}px: キーボードで目次から移動すると、次のTabは見出しの後の本文へ進む`, async () => {
         const page = await browser.newPage({ viewport: { width, height: 900 } });
         try {
-          await page.addInitScript((mode) => localStorage.setItem("dispositif:columns", mode), mode);
+          await storeColumns(page, mode);
           await page.goto(new URL("tips-typst/", BASE_URL).href);
           await page.waitForSelector(`[data-toc-variant=${variant}][data-ready="true"]`, { state: "attached" });
           await page.waitForFunction((multi) => document.documentElement.classList.contains("cl-multi") === multi,

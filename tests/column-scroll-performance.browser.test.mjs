@@ -1,18 +1,17 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { chromium } from "playwright-core";
+import { ARTICLE_URL, launch, storeColumns } from "./browser.mjs";
 
-const ARTICLE_URL = new URL("symmetric-polynomial/",
-  process.env.TEST_BASE_URL ?? "http://localhost:4321/dispositif/").href;
 const settle = page => page.evaluate(async () => {
   for (let i = 0; i < 3; i++) await new Promise(requestAnimationFrame);
 });
 
 test("本文の末尾を越えて見えない段の断片を作り直さない", { timeout: 45_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER_PATH || undefined });
+  const browser = await launch(chromium);
   const page = await browser.newPage({ viewport: { width: 390, height: 900 } });
   try {
-    await page.addInitScript(() => localStorage.setItem("dispositif:columns", "multi"));
+    await storeColumns(page, "multi");
     await page.goto(ARTICLE_URL);
     await page.waitForSelector(".cl-slot");
     await page.evaluate(() => document.fonts.ready);
@@ -42,10 +41,10 @@ test("本文の末尾を越えて見えない段の断片を作り直さない",
 });
 
 test("縦横のネイティブスクロールの途中でJSが位置を書き戻さない", { timeout: 45_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER_PATH || undefined });
+  const browser = await launch(chromium);
   const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
   try {
-    await page.addInitScript(() => localStorage.setItem("dispositif:columns", "multi"));
+    await storeColumns(page, "multi");
     await page.goto(ARTICLE_URL);
     await page.waitForSelector(".cl-content mjx-container");
     await page.evaluate(() => document.fonts.ready);
@@ -83,14 +82,14 @@ test("縦横のネイティブスクロールの途中でJSが位置を書き戻
 });
 
 test("拡大時も段内の横スクロールで本文のスタイルやDOMを更新しない", { timeout: 60_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER_PATH || undefined });
+  const browser = await launch(chromium);
   try {
     for (const zoom of [1, 1.1, 1.125, 1.25, 1.5]) {
       // At every zoom leave room for two full columns, so this gesture stays
       // away from both input bounds and the native plane's rebase boundaries.
       const page = await browser.newPage({ viewport: { width: 2100, height: 927 } });
       try {
-        await page.addInitScript(() => localStorage.setItem("dispositif:columns", "multi"));
+        await storeColumns(page, "multi");
         await page.goto(ARTICLE_URL);
         await page.waitForSelector(".cl-content mjx-container");
         await page.evaluate(() => document.fonts.ready);

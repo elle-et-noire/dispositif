@@ -1,8 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { chromium, firefox } from 'playwright-core';
+import { BASE_URL, engines, launch, waitForColumnLayout } from "./browser.mjs";
 
-const base = process.env.TEST_BASE_URL ?? 'http://localhost:4321/dispositif/';
 // cl-pending hides the article without an inherited property (clip-path), so
 // check what it hides: computed clip-path, hit testing at the viewport centre
 // (clip-path clips hit testing as it clips painting), and aria-hidden, which
@@ -21,12 +20,12 @@ const pendingState = () => {
 };
 const hiddenWhilePending = (frame) => frame.pending && frame.clipPath === 'inset(50%)' && !frame.hit && frame.ariaHidden === 'true';
 const shown = el => [getComputedStyle(el).clipPath, el.getAttribute('aria-hidden')];
-for (const [name, engine] of Object.entries({ chromium, firefox })) {
+for (const [name, engine] of engines) {
   test(`${name}: first visit stays single until the reader opts into multi`, { timeout: 120_000 }, async () => {
-    const browser = await engine.launch();
+    const browser = await launch(engine);
     try {
       const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' });
-      await page.goto(base);
+      await page.goto(BASE_URL);
       assert.equal(await page.evaluate(() => localStorage.getItem('dispositif:columns')), null);
       const link = page.locator('a[href$="tips-python/"]');
       await link.hover();
@@ -50,14 +49,14 @@ for (const [name, engine] of Object.entries({ chromium, firefox })) {
       await page.waitForFunction(() => !document.documentElement.classList.contains('cl-multi'));
       assert.equal(await page.evaluate(() => localStorage.getItem('dispositif:columns')), 'single');
       await page.reload();
-      await page.waitForFunction(() => document.documentElement.classList.contains('cl-ready') && !document.documentElement.classList.contains('cl-pending'));
+      await waitForColumnLayout(page);
       assert.equal(await page.locator('html').evaluate(el => el.classList.contains('cl-multi')), false);
       await page.close();
     } finally { await browser.close(); }
   });
 
   test(`${name}: initial article paint waits for the selected mode`, { timeout: 120_000 }, async () => {
-    const browser = await engine.launch();
+    const browser = await launch(engine);
     try {
       for (const mode of ['single', 'multi', null]) {
         const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' });
@@ -77,7 +76,7 @@ for (const [name, engine] of Object.entries({ chromium, firefox })) {
           requestAnimationFrame(record);
           document.addEventListener('astro:after-swap', record);
         }, [mode, pendingState.toString()]);
-        await page.goto(base);
+        await page.goto(BASE_URL);
         await page.locator('a[href$="symmetric-polynomial/"]').click();
         await page.waitForFunction(() => document.documentElement.dataset.pageKind === 'article' && !document.documentElement.classList.contains('cl-pending'));
         const verify = async (where) => {
@@ -89,13 +88,13 @@ for (const [name, engine] of Object.entries({ chromium, firefox })) {
           assert.equal(await page.locator('html').evaluate(el => el.classList.contains('cl-multi')), mode === 'multi', where);
         };
         await verify('click');
-        await page.goto(new URL('symmetric-polynomial/', base).href);
+        await page.goto(new URL('symmetric-polynomial/', BASE_URL).href);
         await page.waitForFunction(() => !document.documentElement.classList.contains('cl-pending'));
         await verify('direct');
         await page.close();
       }
       const noJS = await browser.newPage({ javaScriptEnabled: false });
-      await noJS.goto(new URL('symmetric-polynomial/', base).href);
+      await noJS.goto(new URL('symmetric-polynomial/', BASE_URL).href);
       assert.deepEqual(await noJS.locator('.cl-article-scrollport').evaluate(shown), ['none', null]);
       await noJS.close();
       const failedBundle = await browser.newPage();
@@ -111,7 +110,7 @@ for (const [name, engine] of Object.entries({ chromium, firefox })) {
         }).observe(document, { subtree: true, attributeFilter: ['aria-hidden'], attributeOldValue: true });
       });
       await failedBundle.route(/\.(?:m?js)(?:\?|$)/, route => route.abort());
-      await failedBundle.goto(new URL('symmetric-polynomial/', base).href, { waitUntil: 'domcontentloaded' });
+      await failedBundle.goto(new URL('symmetric-polynomial/', BASE_URL).href, { waitUntil: 'domcontentloaded' });
       await failedBundle.waitForFunction(() => document.documentElement.classList.contains('cl-fallback'));
       assert.deepEqual(await failedBundle.locator('.cl-article-scrollport').evaluate(shown), ['none', null]);
       assert.deepEqual(await failedBundle.evaluate(() => window.ariaHidden), [null, 'true']);
@@ -125,7 +124,7 @@ for (const [name, engine] of Object.entries({ chromium, firefox })) {
         window.setTimeout = (handler, delay, ...args) => original(handler, delay === 10000 ? 2000 : delay, ...args);
       });
       await stalled.route(/\.(?:m?js)(?:\?|$)/, route => route.abort());
-      await stalled.goto(new URL('symmetric-polynomial/', base).href, { waitUntil: 'domcontentloaded' });
+      await stalled.goto(new URL('symmetric-polynomial/', BASE_URL).href, { waitUntil: 'domcontentloaded' });
       const focusInArticle = () => stalled.evaluate(() => document.querySelector('.cl-article-scrollport').contains(document.activeElement));
       for (const key of ['Tab', 'Tab', 'Tab', 'Shift+Tab', 'Tab']) {
         await stalled.keyboard.press(key);

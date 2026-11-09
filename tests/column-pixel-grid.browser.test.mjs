@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { chromium } from 'playwright-core';
+import { BASE_URL, launch, storeColumns } from "./browser.mjs";
 
-const base = process.env.TEST_BASE_URL ?? 'http://localhost:4321/dispositif/';
 
 // Chromium moves a recycled column's rasterized text instead of painting it
 // again. A move by a fraction of a device pixel left the text blurred, e.g. at
@@ -16,13 +16,13 @@ const offGrid = () => [...document.querySelectorAll('.cl-slot')].flatMap((slot) 
 });
 
 test('n段の本文は使い回しても1デバイスピクセル単位の位置に置く', { timeout: 120_000 }, async () => {
-  const browser = await chromium.launch();
+  const browser = await launch(chromium);
   try {
     for (const [scale, width, height] of [[1.25, 1090, 802], [1.1, 1300, 777], [1.5, 1000, 700]]) {
       const context = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: scale });
-      await context.addInitScript(() => localStorage.setItem('dispositif:columns', 'multi'));
+      await storeColumns(context, "multi");
       const page = await context.newPage();
-      await page.goto(new URL('symmetric-polynomial/', base).href);
+      await page.goto(new URL('symmetric-polynomial/', BASE_URL).href);
       await page.waitForFunction(() => document.documentElement.classList.contains('cl-multi')
         && !document.documentElement.classList.contains('cl-pending'));
       const seen = new Set();
@@ -41,12 +41,12 @@ test('n段の本文は使い回しても1デバイスピクセル単位の位置
 });
 
 test('表示倍率が変わると動いていない段も丸め直す', { timeout: 60_000 }, async () => {
-  const browser = await chromium.launch();
+  const browser = await launch(chromium);
   try {
     const context = await browser.newContext({ viewport: { width: 1090, height: 802 }, deviceScaleFactor: 1 });
-    await context.addInitScript(() => localStorage.setItem('dispositif:columns', 'multi'));
+    await storeColumns(context, "multi");
     const page = await context.newPage();
-    await page.goto(new URL('symmetric-polynomial/', base).href);
+    await page.goto(new URL('symmetric-polynomial/', BASE_URL).href);
     await page.waitForFunction(() => document.documentElement.classList.contains('cl-multi')
       && !document.documentElement.classList.contains('cl-pending'));
     const cdp = await context.newCDPSession(page);

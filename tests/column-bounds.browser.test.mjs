@@ -1,9 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { chromium } from "playwright-core";
+import { ARTICLE_URL, launch, storeColumns } from "./browser.mjs";
 
-const ARTICLE_URL = new URL("symmetric-polynomial/",
-  process.env.TEST_BASE_URL ?? "http://localhost:4321/dispositif/").href;
 
 async function settle(page) {
   await page.evaluate(async () => { for (let i = 0; i < 3; i++) await new Promise(requestAnimationFrame); });
@@ -50,7 +49,7 @@ async function pixelAt(page, x, y) {
   }, { png: png.toString("base64"), x: Math.floor(x), y: Math.floor(y) });
 }
 async function open(page) {
-  await page.addInitScript(() => localStorage.setItem("dispositif:columns", "multi"));
+  await storeColumns(page, "multi");
   await page.goto(ARTICLE_URL);
   // Compare paper edges against a flat canvas, without list cards or the
   // keyboard focus outline painting over the first row of sampled pixels.
@@ -64,7 +63,7 @@ async function open(page) {
 }
 
 test("ズーム・縦位置によらず横操作だけで全文を読め、消える部分段を含めて横余白を制限する", { timeout: 120_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER_PATH || undefined });
+  const browser = await launch(chromium);
   try {
     for (const zoom of [1, 1.25, 1.5]) for (const width of [390, 1600]) {
       const page = await browser.newPage({ viewport: { width, height: 900 } });
@@ -112,7 +111,7 @@ test("ズーム・縦位置によらず横操作だけで全文を読め、消�
 });
 
 test("画像の配置から上下に動かすと部分段が連続的に消え、本文端に余白も横移動も足さない", { timeout: 90_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER_PATH || undefined, ignoreDefaultArgs: ["--hide-scrollbars"] });
+  const browser = await launch(chromium, { ignoreDefaultArgs: ["--hide-scrollbars"] });
   try {
     for (const width of [1280, 1562]) {
       const page = await browser.newPage({ viewport: { width, height: 1000 } });
@@ -178,7 +177,7 @@ test("画像の配置から上下に動かすと部分段が連続的に消え�
 });
 
 test("同じ座標の本文と白い面は到達経路によらず一致し、Home/Endは基準配置に戻る", { timeout: 30_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER_PATH || undefined });
+  const browser = await launch(chromium);
   const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
   try {
     await open(page);
@@ -204,7 +203,7 @@ test("同じ座標の本文と白い面は到達経路によらず一致し、Ho
 });
 
 test("拡大表示の下端の丸めでも白い線を残さず、本文の末尾を正確にそろえる", { timeout: 90_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER_PATH || undefined, ignoreDefaultArgs: ["--hide-scrollbars"] });
+  const browser = await launch(chromium, { ignoreDefaultArgs: ["--hide-scrollbars"] });
   try {
     for (const zoom of [1, 1.1, 1.125, 1.25, 1.5]) for (const height of [900, 927]) {
       const page = await browser.newPage({ viewport: { width: 1410, height } });
@@ -253,7 +252,7 @@ test("拡大表示の下端の丸めでも白い線を残さず、本文の末�
 });
 
 test("横操作は実在する端の段まで、縦で生じた余白は横位置を保ち内側へ連続して戻れる", { timeout: 90_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER_PATH || undefined });
+  const browser = await launch(chromium);
   try {
     for (const zoom of [1, 1.1, 1.125, 1.25, 1.5]) {
       // Leave room for a full blank column beside a full note at every zoom.

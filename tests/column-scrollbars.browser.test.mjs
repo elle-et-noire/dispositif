@@ -2,9 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { chromium } from "playwright-core";
 import { columnScrollbar } from "./column-controls.mjs";
+import { ARTICLE_URL, launch, storeColumns } from "./browser.mjs";
 
-const ARTICLE_URL = new URL("symmetric-polynomial/",
-  process.env.TEST_BASE_URL ?? "http://localhost:4321/dispositif/").href;
 const settle = page => page.evaluate(async () => {
   for (let i = 0; i < 3; i++) await new Promise(requestAnimationFrame);
 });
@@ -13,12 +12,12 @@ const position = page => page.locator(".cl-plane").evaluate(p => ({
 }));
 
 test("本文自身の縦バーを右端に表示し、上下矢印・長押し・ドラッグ・キーで操作できる", { timeout: 60_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER_PATH || undefined, ignoreDefaultArgs: ["--hide-scrollbars"] });
+  const browser = await launch(chromium, { ignoreDefaultArgs: ["--hide-scrollbars"] });
   try {
     for (const width of [390, 1280]) for (const zoom of [1, 1.25]) {
       const page = await browser.newPage({ viewport: { width, height: 900 } });
       try {
-        await page.addInitScript(() => localStorage.setItem("dispositif:columns", "multi"));
+        await storeColumns(page, "multi");
         await page.goto(ARTICLE_URL);
         await page.waitForSelector(".cl-slot"); await page.evaluate(() => document.fonts.ready);
         // Synthetic CSS zoom also enlarges 100dvh. Keep both native arrow

@@ -4,11 +4,11 @@ import { readdir, stat } from "node:fs/promises";
 import { promisify } from "node:util";
 import test from "node:test";
 import { chromium } from "playwright-core";
+import { BASE_URL, launch, storeColumns, waitForColumnLayout } from "./browser.mjs";
 
 const run = promisify(execFile);
 const ROOT = new URL("../", import.meta.url);
 const FONT_DIR = new URL("public/fonts/mjx/", ROOT);
-const BASE_URL = process.env.TEST_BASE_URL ?? "http://localhost:4321/dispositif/";
 
 async function assertMathFonts(page) {
   await page.evaluate(() => document.fonts.ready);
@@ -21,7 +21,7 @@ async function assertMathFonts(page) {
 }
 
 test("フォント準備を再実行しても配信を維持し、1段・n段・記事遷移後も数式フォントを使える", { timeout: 60_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER_PATH || undefined });
+  const browser = await launch(chromium);
   try {
     const directory = await stat(FONT_DIR);
     const mainFont = new URL("mjx-tex-n.woff2", FONT_DIR);
@@ -47,13 +47,11 @@ test("フォント準備を再実行しても配信を維持し、1段・n段・
     for (const mode of ["single", "multi"]) {
       const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
       try {
-        await page.addInitScript((mode) => localStorage.setItem("dispositif:columns", mode), mode);
+        await storeColumns(page, mode);
         await page.goto(BASE_URL);
         await page.locator('a[href*="/symmetric-polynomial"]').first().click();
         await page.waitForURL("**/symmetric-polynomial/");
-        // cl-ready comes before the reader applies the mode in its first frame;
-        // cl-pending goes after it.
-        await page.waitForSelector("html.cl-ready:not(.cl-pending)");
+        await waitForColumnLayout(page);
         await assertMathFonts(page);
         assert.equal(await page.locator("html").evaluate((html) => html.classList.contains("cl-multi")), mode === "multi");
         await page.reload();
@@ -68,7 +66,7 @@ test("フォント準備を再実行しても配信を維持し、1段・n段・
 // font it uses. A preloaded font that the page never uses would be a wasted
 // download (and a console warning).
 test("数式の記事は、使う数式フォントをすべて preload し、使わないものは preload しない", { timeout: 60_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER_PATH || undefined });
+  const browser = await launch(chromium);
   try {
     const index = await browser.newPage();
     await index.goto(BASE_URL);
@@ -85,7 +83,7 @@ test("数式の記事は、使う数式フォントをすべて preload し、�
             if (url.pathname.includes("/fonts/mjx/")) requested.add(url.pathname);
           });
           await page.goto(new URL(`${href}?columns=${columns}`, BASE_URL).href);
-          await page.waitForSelector("html.cl-ready:not(.cl-pending)");
+          await waitForColumnLayout(page);
           await page.evaluate(() => document.fonts.ready);
           const preloaded = await page.locator("link[data-math-font-preload]").evaluateAll((links) =>
             links.map((link) => new URL(link.href).pathname));

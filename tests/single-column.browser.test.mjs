@@ -2,9 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { chromium } from "playwright-core";
 import { toggleColumns } from "./column-controls.mjs";
+import { ARTICLE_URL, launch, storeColumns, waitForColumnLayout } from "./browser.mjs";
 
-const ARTICLE_URL = new URL("symmetric-polynomial/",
-  process.env.TEST_BASE_URL ?? "http://localhost:4321/dispositif/").href;
 
 async function settle(page) {
   await page.evaluate(async () => {
@@ -31,12 +30,12 @@ async function singleLayout(page) {
 }
 
 test("1段の目次を右へ寄せ、操作ボタンと一緒に追従させて重なりを防ぐ", { timeout: 60_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER_PATH || undefined });
+  const browser = await launch(chromium);
   try {
     for (const width of [390, 768, 1280, 1600]) {
       const page = await browser.newPage({ viewport: { width, height: 900 } });
       try {
-        await page.addInitScript(() => localStorage.setItem("dispositif:columns", "single"));
+        await storeColumns(page, "single");
         await page.goto(ARTICLE_URL);
         await page.waitForSelector(".cl-toolbar > .cl-toggle");
         await page.evaluate(() => document.fonts.ready);
@@ -109,13 +108,12 @@ test("1段の目次を右へ寄せ、操作ボタンと一緒に追従させて�
 });
 
 test("1段の標準バー越しに背景ヘッダーが透け、キー・矢印・モード切替で記事自身がスクロールする", { timeout: 60_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER_PATH || undefined,
-    ignoreDefaultArgs: ["--hide-scrollbars"] });
+  const browser = await launch(chromium, { ignoreDefaultArgs: ["--hide-scrollbars"] });
   try {
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
-    await page.addInitScript(() => localStorage.setItem("dispositif:columns", "single"));
+    await storeColumns(page, "single");
     await page.goto(ARTICLE_URL);
-    await page.waitForSelector("html.cl-ready:not(.cl-pending)");
+    await waitForColumnLayout(page);
     await page.evaluate(() => document.fonts.ready);
     const scroller = page.locator(".cl-article-scrollport");
     const sizes = await scroller.evaluate((el) => ({ root: document.documentElement.clientWidth,
@@ -169,16 +167,15 @@ test("1段の標準バー越しに背景ヘッダーが透け、キー・矢印�
 });
 
 test("ノート外の左右・上下の背景でも標準のホイール操作で記事がスクロールする", { timeout: 60_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER_PATH || undefined,
-    ignoreDefaultArgs: ["--hide-scrollbars"] });
+  const browser = await launch(chromium, { ignoreDefaultArgs: ["--hide-scrollbars"] });
   try {
     for (const [width, javaScriptEnabled] of [[390, true], [1280, true], [1280, false]]) {
       const page = await browser.newPage({ viewport: { width, height: 900 }, javaScriptEnabled });
       try {
-        await page.addInitScript(() => localStorage.setItem("dispositif:columns", "single"));
+        await storeColumns(page, "single");
         await page.goto(ARTICLE_URL);
         if (javaScriptEnabled) {
-          await page.waitForSelector("html.cl-ready:not(.cl-pending)");
+          await waitForColumnLayout(page);
           await page.evaluate(() => document.fonts.ready);
         }
         await page.locator("astro-dev-toolbar").evaluateAll((nodes) => nodes.forEach((node) => node.remove()));
