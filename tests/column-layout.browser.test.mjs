@@ -36,9 +36,12 @@ async function layout(page) {
         const style = getComputedStyle(slot.querySelector(".cl-content"));
         const textLeft = frame.left + parseFloat(style.paddingLeft);
         const textRight = frame.right - parseFloat(style.paddingRight);
-        // The part of the paper inside the column's window.
+        // The part of the paper inside the column's window. A column outside
+        // the article is hidden whole by its track's clip.
         const paper = slot.querySelector(".cl-paper").getBoundingClientRect();
-        const paperTop = Math.max(paper.top, frame.top), paperHeight = Math.max(0, Math.min(paper.bottom, frame.bottom) - paperTop);
+        const hidden = getComputedStyle(slot.parentElement).clipPath === "inset(50%)";
+        const paperTop = Math.max(paper.top, frame.top);
+        const paperHeight = hidden ? 0 : Math.max(0, Math.min(paper.bottom, frame.bottom) - paperTop);
         return {
           k: Number(slot.dataset.clK),
           paperTop: paperTop - frame.top,
@@ -313,6 +316,21 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
             const blocked = await layout(page);
             assert.ok(Math.abs(blocked.y - atBottom.y) < 1, "本文末尾の後ろに空白が増えた");
             await assertPainted(page);
+            // A frame painted after a native scroll but before the reader's
+            // scroll handler has run, as on a busy main thread: the paper at
+            // the article's end must still move with the text.
+            await page.locator(".cl-viewport").evaluate((v) => {
+              window.clHoldScroll = (event) => event.stopImmediatePropagation();
+              window.addEventListener("scroll", window.clHoldScroll, { capture: true });
+              v.scrollTop -= 100;
+            });
+            await settle(page);
+            await assertPainted(page);
+            await page.locator(".cl-viewport").evaluate((v) => {
+              window.removeEventListener("scroll", window.clHoldScroll, { capture: true });
+              v.dispatchEvent(new Event("scroll"));
+            });
+            await settle(page);
             await page.mouse.wheel(0, -160);
             await settle(page);
             assert.ok((await layout(page)).y < atBottom.y - 150, "末尾から前の本文へ戻れない");
