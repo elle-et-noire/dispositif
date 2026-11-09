@@ -389,7 +389,7 @@ for (const [name, engine] of engines) {
       await indexReady(page);
       await page.goBack();
       await articleReady(page, 'tips-python');
-      assert.equal(await isMulti(page), false, 'the saved single choice takes precedence over the entry's layout');
+      assert.equal(await isMulti(page), false, 'the saved single choice takes precedence over the layout saved in the entry');
       assert.deepEqual(context.errors, []);
       await context.close();
     } finally { await browser.close(); }
