@@ -173,7 +173,7 @@ for (const [name, engine] of engines) {
     });
   }
 
-  test(`${name}: switching to one column persists mode, position and fragment history`, { timeout: 120_000 }, async () => {
+  test(`${name}: switching to one column persists the choice, position and fragment history`, { timeout: 120_000 }, async () => {
     const browser = await launch(engine);
     try {
       const context = await newContext(browser);
@@ -389,14 +389,14 @@ for (const [name, engine] of engines) {
       await indexReady(page);
       await page.goBack();
       await articleReady(page, 'tips-python');
-      assert.equal(await isMulti(page), false, 'the saved single choice takes precedence over the entry mode');
+      assert.equal(await isMulti(page), false, 'the saved single choice takes precedence over the entry's layout');
       assert.deepEqual(context.errors, []);
       await context.close();
     } finally { await browser.close(); }
   });
 
   for (const mode of ['multi', 'single']) {
-    test(`${name}: ${mode} article never paints in the other mode first`, { timeout: 120_000 }, async () => {
+    test(`${name}: ${mode} article never paints in the other layout first`, { timeout: 120_000 }, async () => {
       const browser = await launch(engine);
       try {
         const context = await newContext(browser, { viewport: { width: 1440, height: 900 } });
@@ -543,7 +543,7 @@ for (const [name, engine] of engines) {
     } finally { await browser.close(); }
   });
 
-  test(`${name}: a started reader whose first frame is delayed keeps the saved mode`, { timeout: 120_000 }, async () => {
+  test(`${name}: a started reader whose first frame is delayed keeps the saved choice`, { timeout: 120_000 }, async () => {
     // Background tabs do not run animation frames, so the reader's first
     // frame can come after the fallback timer. That is not a failed reader.
     const browser = await launch(engine);
@@ -582,7 +582,7 @@ for (const [name, engine] of engines) {
         await page.evaluate(() => window.__releaseFrames());
         await page.waitForFunction(() => !document.documentElement.classList.contains('cl-pending'));
         await frames(page, 3);
-        assert.equal(await isMulti(page), true, `${route}: saved multi mode applied`);
+        assert.equal(await isMulti(page), true, `${route}: saved multi choice applied`);
         assert.equal(await page.evaluate(() => document.documentElement.classList.contains('cl-fallback')), false, route);
         await context.close();
       }
