@@ -111,7 +111,7 @@ export function initializeColumnLayout() {
   const native = new ColumnViewport(viewport, plane);
   let rangeStart = NaN;
   const placements = new WeakMap<HTMLElement, {
-    left: number; translate: string; clip: string; paperTop: number; paperHeight: number;
+    left: number; translate: string; paperTranslate: string; clip: string; length: number;
   }>();
   let dirty = true;
   let activeHeading = "";
@@ -219,9 +219,8 @@ export function initializeColumnLayout() {
   const updateSlots = (includeOffscreen = false) => {
     if (!geometry || !reading) return;
     const { start, count } = slotColumns(reading.point, reading.layout);
-    // Read native geometry before any DOM edits. Reading scrollTop inside the
-    // slot loop used to force layout after inserting each new math fragment.
-    const nativeY = viewport.scrollTop;
+    // Read native geometry before any DOM edits. Reading it inside the slot
+    // loop used to force layout after inserting each new math fragment.
     const nativeX = viewport.scrollLeft, viewportWidth = viewport.clientWidth;
     if (start !== rangeStart || slots.length !== count || dirty) {
       const wanted = new Set(Array.from({ length: count }, (_, i) => start + i));
@@ -270,14 +269,9 @@ export function initializeColumnLayout() {
       const track = slot.parentElement!;
       const paper = slot.lastElementChild as HTMLElement;
       const fromTicks = ticks(k * state.layout.h + state.point.y);
-      const surface = paperWindow(fromTicks, state.layout);
-      const from = toCss(fromTicks), paperTop = toCss(surface.top), paperHeight = toCss(surface.height);
+      const from = toCss(fromTicks), paperHeight = toCss(paperWindow(fromTicks, state.layout).height);
       const left = geometry.leading + geometry.edge + (k - geometry.originColumn) * geometry.p;
       const top = -(k * geometry.h + geometry.originY);
-      const clipped = from < 0 || from + geometry.h > geometry.l;
-      const clip = paperHeight === 0 ? "inset(50%)" : clipped
-        ? `polygon(-4px ${nativeY + paperTop}px, calc(100% + 4px) ${nativeY + paperTop}px, calc(100% + 4px) ${nativeY + paperTop + paperHeight}px, -4px ${nativeY + paperTop + paperHeight}px)`
-        : "inset(0px -4px)";
       const previous = placements.get(slot);
       if (previous?.left !== left) track.style.left = `${left}px`;
       // Translate the text in both axes. Moving its layout left offset would
@@ -287,14 +281,29 @@ export function initializeColumnLayout() {
       // a fraction of a device pixel (e.g. a 706 px step at 125 %) leaves the
       // text resampled and blurred until something repaints it. Compared
       // after rounding, so a zoom change re-rounds an unmoved column.
-      const translate = `${devicePixels(left, pixel)}px ${devicePixels(top, pixel)}px`;
+      const x = devicePixels(left, pixel), y = devicePixels(top, pixel);
+      const translate = `${x}px ${y}px`;
+      // The paper and the clip span the whole article in plane coordinates,
+      // like the text, so native scrolling moves their edges with the text.
+      // Fitting them to the current window would need JS on every scroll
+      // frame, and a busy main thread would leave the text off its paper.
+      // They stay at the unrounded logical offset: the text's rounding to
+      // device pixels would show a sliver of paper in a column whose window
+      // has just left the article. The clip cuts the paper's shadow there.
+      // At some zooms the browser paints the scrolled plane up to half a
+      // device pixel away from scrollTop, so a column whose window is
+      // logically outside the article is hidden whole. If this lags behind
+      // native scrolling, a column entering the article appears late, with
+      // its text and paper together.
+      const paperY = Number(top.toFixed(4)), end = Number((top + geometry.l).toFixed(4));
+      const paperTranslate = `${x}px ${paperY}px`;
+      const clip = paperHeight === 0 ? "inset(50%)"
+        : `polygon(-4px ${paperY}px, calc(100% + 4px) ${paperY}px, calc(100% + 4px) ${end}px, -4px ${end}px)`;
       if (previous?.translate !== translate) content.style.translate = translate;
+      if (previous?.paperTranslate !== paperTranslate) paper.style.translate = paperTranslate;
       if (previous?.clip !== clip) track.style.clipPath = clip;
-      if (previous?.paperTop !== paperTop) paper.style.top = `${paperTop}px`;
-      if (previous?.paperHeight !== paperHeight) paper.style.height = `${paperHeight}px`;
-      slot.toggleAttribute("data-cl-head", from <= 0);
-      slot.toggleAttribute("data-cl-tail", from + geometry.h >= geometry.l);
-      placements.set(slot, { left, translate, clip, paperTop, paperHeight });
+      if (previous?.length !== geometry.l) paper.style.height = `${geometry.l}px`;
+      placements.set(slot, { left, translate, paperTranslate, clip, length: geometry.l });
       // Slots outside the article have no visible paper. Keep their existing
       // fragments until they become visible instead of cloning/removing blocks
       // that would immediately be clipped away.

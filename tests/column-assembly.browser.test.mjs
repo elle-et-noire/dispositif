@@ -9,7 +9,10 @@ const columns = () => {
   const viewport = document.querySelector('.cl-viewport');
   const bounds = viewport.getBoundingClientRect();
   return [...document.querySelectorAll('.cl-slot')]
-    .filter((slot) => slot.querySelector('.cl-paper').getBoundingClientRect().height > 0)
+    .filter((slot) => {
+      const window = slot.getBoundingClientRect(), paper = slot.querySelector('.cl-paper').getBoundingClientRect();
+      return Math.min(paper.bottom, window.bottom) > Math.max(paper.top, window.top);
+    })
     .map((slot) => {
       const box = slot.parentElement.getBoundingClientRect();
       return {

@@ -82,7 +82,10 @@ test("本文の左右余白は段と流れ、横バーの左右余白は固定�
           await settle(page);
           const endMargin = await page.evaluate(() => {
             const viewport = document.querySelector(".cl-viewport").getBoundingClientRect();
-            const frames = [...document.querySelectorAll(".cl-slot")].filter(slot => parseFloat(slot.querySelector(".cl-paper").style.height) > 1)
+            const frames = [...document.querySelectorAll(".cl-slot")].filter(slot => {
+                const r = slot.getBoundingClientRect(), paper = slot.querySelector(".cl-paper").getBoundingClientRect();
+                return Math.min(paper.bottom, r.bottom) - Math.max(paper.top, r.top) > 1;
+              })
               .map(slot => slot.getBoundingClientRect()).filter(rect => rect.left < viewport.right && rect.right > viewport.left);
             return { gap: viewport.right - Math.max(...frames.map(rect => rect.right)),
               period: parseFloat(document.querySelector(".cl-plane").style.getPropertyValue("--cl-p")) };

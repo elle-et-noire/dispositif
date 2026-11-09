@@ -125,14 +125,17 @@ test("先頭と末尾だけ丸角にし、紙面操作・文字選択・段組�
     await page.goto(ARTICLE_URL);
     await page.waitForSelector(".cl-slot");
     await page.evaluate(() => document.fonts.ready);
+    // The paper spans the whole article and the window cuts it, so only the
+    // article's ends (head, tail) show its rounded corners.
     const corners = () => page.evaluate(() => [...document.querySelectorAll(".cl-slot")].map((slot) => {
-      const s = getComputedStyle(slot.querySelector(".cl-paper"));
-      return { head: slot.hasAttribute("data-cl-head"), tail: slot.hasAttribute("data-cl-tail"),
+      const paper = slot.querySelector(".cl-paper"), s = getComputedStyle(paper);
+      const window = slot.getBoundingClientRect(), r = paper.getBoundingClientRect();
+      return { shown: Math.min(r.bottom, window.bottom) - Math.max(r.top, window.top) > 1,
+        head: r.top > window.top - 0.5, tail: r.bottom < window.bottom + 0.5,
         corners: [s.borderTopLeftRadius, s.borderTopRightRadius, s.borderBottomRightRadius, s.borderBottomLeftRadius] };
-    }));
+    }).filter((slot) => slot.shown));
     const checkCorners = async () => {
-      for (const slot of await corners()) assert.deepEqual(slot.corners,
-        [slot.head ? "8px" : "0px", slot.head ? "8px" : "0px", slot.tail ? "8px" : "0px", slot.tail ? "8px" : "0px"]);
+      for (const slot of await corners()) assert.deepEqual(slot.corners, ["8px", "8px", "8px", "8px"]);
     };
     await checkCorners();
     assert.ok((await corners()).some((slot) => slot.head && !slot.tail));
@@ -158,14 +161,16 @@ test("先頭と末尾だけ丸角にし、紙面操作・文字選択・段組�
     assert.equal(await page.locator(".cl-article").evaluate((el) => getComputedStyle(el).borderRadius), "8px");
     await toggleColumns(page); await settle(page); await checkCorners();
     await page.locator(".cl-source").evaluate((s) => { s.innerHTML = '<p style="height:80px;margin:0">短いノート</p>'; });
-    await page.waitForFunction(() => document.querySelector(".cl-slot[data-cl-head][data-cl-tail]"));
+    await page.waitForFunction(() => document.querySelector(".cl-plane").style.getPropertyValue("--cl-l") !== ""
+      && parseFloat(document.querySelector(".cl-paper").style.height) < 200);
     await checkCorners();
+    assert.ok((await corners()).some((slot) => slot.head && slot.tail));
     await page.emulateMedia({ media: "print" });
     assert.equal(await page.locator(".article-index-shell").isVisible(), false);
     assert.equal(await page.locator(".cl-backdrop").isVisible(), false);
     await page.emulateMedia({ media: "screen" });
-    await page.waitForSelector(".cl-slot[data-cl-head][data-cl-tail]");
-    const paper = await page.locator(".cl-slot[data-cl-head][data-cl-tail] .cl-paper").boundingBox();
+    await settle(page);
+    const paper = await page.locator(".cl-slot .cl-paper").first().boundingBox();
     await page.mouse.click(paper.x + 0.5, paper.y + 0.5);
     await page.waitForSelector('html[data-page-kind="index"]');
   } finally { await browser.close(); }
