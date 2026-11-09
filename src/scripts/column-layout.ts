@@ -95,7 +95,7 @@ export function initializeColumnLayout() {
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   let preference: string | null = null;
   try { preference = localStorage.getItem(COLUMNS_STORAGE_KEY); } catch { /* storage is optional */ }
-  // ?columns= is read once: the toggle changes the mode without rewriting the URL.
+  // ?columns= is read once: the toggle changes the column layout without rewriting the URL.
   const startMulti = opensMulti(location.search, preference, savedHistoryPosition?.mode);
   let multi = false;
   let suspendedForPrint = false;
@@ -128,7 +128,7 @@ export function initializeColumnLayout() {
   };
 
   // Preserve a position within the same block when the article is reflowed
-  // at a different width. This is only measured on mode changes.
+  // at a different width. This is only measured when the column layout changes.
   const captureAnchor = (offset: number) => {
     const sourceBox = source.getBoundingClientRect();
     const scale = sourceBox.width / (parseFloat(getComputedStyle(source).width) || sourceBox.width);

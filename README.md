@@ -52,7 +52,7 @@ npx astro dev stop
 
 ## テスト
 
-次の検査はプルリクエストごとにCIで実行し、すべて成功したときだけmainからGitHub Pagesへデプロイします（`.github/workflows/deploy.yml`）。文書（`README.md`、`ROADMAP.md`、`AGENTS.md`、`CLAUDE.md`、`docs/`）だけの変更では実行しません。ローカルでも同じコマンドで実行できます。
+次の検査はプルリクエストごとにCIで実行し、すべて成功したときだけmainからGitHub Pagesへデプロイします（`.github/workflows/deploy.yml`）。文書（`README.md`、`ROADMAP.md`、`AGENTS.md`、`docs/`）だけの変更では実行しません。ローカルでも同じコマンドで実行できます。
 
 ```sh
 npm run astro -- check

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { opensMulti, prefersMulti, urlColumnMode } from '../src/scripts/column-preference.ts';
 
-test('saved mode selects single or multi explicitly', () => {
+test('a saved choice selects single or multi explicitly', () => {
   assert.equal(prefersMulti('single'), false);
   assert.equal(prefersMulti('multi'), true);
 });
@@ -13,7 +13,7 @@ test('missing or invalid preferences default to single', () => {
   assert.equal(prefersMulti(''), false);
 });
 
-test('the columns parameter names a mode only with a valid value', () => {
+test('the columns parameter names a column layout only with a valid value', () => {
   assert.equal(urlColumnMode('?columns=multi'), 'multi');
   assert.equal(urlColumnMode('?columns=single'), 'single');
   assert.equal(urlColumnMode('?a=1&columns=multi'), 'multi');
@@ -23,22 +23,22 @@ test('the columns parameter names a mode only with a valid value', () => {
   assert.equal(urlColumnMode('?mode=multi'), undefined);
 });
 
-test('a mode in the URL wins over the stored preference', () => {
+test('a column layout in the URL wins over the stored preference', () => {
   assert.equal(opensMulti('?columns=multi', 'single'), true);
   assert.equal(opensMulti('?columns=multi', null), true);
   assert.equal(opensMulti('?columns=single', 'multi'), false);
 });
 
-test('without a valid mode in the URL the stored preference applies', () => {
+test('without a valid column layout in the URL the stored preference applies', () => {
   assert.equal(opensMulti('', 'multi'), true);
   assert.equal(opensMulti('?columns=other', 'multi'), true);
   assert.equal(opensMulti('', null), false);
 });
 
-test('a history entry opened by URL keeps the mode the reader left it in', () => {
+test('a history entry opened by URL keeps the column layout the reader left it in', () => {
   assert.equal(opensMulti('?columns=multi', 'single', 'single'), false);
   assert.equal(opensMulti('?columns=single', 'multi', 'multi'), true);
   assert.equal(opensMulti('?columns=multi', 'single', 'multi'), true);
-  // Entries without a mode in the URL follow the preference, as before.
+  // Entries without a column layout in the URL follow the preference, as before.
   assert.equal(opensMulti('', 'multi', 'single'), true);
 });
