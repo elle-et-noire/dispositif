@@ -875,6 +875,8 @@ Chromium のスタイル計算の短縮は、調査時の見積もり（n段で 
 
 ## 記事を直接開いたときの数式フォントの到着（2026-11-09、PR #24）
 
+この節は段組みへの改名（PR #27）の後に書いたので、現在の名前を使う。
+
 Lighthouseで `symmetric-polynomial` をn段で直接開くと、点数は73、TBTは450 msだった。この記事の要素数は13,386で、大半はMathJax CHTMLの `mjx-*` 要素である。記事全体のレイアウトは、CPUを遅くしない条件でも1回40〜200 msかかる。
 
 原因は数式フォントの届き方だった。preloadしていたのは `mjx-tex-n` だけで、ほかのフォント（`zero`、`brk`、`so`、`lo`、`s3`、`s4`）は最初のレイアウトの途中で初めて要求される。これらはそのレイアウトの後に届き、届くたびに記事全体をレイアウトし直していた。
@@ -882,7 +884,7 @@ Lighthouseで `symmetric-polynomial` をn段で直接開くと、点数は73、T
 変更は次の2つ。
 
 - `src/pages/[slug].astro` で、記事が使う数式フォント（`mathFontFaces()` の結果）をすべてpreloadする。一覧でホバーしたときの先読みが、読み込み済みのフォントのpreloadを遷移前に取り除く処理は、これまでどおりURLごとに働く。`tests/math-fonts.browser.test.mjs` は、直接開いた数式記事でpreloadしたフォントと実際に要求されたフォントが一致することを、1段・n段で確かめる。
-- n段の準備中（`rm-premount`）は、目次が `astro:page-load` で見出しの位置を読まない（`src/components/Toc.astro`）。1段で始めるときは、読書モードが本文を段から戻すとき（`releasePremounted()`）と10秒後の退避のときに `rm:off` を送り、目次はそこで現在の見出しを合わせる。
+- n段の準備中（`cl-premount`）は、目次が `astro:page-load` で見出しの位置を読まない（`src/components/Toc.astro`）。1段で始めるときは、段組みが本文を段から戻すとき（`releasePremounted()`）と10秒後の退避のときに `cl:single` を送り、目次はそこで現在の見出しを合わせる。
 
 CPUを4倍遅く、回線を遅延40 ms・10 Mbpsにして直接開き、変更前後を交互に8回ずつ測った中央値（ms）。GitHub Pagesと同じくgzipで配信した。`python -m http.server` は圧縮せずに約464 KBのHTMLを送るので、FCPと帯域の条件が変わり、比較に使えない。
 
@@ -898,4 +900,4 @@ Lighthouse 13.6（デスクトップ設定でCPUを4倍遅く、n段、6回ず�
 
 Nunitoのpreloadも試したが採らなかった。レイアウトの回数は減らず、FCPが30〜80 ms遅れた。
 
-この変更の後、`document.fonts.ready` が早く解決するようになり、読書モードの開始前に操作するブラウザー試験がCIで失敗するようになった。`rm-ready` は読書モードの最初のフレームがモードを適用する前に付く。試験は `html.rm-ready:not(.rm-pending)` を待つように直した（`math-fonts.browser.test.mjs` はPR #24の16ef251、ほかの22か所はPR #25）。
+この変更の後、`document.fonts.ready` が早く解決するようになり、段組みの開始前に操作するブラウザー試験がCIで失敗するようになった。`cl-ready` は段組みの最初のフレームがモードを適用する前に付く。試験は `html.cl-ready:not(.cl-pending)` を待つように直した（`math-fonts.browser.test.mjs` はPR #24の16ef251、ほかの22か所はPR #25）。PR #28 からは `tests/browser.mjs` の `waitForColumnLayout` がこの待ちをまとめている。
