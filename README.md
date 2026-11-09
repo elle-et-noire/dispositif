@@ -7,9 +7,9 @@ Astroベースの記事サイトです。記事はビルド時にMarkdownからH
 ```text
 /
 ├── docs/
-│   ├── article-open.md                  # 記事を開くまでの処理、計測方法、経緯
+│   ├── article-open.md                  # 記事を開くまでの処理、計測方法、採らなかった方式
 │   ├── column-layout.md                 # 段組みの実装
-│   └── math-accessibility.md            # 数式の読み上げ方式の決定記録
+│   └── math-accessibility.md            # 数式の読み上げの方式と理由
 ├── lib/                    # 記事取得、Markdown前処理、MathJax変換、単体テスト（*.test.ts）
 ├── post/                   # Markdown記事
 ├── public/
@@ -115,4 +115,4 @@ npm run test:browser   # astro preview などを起動した状態で
 
 ## 記事を開くまでの処理
 
-一覧から記事を開くときと記事を直接読み込むときの表示を速くする処理、計測の手順、経緯、残っている課題は `docs/article-open.md` にあります。
+一覧から記事を開くときと記事を直接読み込むときの表示を速くする処理、計測の手順、採らなかった方式、残っている課題は `docs/article-open.md` にあります。
