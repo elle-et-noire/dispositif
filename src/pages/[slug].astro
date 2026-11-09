@@ -7,7 +7,6 @@ import ReadingSingleIcon from "../icons/reading-single.svg";
 import ReadingMultiIcon from "../icons/reading-multi.svg";
 import Toc from "@components/Toc.astro";
 import { markdownToHtml } from "@lib/convert";
-import { MATH_FONT_PRELOAD_HREF } from "@lib/mathjax";
 import { mathFontFaces, separateMathFontFaces } from "@lib/math-fonts";
 import { getAllSlugs, getPostBySlug } from "@lib/post";
 import { getHeadings } from "@lib/toc";
@@ -33,14 +32,19 @@ const headings = getHeadings(content);
   {
     mathCss && (
       <Fragment slot="head">
-        <link
-          data-math-font-preload
-          rel="preload"
-          as="font"
-          type="font/woff2"
-          href={MATH_FONT_PRELOAD_HREF}
-          crossorigin="anonymous"
-        />
+        {/* Every math font the article uses, not only the large MJX-TEX-N:
+            a font found during the first layout arrives after it, and each
+            arrival lays the whole article out again. */}
+        {mathFaces.map(({ url }) => (
+          <link
+            data-math-font-preload
+            rel="preload"
+            as="font"
+            type="font/woff2"
+            href={url}
+            crossorigin="anonymous"
+          />
+        ))}
         <style is:inline set:html={css} />
         {mathFaces.map(({ family, url, rule }) => (
           <style is:inline data-math-font={family} data-math-font-url={url} set:html={rule} />

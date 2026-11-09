@@ -560,6 +560,8 @@ export function initializeReadingMode() {
     restoreSource();
     plane.replaceChildren();
     reader.hidden = true;
+    // The table of contents skipped its position while pre-mounted (Toc.astro).
+    document.dispatchEvent(new CustomEvent("rm:off"));
   };
 
   const applyDefault = () => {
