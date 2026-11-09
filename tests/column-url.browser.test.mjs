@@ -6,7 +6,7 @@ import { BASE_URL, engines, launch, waitForColumnLayout } from "./browser.mjs";
 const article = (search = '') => new URL(`symmetric-polynomial/${search}`, BASE_URL).href;
 
 // Records whether the head script put the article text in the first column
-// while the document was parsed (window.clPremounted), with the stored mode.
+// while the document was parsed (window.clPremounted), with the stored choice.
 const setup = (mode) => {
   if (location.protocol === 'about:') return;
   if (!sessionStorage.getItem('cl-test-stored')) {

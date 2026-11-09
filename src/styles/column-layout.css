@@ -84,7 +84,7 @@
 }
 
 @media screen {
-  /* Avoid painting the single-column source before the initial mode is known. */
+  /* Avoid painting the single-column source before the initial column layout is known. */
   /* clip-path is not inherited: visibility (or anything inherited) would
      restyle every element of the article when cl-pending is removed. It
      also clips the fixed n段 article inside. Layout.astro hides the

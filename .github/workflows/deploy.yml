@@ -10,7 +10,6 @@ on:
       - README.md
       - ROADMAP.md
       - AGENTS.md
-      - CLAUDE.md
       - docs/**
   # プルリクエストでは検査だけを行い、デプロイしない。
   pull_request:

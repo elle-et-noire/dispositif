@@ -28,7 +28,7 @@ export function storeColumns(target, mode) {
 
 /**
  * Waits until the column layout has started on an article. cl-ready is set
- * before the layout applies the mode and the first position in its first
+ * before the layout applies the column choice and the first position in its first
  * frame, which removes cl-pending; a scroll made before that frame is lost.
  */
 export function waitForColumnLayout(page) {
