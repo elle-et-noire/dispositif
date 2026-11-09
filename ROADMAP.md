@@ -25,14 +25,7 @@
 - 数式はビルド時に生成し、ブラウザ側でMathJaxを実行しない
 - キーボードで目次のリンクを選ぶと見出しへフォーカスが移り、次のTabで見出しの後の本文へ進む（1段のサイドバー・モバイル目次、n段の上部目次。2026-11-09にChromium・Firefoxで確認し、`tests/toc.browser.test.mjs` で検査）
 
-次の検査はプルリクエストごとにCIで実行し、すべて成功したときだけmainからGitHub Pagesへデプロイする（`.github/workflows/deploy.yml`）。文書（`README.md`、`ROADMAP.md`、`AGENTS.md`、`CLAUDE.md`、`docs/`）だけの変更では実行しない。ローカルでも同じコマンドで実行できる。
-
-```sh
-npm run astro -- check
-npm test
-npm run build
-npm run test:browser   # astro preview などを起動した状態で
-```
+CIで実行する検査と、各テストが確かめることは `README.md` の「テスト」にある。
 
 ---
 
