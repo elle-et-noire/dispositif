@@ -7,11 +7,11 @@ const settle = (page) => page.evaluate(async () => {
   for (let i = 0; i < 5; i++) await new Promise(requestAnimationFrame);
 });
 
-test("本文内リンクの履歴ごとに位置と折りたたみを保存し、戻る・進む・一覧からの復帰で復元する", { timeout: 45_000 }, async () => {
+for (const columns of ["single", "multi"]) test(`${columns}: 本文内リンクの履歴ごとに位置と折りたたみを保存し、戻る・進む・一覧からの復帰で復元する`, { timeout: 45_000 }, async () => {
   const browser = await launch(chromium);
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   try {
-    await storeColumns(page, "single");
+    await storeColumns(page, columns);
     await page.goto(new URL("nextjs-mdx/", BASE_URL).href);
     await waitForColumnLayout(page);
     await page.evaluate(() => document.fonts.ready);
@@ -19,8 +19,13 @@ test("本文内リンクの履歴ごとに位置と折りたたみを保存し�
     const link = page.locator('.cl-source a[href^="#"]').filter({ hasText: "参考文献" }).first();
     await link.scrollIntoViewIfNeeded();
     await settle(page);
+    // n段 has no single scroll offset; the visible headings and their places stand for the position.
     const snapshot = () => page.evaluate(() => ({
-      top: document.querySelector(".cl-article-scrollport").scrollTop,
+      top: document.documentElement.classList.contains("cl-multi")
+        ? [...document.querySelectorAll(".cl-slot :is(h2, h3)")].map((h) => [h.textContent, h.getBoundingClientRect()])
+          .filter(([, r]) => r.height && r.right > 0 && r.left < innerWidth && r.bottom > 0 && r.top < innerHeight)
+          .map(([text, r]) => `${text}@${r.left},${r.top}`).sort().join("|")
+        : document.querySelector(".cl-article-scrollport").scrollTop,
       open: document.querySelector(".cl-source details").open,
       key: history.state?.dispositifReadingKey,
     }));
