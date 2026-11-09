@@ -1,20 +1,20 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { chromium } from "playwright-core";
+import { BASE_URL, launch, storeColumns, waitForColumnLayout } from "./browser.mjs";
 
-const BASE_URL = process.env.TEST_BASE_URL ?? "http://localhost:4321/dispositif/";
 
 // Screen readers get each formula as an image named by its TeX source
 // (lib/mathjax.ts, labelForScreenReaders), not as the glyph boxes' characters.
 test("数式は TeX のソースを名前にした画像として読み上げの対象になり、字形の文字は外れる", { timeout: 60_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER_PATH || undefined });
+  const browser = await launch(chromium);
   try {
     for (const mode of ["single", "multi"]) {
       const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
       try {
-        await page.addInitScript((mode) => localStorage.setItem("dispositif:columns", mode), mode);
+        await storeColumns(page, mode);
         await page.goto(new URL("symmetric-polynomial/", BASE_URL).href);
-        await page.waitForSelector('html[data-page-kind="article"].cl-ready:not(.cl-pending)');
+        await waitForColumnLayout(page);
         const markup = await page.evaluate(() => {
           const containers = [...document.querySelectorAll(".cl-source mjx-container")];
           return {

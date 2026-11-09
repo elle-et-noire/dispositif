@@ -1,20 +1,19 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { chromium, firefox } from "playwright-core";
+import { chromium } from "playwright-core";
+import { BASE_URL, ARTICLE_URL, engines, launch, storeColumns, waitForColumnLayout } from "./browser.mjs";
 
-const BASE = process.env.TEST_BASE_URL ?? "http://localhost:4321/dispositif/";
-const ARTICLE = new URL("symmetric-polynomial/", BASE).href;
 const settle = (page) => page.evaluate(async () => {
   for (let i = 0; i < 5; i++) await new Promise(requestAnimationFrame);
 });
 
 test("本文内リンクの履歴ごとに位置と折りたたみを保存し、戻る・進む・一覧からの復帰で復元する", { timeout: 45_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER_PATH || undefined });
+  const browser = await launch(chromium);
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   try {
-    await page.addInitScript(() => localStorage.setItem("dispositif:columns", "single"));
-    await page.goto(new URL("nextjs-mdx/", BASE).href);
-    await page.waitForSelector("html.cl-ready:not(.cl-pending)");
+    await storeColumns(page, "single");
+    await page.goto(new URL("nextjs-mdx/", BASE_URL).href);
+    await waitForColumnLayout(page);
     await page.evaluate(() => document.fonts.ready);
     await page.locator(".cl-source details summary").first().click();
     const link = page.locator('.cl-source a[href^="#"]').filter({ hasText: "参考文献" }).first();
@@ -45,19 +44,19 @@ test("本文内リンクの履歴ごとに位置と折りたたみを保存し�
     await page.locator(".cl-close:visible").click();
     await page.waitForSelector('html[data-page-kind="index"]');
     await page.goBack();
-    await page.waitForSelector('html[data-page-kind="article"].cl-ready:not(.cl-pending)');
+    await waitForColumnLayout(page);
     await settle(page);
     assert.deepEqual(await snapshot(), destination);
   } finally { await browser.close(); }
 });
 
 test("直接のハッシュ変更でも履歴項目を区別し、一覧から記事へ戻れる", { timeout: 45_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER_PATH || undefined });
+  const browser = await launch(chromium);
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   try {
-    await page.addInitScript(() => localStorage.setItem("dispositif:columns", "single"));
-    await page.goto(ARTICLE);
-    await page.waitForSelector("html.cl-ready:not(.cl-pending)");
+    await storeColumns(page, "single");
+    await page.goto(ARTICLE_URL);
+    await waitForColumnLayout(page);
     await settle(page);
     await page.locator(".cl-article-scrollport").evaluate((v) => { v.scrollTop = 2500; });
     await settle(page);
@@ -71,7 +70,7 @@ test("直接のハッシュ変更でも履歴項目を区別し、一覧から�
     await page.locator(".cl-close:visible").click();
     await page.waitForSelector('html[data-page-kind="index"]');
     await page.goBack();
-    await page.waitForSelector('html[data-page-kind="article"].cl-ready:not(.cl-pending)');
+    await waitForColumnLayout(page);
     await settle(page);
     assert.deepEqual(await page.evaluate(() => ({ key: history.state.dispositifReadingKey,
       top: document.querySelector(".cl-article-scrollport").scrollTop })), hashState);
@@ -86,12 +85,12 @@ test("直接のハッシュ変更でも履歴項目を区別し、一覧から�
 });
 
 test("直接のハッシュ変更後に段を切り替えて戻っても元の本文付近へ戻る", { timeout: 45_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER_PATH || undefined });
+  const browser = await launch(chromium);
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   try {
-    await page.addInitScript(() => localStorage.setItem("dispositif:columns", "single"));
-    await page.goto(ARTICLE);
-    await page.waitForSelector("html.cl-ready:not(.cl-pending)");
+    await storeColumns(page, "single");
+    await page.goto(ARTICLE_URL);
+    await waitForColumnLayout(page);
     await page.evaluate(() => document.fonts.ready);
     const heading = page.locator(".cl-source h2").nth(5);
     const name = await heading.innerText();
@@ -112,11 +111,11 @@ test("直接のハッシュ変更後に段を切り替えて戻っても元の�
 });
 
 test("キーボード由来でもdetail=1のクリックでは選択先へフォーカスする", { timeout: 45_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER_PATH || undefined });
+  const browser = await launch(chromium);
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   try {
-    await page.addInitScript(() => localStorage.setItem("dispositif:columns", "multi"));
-    await page.goto(ARTICLE);
+    await storeColumns(page, "multi");
+    await page.goto(ARTICLE_URL);
     await page.waitForSelector(".cl-slot");
     const link = page.locator('[data-toc-variant="header"] .toc-link').nth(1);
     await link.focus();
@@ -126,7 +125,7 @@ test("キーボード由来でもdetail=1のクリックでは選択先へフォ
     });
     await settle(page);
     assert.equal(await page.evaluate(() => document.activeElement.tagName), "H2");
-    await page.goto(new URL("nextjs-mdx/", BASE).href);
+    await page.goto(new URL("nextjs-mdx/", BASE_URL).href);
     await page.waitForSelector(".cl-slot");
     const summary = page.locator(".cl-source details summary").first();
     await summary.focus();
@@ -144,14 +143,14 @@ test("キーボード由来でもdetail=1のクリックでは選択先へフォ
 });
 
 test("履歴復元では折りたたみの開閉状態を先に戻し、中や後の読書位置を保つ", { timeout: 90_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER_PATH || undefined });
+  const browser = await launch(chromium);
   try {
     for (const mode of ["single", "multi"]) for (const location of ["inside", "after"]) {
       const page = await browser.newPage({ viewport: { width: 1280, height: 700 } });
       try {
-        await page.addInitScript((mode) => localStorage.setItem("dispositif:columns", mode), mode);
-        await page.goto(new URL("nextjs-mdx/", BASE).href);
-        await page.waitForSelector("html.cl-ready:not(.cl-pending)");
+        await storeColumns(page, mode);
+        await page.goto(new URL("nextjs-mdx/", BASE_URL).href);
+        await waitForColumnLayout(page);
         await page.evaluate(() => document.fonts.ready);
         await settle(page);
         const summary = page.locator(".cl-source details summary").first();
@@ -177,7 +176,7 @@ test("履歴復元では折りたたみの開閉状態を先に戻し、中や�
         await page.locator(".cl-close:visible").click();
         await page.waitForSelector('html[data-page-kind="index"]');
         await page.goBack();
-        await page.waitForSelector('html[data-page-kind="article"].cl-ready:not(.cl-pending)');
+        await waitForColumnLayout(page);
         await settle(page);
         assert.equal(await page.locator(".cl-source details").first().evaluate((d) => d.open), true, `${mode}: 詳細が閉じた`);
         assert.equal(await page.locator(".cl-source details").nth(1).evaluate((d) => d.open), false, `${mode}: 別の詳細が開いた`);
@@ -192,7 +191,7 @@ test("履歴復元では折りたたみの開閉状態を先に戻し、中や�
           assert.ok(rect && rect.y < 700 && rect.y + rect.height > 0, `${mode}, ${location}: 対象が画面外`);
         }
         await page.reload();
-        await page.waitForSelector('html[data-page-kind="article"].cl-ready:not(.cl-pending)');
+        await waitForColumnLayout(page);
         await settle(page);
         assert.equal(await page.locator(".cl-source details").first().evaluate((d) => d.open), true, `${mode}: 再読込で詳細が閉じた`);
         const reloaded = await page.evaluate((mode) => mode === "single"
@@ -205,14 +204,14 @@ test("履歴復元では折りたたみの開閉状態を先に戻し、中や�
 });
 
 test("履歴から戻ると1段のスクロール位置とn段の縦横位置を復元する", { timeout: 45_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER_PATH || undefined });
+  const browser = await launch(chromium);
   try {
     for (const mode of ["single", "multi"]) {
       const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
       try {
-        await page.addInitScript((mode) => localStorage.setItem("dispositif:columns", mode), mode);
-        await page.goto(ARTICLE);
-        await page.waitForSelector("html.cl-ready:not(.cl-pending)");
+        await storeColumns(page, mode);
+        await page.goto(ARTICLE_URL);
+        await waitForColumnLayout(page);
         await settle(page);
         if (mode === "multi") {
           await page.locator(".cl-viewport").evaluate((v) => { v.scrollLeft += 500; v.scrollTop += 150; });
@@ -223,19 +222,19 @@ test("履歴から戻ると1段のスクロール位置とn段の縦横位置を
           : [document.querySelector(".cl-plane").dataset.clXTicks, document.querySelector(".cl-plane").dataset.clYTicks], mode);
         const before = await position();
         await page.locator(".cl-close:visible").click();
-        await page.waitForURL(BASE);
+        await page.waitForURL(BASE_URL);
         await page.goBack();
-        await page.waitForSelector("html.cl-ready:not(.cl-pending)");
+        await waitForColumnLayout(page);
         await settle(page);
         assert.deepEqual(await position(), before);
         await page.reload();
-        await page.waitForSelector("html.cl-ready:not(.cl-pending)");
+        await waitForColumnLayout(page);
         await settle(page);
         assert.deepEqual(await position(), before, "再読み込み後に履歴項目の位置を失った");
         await page.goForward();
-        await page.waitForURL(BASE);
+        await page.waitForURL(BASE_URL);
         await page.goBack();
-        await page.waitForSelector("html.cl-ready:not(.cl-pending)");
+        await waitForColumnLayout(page);
         await settle(page);
         assert.deepEqual(await position(), before, "再読み込み後の履歴移動で位置を失った");
       } finally { await page.close(); }
@@ -244,12 +243,12 @@ test("履歴から戻ると1段のスクロール位置とn段の縦横位置を
 });
 
 test("本文の幅が変わっても段の切り替えで同じ見出しの位置を保つ", { timeout: 45_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER_PATH || undefined });
+  const browser = await launch(chromium);
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   try {
-    await page.addInitScript(() => localStorage.setItem("dispositif:columns", "single"));
-    await page.goto(ARTICLE);
-    await page.waitForSelector("html.cl-ready:not(.cl-pending)");
+    await storeColumns(page, "single");
+    await page.goto(ARTICLE_URL);
+    await waitForColumnLayout(page);
     await page.evaluate(() => document.fonts.ready);
     const heading = page.locator(".cl-source h2").nth(6);
     const id = await heading.getAttribute("id");
@@ -270,27 +269,27 @@ test("本文の幅が変わっても段の切り替えで同じ見出しの位�
 });
 
 test("別の記事で表示モードを変えてから履歴で戻っても同じ本文付近を表示する", { timeout: 45_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER_PATH || undefined });
+  const browser = await launch(chromium);
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   try {
-    await page.addInitScript(() => localStorage.setItem("dispositif:columns", "single"));
-    await page.goto(ARTICLE);
-    await page.waitForSelector("html.cl-ready:not(.cl-pending)");
+    await storeColumns(page, "single");
+    await page.goto(ARTICLE_URL);
+    await waitForColumnLayout(page);
     await page.evaluate(() => document.fonts.ready);
     const heading = page.locator(".cl-source h2").nth(6);
     const name = await heading.innerText();
     await heading.evaluate((el) => el.scrollIntoView({ block: "start" }));
     await page.locator(".cl-close:visible").click();
-    await page.waitForURL(BASE);
+    await page.waitForURL(BASE_URL);
     await page.locator('[data-article-index] a[href*="nextjs-mdx"]').click();
-    await page.waitForSelector("html.cl-ready:not(.cl-pending)");
+    await waitForColumnLayout(page);
     await page.locator(".cl-toggle").click();
     await page.waitForSelector("html.cl-multi .cl-slot");
     await page.goBack();
-    await page.waitForURL(BASE);
+    await page.waitForURL(BASE_URL);
     await page.waitForSelector('html[data-page-kind="index"]');
     await page.goBack();
-    await page.waitForURL(ARTICLE);
+    await page.waitForURL(ARTICLE_URL);
     await page.waitForSelector('html[data-page-kind="article"].cl-ready.cl-multi .cl-slot');
     await settle(page);
     const visible = await page.locator(".cl-slot h2").evaluateAll((headings, name) => headings
@@ -301,11 +300,11 @@ test("別の記事で表示モードを変えてから履歴で戻っても同�
 });
 
 test("目次で選んだ見出しと、閉じた詳細の見出しに表示位置を合わせてフォーカスする", { timeout: 45_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER_PATH || undefined });
+  const browser = await launch(chromium);
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   try {
-    await page.addInitScript(() => localStorage.setItem("dispositif:columns", "multi"));
-    await page.goto(ARTICLE);
+    await storeColumns(page, "multi");
+    await page.goto(ARTICLE_URL);
     await page.waitForSelector(".cl-slot");
     await page.locator('[data-toc-variant="header"] .toc-link').nth(1).focus();
     await page.keyboard.press("Enter");
@@ -315,7 +314,7 @@ test("目次で選んだ見出しと、閉じた詳細の見出しに表示位�
     assert.equal(focused.tag, "H2");
     assert.ok(focused.rect.x >= 0 && focused.rect.x < 1280 && focused.rect.y >= 0 && focused.rect.y < 900,
       JSON.stringify(focused));
-    await page.goto(new URL("nextjs-mdx/", BASE).href);
+    await page.goto(new URL("nextjs-mdx/", BASE_URL).href);
     await page.waitForSelector(".cl-slot");
     const summary = page.locator(".cl-source details summary").first();
     await summary.focus();
@@ -332,7 +331,7 @@ test("目次で選んだ見出しと、閉じた詳細の見出しに表示位�
 });
 
 test("最初のフレームより前に記事を離れても、その履歴項目の折りたたみとアンカーを上書きしない", { timeout: 45_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER_PATH || undefined });
+  const browser = await launch(chromium);
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   try {
     await page.addInitScript(() => {
@@ -352,8 +351,8 @@ test("最初のフレームより前に記事を離れても、その履歴項�
       };
       window.cancelAnimationFrame = (id) => { if (held?.delete(id)) return; cancel(id); };
     });
-    await page.goto(new URL("nextjs-mdx/", BASE).href);
-    await page.waitForSelector("html.cl-ready:not(.cl-pending)");
+    await page.goto(new URL("nextjs-mdx/", BASE_URL).href);
+    await waitForColumnLayout(page);
     await page.evaluate(() => document.fonts.ready);
     await page.locator(".cl-source details summary").first().click();
     await page.locator(".cl-article-scrollport").evaluate((v) => { v.scrollTop = 1500; });
@@ -372,7 +371,7 @@ test("最初のフレームより前に記事を離れても、その履歴項�
     await page.waitForFunction(() => document.documentElement.dataset.pageKind === "index", null, { polling: 50 });
 
     // A full load hides the page and writes the positions to session storage.
-    await page.goto(BASE);
+    await page.goto(BASE_URL);
     const saved = await page.evaluate((key) => new Map(JSON.parse(sessionStorage.getItem("dispositif:reading-history"))).get(key), key);
     assert.equal(saved?.details?.[0], true, JSON.stringify(saved));
     assert.ok(saved?.anchor, JSON.stringify(saved));
@@ -380,7 +379,7 @@ test("最初のフレームより前に記事を離れても、その履歴項�
 });
 
 test("保存済みの履歴が壊れていても、新しい読書位置を保存する", { timeout: 45_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER_PATH || undefined });
+  const browser = await launch(chromium);
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   try {
     await page.addInitScript(() => {
@@ -390,25 +389,25 @@ test("保存済みの履歴が壊れていても、新しい読書位置を保�
       sessionStorage.setItem("cl-test-damaged", "1");
       sessionStorage.setItem("dispositif:reading-history", "{damaged");
     });
-    await page.goto(ARTICLE);
-    await page.waitForSelector("html.cl-ready:not(.cl-pending)");
+    await page.goto(ARTICLE_URL);
+    await waitForColumnLayout(page);
     await settle(page);
     await page.locator(".cl-article-scrollport").evaluate((v) => { v.scrollTop = 1200; });
     await settle(page);
     const key = await page.evaluate(() => history.state.dispositifReadingKey);
-    await page.goto(BASE);
+    await page.goto(BASE_URL);
     const saved = await page.evaluate((key) => new Map(JSON.parse(sessionStorage.getItem("dispositif:reading-history"))).get(key), key);
     assert.equal(saved?.position, 1200, JSON.stringify(saved));
   } finally { await browser.close(); }
 });
 
 test("n段表示で折りたたみをクリックしても表示位置を動かさず、キーボードのフォーカスには追従する", { timeout: 90_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER_PATH || undefined });
+  const browser = await launch(chromium);
   const open = async () => {
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
-    await page.addInitScript(() => localStorage.setItem("dispositif:columns", "multi"));
-    await page.goto(new URL("nextjs-mdx/", BASE).href);
-    await page.waitForSelector("html.cl-ready:not(.cl-pending)");
+    await storeColumns(page, "multi");
+    await page.goto(new URL("nextjs-mdx/", BASE_URL).href);
+    await waitForColumnLayout(page);
     await page.evaluate(() => document.fonts.ready);
     return page;
   };
@@ -473,17 +472,17 @@ test("n段表示で折りたたみをクリックしても表示位置を動か�
   } finally { await browser.close(); }
 });
 
-for (const [name, engine] of Object.entries({ chromium, firefox })) {
+for (const [name, engine] of engines) {
   test(`${name}: 本文の再計測を待つ間のスクロールも読書位置に反映する`, { timeout: 90_000 }, async () => {
-    const browser = await engine.launch({ executablePath: name === "chromium" ? process.env.TEST_BROWSER_PATH || undefined : undefined });
+    const browser = await launch(engine);
     // Changes the article, which schedules a measurement (fonts and images
     // loading after the first frame do the same), then scrolls horizontally
     // before or after that measurement has run.
     const scrolled = async (change, measured) => {
       const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
-      await page.addInitScript(() => localStorage.setItem("dispositif:columns", "multi"));
-      await page.goto(new URL("nextjs-mdx/", BASE).href);
-      await page.waitForSelector("html.cl-ready:not(.cl-pending)");
+      await storeColumns(page, "multi");
+      await page.goto(new URL("nextjs-mdx/", BASE_URL).href);
+      await waitForColumnLayout(page);
       await page.evaluate(() => document.fonts.ready);
       await settle(page);
       const state = await page.evaluate(async ({ change, measured }) => {

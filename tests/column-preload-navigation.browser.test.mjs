@@ -1,19 +1,18 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { chromium, firefox } from 'playwright-core';
+import { BASE_URL, engines, launch, storeColumns } from "./browser.mjs";
 
-const base = process.env.TEST_BASE_URL ?? 'http://localhost:4321/dispositif/';
-for (const [name, engine] of Object.entries({ chromium, firefox })) {
+for (const [name, engine] of engines) {
   for (const mode of ['single', 'multi']) {
     test(`${name}: ${mode} hover and focus prefetch HTML without a reader iframe`, { timeout: 120_000 }, async () => {
-      const browser = await engine.launch();
+      const browser = await launch(engine);
       try {
         const context = await browser.newContext({ viewport: { width: 900, height: 500 }, reducedMotion: 'reduce' });
-        await context.addInitScript(value => localStorage.setItem('dispositif:columns', value), mode);
+        await storeColumns(context, mode);
         const page = await context.newPage();
         const requests = [];
         page.on('request', request => requests.push({ url: request.url(), type: request.resourceType() }));
-        await page.goto(base);
+        await page.goto(BASE_URL);
         const link = page.locator('a[href$="tips-wsl/"]');
         await link.hover();
         await link.focus();

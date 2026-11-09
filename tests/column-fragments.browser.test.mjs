@@ -2,9 +2,8 @@ import { toggleColumns } from "./column-controls.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { chromium } from "playwright-core";
+import { ARTICLE_URL, launch, storeColumns } from "./browser.mjs";
 
-const ARTICLE_URL = new URL("symmetric-polynomial/",
-  process.env.TEST_BASE_URL ?? "http://localhost:4321/dispositif/").href;
 
 async function settle(page) {
   await page.evaluate(async () => {
@@ -15,7 +14,7 @@ async function settle(page) {
 }
 
 async function open(page, slug = "symmetric-polynomial") {
-  await page.addInitScript(() => localStorage.setItem("dispositif:columns", "multi"));
+  await storeColumns(page, "multi");
   await page.goto(new URL(`../${slug}/`, ARTICLE_URL).href);
   await page.evaluate(() => document.fonts.ready);
   await page.waitForSelector("[data-cl-fragmented]");
@@ -23,7 +22,7 @@ async function open(page, slug = "symmetric-polynomial") {
 }
 
 test("数式・コードを含む記事の断片が元本文と同じ位置・組版を保つ", { timeout: 90_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER_PATH || undefined });
+  const browser = await launch(chromium);
   try {
     for (const [slug, width] of [["symmetric-polynomial", 1280], ["symmetric-polynomial", 390], ["tips-julia", 1280]]) {
       const page = await browser.newPage({ viewport: { width, height: 900 } });
@@ -84,7 +83,7 @@ test("数式・コードを含む記事の断片が元本文と同じ位置・�
 });
 
 test("長い記事でも表示外のブロックを残さず、表示中の断片は再利用する", { timeout: 60_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER_PATH || undefined });
+  const browser = await launch(chromium);
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   try {
     await open(page);
@@ -126,7 +125,7 @@ test("長い記事でも表示外のブロックを残さず、表示中の断�
 });
 
 test("表・番号付きリスト・画像・SVGの内部配置を保つ", { timeout: 60_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER_PATH || undefined });
+  const browser = await launch(chromium);
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   try {
     await open(page);
@@ -167,7 +166,7 @@ test("表・番号付きリスト・画像・SVGの内部配置を保つ", { tim
 });
 
 test("表示外の折りたたみがあっても開閉・コードコピー・ハッシュ移動を維持する", { timeout: 60_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER_PATH || undefined });
+  const browser = await launch(chromium);
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   try {
     await open(page);
@@ -206,7 +205,7 @@ test("表示外の折りたたみがあっても開閉・コードコピー・�
 });
 
 test("n段ではコードを段幅で折り返し、1段では折り返さない", { timeout: 60_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER_PATH || undefined });
+  const browser = await launch(chromium);
   const page = await browser.newPage({ viewport: { width: 390, height: 900 } });
   try {
     await open(page, "tips-rust");

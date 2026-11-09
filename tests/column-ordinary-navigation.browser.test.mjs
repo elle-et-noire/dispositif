@@ -3,15 +3,12 @@
 // tests exercised and that remains supported is checked here in both engines.
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { chromium, firefox } from 'playwright-core';
+import { BASE_URL, engines, launch } from "./browser.mjs";
 
-const base = process.env.TEST_BASE_URL ?? 'http://localhost:4321/dispositif/';
 const KEY = 'dispositif:columns';
 // The reader's own script: a hashed chunk in a build, an Astro module request
 // on the dev server.
 const READER_SCRIPT = /ColumnLayout\.astro(?:_astro_type_script[^/]*\.js|\?astro&type=script)/;
-const selected = process.env.TEST_ENGINES?.split(',');
-const engines = Object.entries({ chromium, firefox }).filter(([name]) => !selected || selected.includes(name));
 
 const frames = (page, count = 2) => page.evaluate(async (count) => {
   for (let i = 0; i < count; i++) await new Promise(requestAnimationFrame);
@@ -79,17 +76,17 @@ const addLink = (page, slug, id) => page.evaluate(([href, id]) => {
   const link = document.createElement('a');
   link.href = href; link.id = id; link.textContent = 'other article';
   document.querySelector('.cl-source .post').append(link);
-}, [new URL(`${slug}/`, base).href, id]);
+}, [new URL(`${slug}/`, BASE_URL).href, id]);
 
 for (const [name, engine] of engines) {
   test(`${name}: ordinary navigation keeps reading points, index position and focus across history`, { timeout: 120_000 }, async () => {
-    const browser = await engine.launch();
+    const browser = await launch(engine);
     try {
       const context = await newContext(browser);
       await setMode(context, 'multi');
       await delayArticle(context, 'tips-python', 1000);
       const page = await context.newPage();
-      await page.goto(base);
+      await page.goto(BASE_URL);
       const link = page.locator('a[href$="tips-wsl/"]');
       await link.scrollIntoViewIfNeeded();
       const listY = await indexScroll(page);
@@ -129,12 +126,12 @@ for (const [name, engine] of engines) {
 
   for (const mode of ['multi', 'single']) {
     test(`${name}: ${mode} contents links update the address and closing restores the index`, { timeout: 120_000 }, async () => {
-      const browser = await engine.launch();
+      const browser = await launch(engine);
       try {
         const context = await newContext(browser);
         await setMode(context, mode);
         const page = await context.newPage();
-        await page.goto(base);
+        await page.goto(BASE_URL);
         const link = page.locator('a[href$="tips-wsl/"]');
         await link.scrollIntoViewIfNeeded();
         const listY = await indexScroll(page);
@@ -145,7 +142,7 @@ for (const [name, engine] of engines) {
         const start = mode === 'multi' ? await stablePoint(page) : undefined;
         const toc = mode === 'multi' ? '[data-toc-variant="header"] .toc-link' : '[data-toc-variant="sidebar"] .toc-link';
         const entry = page.locator(toc).nth(1);
-        const hash = new URL(await entry.getAttribute('href'), base).hash;
+        const hash = new URL(await entry.getAttribute('href'), BASE_URL).hash;
         await entry.click();
         await page.waitForFunction(hash => location.hash === hash, hash);
         assert.ok(hash);
@@ -165,13 +162,13 @@ for (const [name, engine] of engines) {
   }
 
   test(`${name}: switching to one column persists mode, position and fragment history`, { timeout: 120_000 }, async () => {
-    const browser = await engine.launch();
+    const browser = await launch(engine);
     try {
       const context = await newContext(browser);
       await setMode(context, 'multi');
       await watchFrames(context);
       const page = await context.newPage();
-      await page.goto(base);
+      await page.goto(BASE_URL);
       await page.locator('a[href$="tips-wsl/"]').click();
       await articleReady(page, 'tips-wsl');
       await page.locator('.cl-toggle').click();
@@ -212,7 +209,7 @@ for (const [name, engine] of engines) {
   });
 
   test(`${name}: operations during an unfinished navigation leave consistent history`, { timeout: 180_000 }, async () => {
-    const browser = await engine.launch();
+    const browser = await launch(engine);
     try {
       const run = async (label, scenario) => {
         const context = await newContext(browser);
@@ -227,7 +224,7 @@ for (const [name, engine] of engines) {
         await context.close();
       };
       const openIndex = async (page) => {
-        await page.goto(base);
+        await page.goto(BASE_URL);
         const link = page.locator('a[href$="tips-wsl/"]');
         await link.scrollIntoViewIfNeeded();
         return { link, listY: await indexScroll(page), length: await page.evaluate(() => history.length) };
@@ -272,7 +269,7 @@ for (const [name, engine] of engines) {
         assert.equal(await page.evaluate(() => location.pathname.endsWith('/dispositif/')), true);
       });
       await run('back', async (page) => {
-        await page.goto(base);
+        await page.goto(BASE_URL);
         await page.locator('a[href$="tips-python/"]').click();
         await articleReady(page, 'tips-python');
         await page.keyboard.press('ArrowRight');
@@ -294,7 +291,7 @@ for (const [name, engine] of engines) {
   });
 
   test(`${name}: unset, invalid and unavailable settings start single at every width`, { timeout: 180_000 }, async () => {
-    const browser = await engine.launch();
+    const browser = await launch(engine);
     try {
       const cases = [
         ['unset', null], ['invalid', 'bogus'], ['case', 'MULTI'], ['empty', ''],
@@ -333,11 +330,11 @@ for (const [name, engine] of engines) {
             assert.deepEqual(await page.locator('.cl-article-scrollport').evaluate(el => [getComputedStyle(el).clipPath, el.getAttribute('aria-hidden')]), ['none', null], `${label} ${where}`);
           }
         };
-        await page.goto(base);
+        await page.goto(BASE_URL);
         await page.locator('a[href$="tips-python/"]').click();
         await articleReady(page, 'tips-python');
         await check('after index navigation');
-        await page.goto(new URL('tips-wsl/', base).href);
+        await page.goto(new URL('tips-wsl/', BASE_URL).href);
         await articleReady(page, 'tips-wsl');
         await check('on direct access');
         // An explicit choice still works for the current document even when
@@ -354,14 +351,14 @@ for (const [name, engine] of engines) {
   });
 
   test(`${name}: saved choices are used by later ordinary navigations`, { timeout: 120_000 }, async () => {
-    const browser = await engine.launch();
+    const browser = await launch(engine);
     try {
       const context = await newContext(browser);
       await setMode(context, null);
       const page = await context.newPage();
       // The init script runs only for full document loads; this test then uses
       // ordinary router navigations, so the choices below are not reset.
-      await page.goto(base);
+      await page.goto(BASE_URL);
       await page.locator('a[href$="tips-python/"]').click();
       await articleReady(page, 'tips-python');
       assert.equal(await isMulti(page), false);
@@ -388,7 +385,7 @@ for (const [name, engine] of engines) {
 
   for (const mode of ['multi', 'single']) {
     test(`${name}: ${mode} article never paints in the other mode first`, { timeout: 120_000 }, async () => {
-      const browser = await engine.launch();
+      const browser = await launch(engine);
       try {
         const context = await newContext(browser, { viewport: { width: 1440, height: 900 } });
         await setMode(context, mode);
@@ -415,11 +412,11 @@ for (const [name, engine] of engines) {
             assert.equal(paint.active, mode === 'multi', `${where}: ${JSON.stringify(paint)}`);
           }
         };
-        await page.goto(new URL('symmetric-polynomial/', base).href);
+        await page.goto(new URL('symmetric-polynomial/', BASE_URL).href);
         await articleReady(page, 'symmetric-polynomial');
         await frames(page, 4);
         await verify('direct access');
-        await page.goto(base);
+        await page.goto(BASE_URL);
         await page.locator('a[href$="symmetric-polynomial/"]').click();
         await articleReady(page, 'symmetric-polynomial');
         await frames(page, 4);
@@ -431,13 +428,13 @@ for (const [name, engine] of engines) {
   }
 
   test(`${name}: the index is unchanged while hovered and articles match direct access`, { timeout: 120_000 }, async () => {
-    const browser = await engine.launch();
+    const browser = await launch(engine);
     try {
       for (const mode of ['multi', 'single']) {
         const context = await newContext(browser);
         await setMode(context, mode);
         const page = await context.newPage();
-        await page.goto(base);
+        await page.goto(BASE_URL);
         await page.evaluate(() => document.fonts.ready);
         const link = page.locator('a[href$="tips-wsl/"]');
         await link.hover();
@@ -453,7 +450,7 @@ for (const [name, engine] of engines) {
         await frames(page, 4);
         const actual = await page.screenshot();
         const normal = await context.newPage();
-        await normal.goto(new URL('tips-wsl/', base).href);
+        await normal.goto(new URL('tips-wsl/', BASE_URL).href);
         await articleReady(normal, 'tips-wsl');
         await normal.evaluate(() => document.fonts.ready);
         await normal.locator('[data-article-index]').evaluate((el, y) => el.style.setProperty('--article-index-offset', `${-y}px`), listY);
@@ -476,7 +473,7 @@ for (const [name, engine] of engines) {
   });
 
   test(`${name}: failed or late reader initialization keeps the single fallback`, { timeout: 120_000 }, async () => {
-    const browser = await engine.launch();
+    const browser = await launch(engine);
     try {
       const prepare = async (context) => {
         await setMode(context, 'multi');
@@ -500,7 +497,7 @@ for (const [name, engine] of engines) {
         await prepare(context);
         await context.route(READER_SCRIPT, route => route.abort());
         const page = await context.newPage();
-        await page.goto(base);
+        await page.goto(BASE_URL);
         await page.locator('a[href$="tips-python/"]').click({ noWaitAfter: true });
         await page.waitForFunction(() => location.pathname.endsWith('/tips-python/'));
         await visibleFallback(page, 'failed bundle after index navigation');
@@ -514,9 +511,9 @@ for (const [name, engine] of engines) {
         await context.route(READER_SCRIPT, async request => { await gate; await request.continue(); });
         const page = await context.newPage();
         if (route === 'index') {
-          await page.goto(base);
+          await page.goto(BASE_URL);
           await page.locator('a[href$="tips-python/"]').click({ noWaitAfter: true });
-        } else await page.goto(new URL('tips-python/', base).href, { waitUntil: 'commit' });
+        } else await page.goto(new URL('tips-python/', BASE_URL).href, { waitUntil: 'commit' });
         await page.waitForFunction(() => location.pathname.endsWith('/tips-python/') && document.documentElement.dataset.pageKind === 'article');
         await visibleFallback(page, `late bundle (${route}) before initialization`);
         released();
@@ -537,7 +534,7 @@ for (const [name, engine] of engines) {
   test(`${name}: a started reader whose first frame is delayed keeps the saved mode`, { timeout: 120_000 }, async () => {
     // Background tabs do not run animation frames, so the reader's first
     // frame can come after the fallback timer. That is not a failed reader.
-    const browser = await engine.launch();
+    const browser = await launch(engine);
     try {
       for (const route of ['index', 'direct']) {
         const context = await newContext(browser);
@@ -557,12 +554,12 @@ for (const [name, engine] of engines) {
         });
         const page = await context.newPage();
         if (route === 'index') {
-          await page.goto(base);
+          await page.goto(BASE_URL);
           await page.evaluate(() => document.addEventListener('astro:after-swap', () => window.__holdFrames(), { once: true }));
           await page.locator('a[href$="tips-python/"]').click({ noWaitAfter: true });
         } else {
           await context.addInitScript(() => { if (location.pathname.endsWith('/tips-python/')) window.__holdFrames(); });
-          await page.goto(new URL('tips-python/', base).href, { waitUntil: 'commit' });
+          await page.goto(new URL('tips-python/', BASE_URL).href, { waitUntil: 'commit' });
         }
         // Default polling uses animation frames, which are held here.
         await page.waitForFunction(() => document.documentElement.classList.contains('cl-ready'), null, { polling: 50 });
@@ -581,12 +578,12 @@ for (const [name, engine] of engines) {
   });
 
   test(`${name}: printing resumes the exact n-column point, including within a column`, { timeout: 120_000 }, async () => {
-    const browser = await engine.launch();
+    const browser = await launch(engine);
     try {
       const context = await newContext(browser, { viewport: { width: 1440, height: 900 } });
       await setMode(context, 'multi');
       const page = await context.newPage();
-      await page.goto(base);
+      await page.goto(BASE_URL);
       await page.locator('a[href$="symmetric-polynomial/"]').click();
       await articleReady(page, 'symmetric-polynomial');
       await page.evaluate(() => document.querySelector('.cl-viewport').focus({ preventScroll: true }));
@@ -615,7 +612,7 @@ for (const [name, engine] of engines) {
 
   for (const mode of ['multi', 'single']) {
     test(`${name}: ${mode} hover and focus never create reader iframes and still prefetch HTML`, { timeout: 120_000 }, async () => {
-      const browser = await engine.launch();
+      const browser = await launch(engine);
       try {
         const actions = {
           'long hover': async (page, link) => { await link.hover(); await page.waitForTimeout(1000); },
@@ -629,7 +626,7 @@ for (const [name, engine] of engines) {
           await setMode(context, mode);
           await watchFrames(context);
           const page = await context.newPage();
-          await page.goto(base);
+          await page.goto(BASE_URL);
           await page.evaluate(() => document.fonts.ready);
           const requests = [];
           page.on('request', request => {

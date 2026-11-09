@@ -4,11 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { chromium } from "playwright-core";
+import { ARTICLE_URL, launch, storeColumns } from "./browser.mjs";
 
-const ARTICLE_URL = new URL(
-  "symmetric-polynomial/",
-  process.env.TEST_BASE_URL ?? "http://localhost:4321/dispositif/",
-).href;
 const ROW_HEIGHT = 40;
 const ROW_COUNT = 300;
 const COLORS = [[170, 51, 0, 255], [0, 68, 170, 255]];
@@ -136,15 +133,13 @@ async function scrollLogical(page, column, y, phase = 0) {
 }
 
 test("スクロール後も固定高さの各段が続きの本文で描画される", { timeout: 120_000 }, async (t) => {
-  const browser = await chromium.launch({
-    executablePath: process.env.TEST_BROWSER_PATH || undefined,
-  });
+  const browser = await launch(chromium);
   try {
     for (const viewport of [{ width: 1600, height: 1000 }, { width: 390, height: 844 }]) {
       await t.test(`${viewport.width}px の表示領域`, async () => {
         const page = await browser.newPage({ reducedMotion: "reduce", viewport, deviceScaleFactor: 1 });
         try {
-          await page.addInitScript(() => localStorage.setItem("dispositif:columns", "multi"));
+          await storeColumns(page, "multi");
           await page.goto(ARTICLE_URL, { waitUntil: "domcontentloaded" });
           // Synthetic row pixels use a flat canvas; the real list backdrop is
           // exercised separately in column-background.browser.test.mjs.
@@ -379,7 +374,7 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
     await t.test("有限なスクロール面より長い記事でもハッシュとHome/Endが使える", async () => {
       const page = await browser.newPage({ reducedMotion: "reduce", viewport: { width: 900, height: 800 } });
       try {
-        await page.addInitScript(() => localStorage.setItem("dispositif:columns", "multi"));
+        await storeColumns(page, "multi");
         await page.goto(ARTICLE_URL);
         await page.waitForSelector(".cl-slot");
         await page.locator(".cl-source").evaluate((source) => {
@@ -436,7 +431,7 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
       for (const width of [1600, 390]) {
         const page = await browser.newPage({ reducedMotion: "reduce", viewport: { width, height: 900 } });
         try {
-          await page.addInitScript(() => localStorage.setItem("dispositif:columns", "multi"));
+          await storeColumns(page, "multi");
           await page.goto(ARTICLE_URL);
           await page.evaluate(() => document.fonts.ready);
           await page.waitForSelector(".cl-slot");
@@ -489,7 +484,7 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
     await t.test("画面より短い記事は1段で止まり、白紙の段を作らない", async () => {
       const page = await browser.newPage({ reducedMotion: "reduce", viewport: { width: 1600, height: 900 } });
       try {
-        await page.addInitScript(() => localStorage.setItem("dispositif:columns", "multi"));
+        await storeColumns(page, "multi");
         await page.goto(ARTICLE_URL);
         await page.waitForSelector(".cl-slot");
         await page.locator(".cl-source").evaluate((source) => {
@@ -516,7 +511,7 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
     await t.test("全文1個と表示断片に抑え、元本文と印刷・1段表示を維持する", async () => {
       const page = await browser.newPage({ reducedMotion: "reduce", viewport: { width: 1280, height: 900 } });
       try {
-        await page.addInitScript(() => localStorage.setItem("dispositif:columns", "multi"));
+        await storeColumns(page, "multi");
         await page.goto(ARTICLE_URL);
         await page.evaluate(() => document.fonts.ready);
         await page.waitForSelector(".cl-slot .cl-source");
@@ -575,7 +570,7 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
     await t.test("数式記事の高速移動で本文全体のスタイルを再計算しない", async (t) => {
       const page = await browser.newPage({ reducedMotion: "reduce", viewport: { width: 1600, height: 900 } });
       try {
-        await page.addInitScript(() => localStorage.setItem("dispositif:columns", "multi"));
+        await storeColumns(page, "multi");
         await page.goto(ARTICLE_URL);
         await page.evaluate(() => document.fonts.ready);
         await page.waitForSelector(".cl-content mjx-container");
@@ -621,7 +616,7 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
       for (const width of [1600, 390]) {
         const page = await browser.newPage({ reducedMotion: "reduce", viewport: { width, height: 900 } });
         try {
-          await page.addInitScript(() => localStorage.setItem("dispositif:columns", "multi"));
+          await storeColumns(page, "multi");
           await page.goto(ARTICLE_URL);
           await page.evaluate(() => document.fonts.ready);
           await page.waitForSelector(".cl-slot");

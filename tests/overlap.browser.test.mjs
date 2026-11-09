@@ -2,9 +2,8 @@ import { toggleColumns } from "./column-controls.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { chromium } from "playwright-core";
+import { ARTICLE_URL, launch } from "./browser.mjs";
 
-const ARTICLE_URL = new URL("symmetric-polynomial/",
-  process.env.TEST_BASE_URL ?? "http://localhost:4321/dispositif/").href;
 const settle = page => page.evaluate(async () => {
   for (let i = 0; i < 3; i++) await new Promise(requestAnimationFrame);
 });
@@ -23,7 +22,7 @@ async function assertZeroOverlap(page) {
 }
 
 test("保存済みの重なりやCSS指定を無視し、モード変更・リサイズ・再読込後も0に固定する", { timeout: 45_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER_PATH || undefined });
+  const browser = await launch(chromium);
   try {
     for (const width of [390, 1600]) {
       const page = await browser.newPage({ viewport: { width, height: 900 } });

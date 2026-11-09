@@ -2,9 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { chromium } from "playwright-core";
 import { columnScrollbar } from "./column-controls.mjs";
+import { ARTICLE_URL, launch, storeColumns } from "./browser.mjs";
 
-const ARTICLE_URL = new URL("symmetric-polynomial/",
-  process.env.TEST_BASE_URL ?? "http://localhost:4321/dispositif/").href;
 
 async function settle(page) {
   await page.evaluate(async () => {
@@ -31,7 +30,7 @@ async function state(page) {
 }
 
 async function open(page) {
-  await page.addInitScript(() => localStorage.setItem("dispositif:columns", "multi"));
+  await storeColumns(page, "multi");
   await page.goto(ARTICLE_URL);
   await page.waitForSelector(".cl-slot");
   await page.evaluate(() => document.fonts.ready);
@@ -44,7 +43,7 @@ async function open(page) {
 }
 
 test("先頭・末尾で外向きの矢印を押しても同じ位置へ再スクロールしない", { timeout: 45_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER_PATH || undefined });
+  const browser = await launch(chromium);
   const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
   try {
     await open(page);
@@ -92,7 +91,7 @@ async function animationDone(page) {
 }
 
 test("左右キーは途中の位置を通り、連打を合成し、逆入力・ホイール・タッチで中断できる", { timeout: 45_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER_PATH || undefined });
+  const browser = await launch(chromium);
   const page = await browser.newPage({ viewport: { width: 1600, height: 900 }, hasTouch: true });
   try {
     await open(page);
@@ -172,7 +171,7 @@ test("左右キーは途中の位置を通り、連打を合成し、逆入力�
 });
 
 test("ヘッダーの横バーは3pxで下端に接し、本文の間隔は16pxでそろう", { timeout: 30_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER_PATH || undefined, ignoreDefaultArgs: ["--hide-scrollbars"] });
+  const browser = await launch(chromium, { ignoreDefaultArgs: ["--hide-scrollbars"] });
   const page = await browser.newPage({ viewport: { width: 390, height: 900 } });
   try {
     await open(page);
@@ -207,7 +206,7 @@ test("ヘッダーの横バーは3pxで下端に接し、本文の間隔は16px�
 });
 
 test("標準の横バーの矢印はクリック・長押しで本文だけを動かし、端で止まる", { timeout: 30_000 }, async () => {
-  const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER_PATH || undefined, ignoreDefaultArgs: ["--hide-scrollbars"] });
+  const browser = await launch(chromium, { ignoreDefaultArgs: ["--hide-scrollbars"] });
   const page = await browser.newPage({ viewport: { width: 390, height: 900 } });
   try {
     await open(page);
