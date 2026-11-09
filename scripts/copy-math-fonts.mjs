@@ -1,13 +1,13 @@
 // MathJax CHTML の数式フォント (woff2) を、第三者 CDN（jsdelivr）ではなく自前ホスト
 // （同一オリジン）で配信するために node_modules から public/fonts/mjx/ へコピーする。
 //
-// サイト全体の方針（本文・コードフォントの自前ホスト：scripts/generate-fonts.mjs）に
-// 合わせる。数式フォントは最重量資産（mjx-tex-n.woff2 ≈ 161KB）で、これを同一オリジンに
-// 置くことで jsdelivr への DNS+TLS+コネクション確立が消え、HTML を返した HTTP/2 接続へ
-// 多重化される（lib/mathjax.ts の FONT_URL / Layout.astro の preload と対応）。
+// 本文フォント（@fontsource-variable/nunito）と同じく自前でホストする。数式フォントは
+// 最も重い資産で、同一オリジンに置くと jsdelivr への DNS+TLS+コネクション確立が消え、
+// HTML を返した HTTP/2 接続へ多重化される（lib/mathjax.ts の FONT_URL と
+// src/pages/[slug].astro の preload が参照する）。
 //
 // 出力（public/fonts/mjx/*.woff2）は @mathjax/mathjax-tex-font（依存パッケージ）から
-// その場でコピーするだけなので、本文フォントのサブセットと違いコミットせず、predev /
+// その場でコピーするだけなので、コミットせず、predev /
 // prebuild で毎回生成する（フォントのバージョン更新に自動追随する）。
 
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";

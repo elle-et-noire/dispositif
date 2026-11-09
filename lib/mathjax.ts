@@ -1,6 +1,6 @@
 // ビルド時（サーバーサイド）に数式を MathJax v4 の CHTML へ組版するモジュール。
 //
-// plan.md の方針: 数式はビルド時に完全に HTML/CSS へ変換し、ブラウザ側では
+// 数式はビルド時に完全に HTML/CSS へ変換し、ブラウザ側では
 // MathJax の JavaScript を一切実行しない（クライアント JS 0KB）。CHTML が必要と
 // する CSS は実際に使われたグリフのぶんだけ（adaptiveCSS）抽出してページに
 // インライン化し、Web フォント (woff2) は @font-face 経由で同一オリジン（自前ホスト）
@@ -110,9 +110,9 @@ const config = {
     // 既定の newcm ではなく v3 時代の TeX フォントを使う（上記 FONT_URL 参照）。
     // fontPath（@mathjax/%%FONT%%-font）が @mathjax/mathjax-tex-font に解決される。
     font: "mathjax-tex",
-    // plan.md #3: 周囲フォントとの高さ自動合わせを無効化（CPU 負荷削減）。
+    // 周囲フォントとの高さ自動合わせを無効化（CPU 負荷削減）。
     matchFontHeight: false,
-    // plan.md #2: 実際に出現したグリフのぶんだけ CSS を生成する。
+    // 実際に出現したグリフのぶんだけ CSS を生成する。
     adaptiveCSS: true,
     displayOverflow: "overflow",
     // \text / \tag / \eqref の文字を MathJax フォントの字形ボックス（mjx-c）ではなく

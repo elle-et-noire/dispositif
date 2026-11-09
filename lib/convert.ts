@@ -68,7 +68,7 @@ function rehypeBasePaths() {
 // 本文画像の最適化。
 //   - loading=lazy / decoding=async：画面外の（外部ホストの）画像が初期ロードと
 //     メインスレッドを塞がないようにする。
-//   - src 末尾の `#{width}_{height}`（howtowrite.md に記載の記法）を width/height 属性へ
+//   - src 末尾の `#{width}_{height}`（post/how-to-write.md に記載の記法）を width/height 属性へ
 //     変換し、読み込み前から表示領域を確保してレイアウトシフト（CLS）を防ぐ。
 //     アスペクト比の維持は globals.css の `.post img { height: auto }` が担う。
 function rehypeArticleImages() {
