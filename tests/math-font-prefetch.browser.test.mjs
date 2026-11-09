@@ -167,7 +167,7 @@ for (const [name, engine] of engines) {
       await page.waitForTimeout(300);
       await math.click();
       await page.waitForURL('**/symmetric-polynomial/');
-      await page.waitForSelector('html.rm-ready');
+      await page.waitForSelector('html.rm-ready:not(.rm-pending)');
       const kept = await page.evaluate(() => [...document.querySelectorAll('style[data-math-font]')].map(style => style.dataset.mathFont));
       assert.deepEqual(kept.sort(), [...families].sort(), 'rules of faces not yet loaded must stay');
       await page.evaluate(() => document.fonts.ready);
