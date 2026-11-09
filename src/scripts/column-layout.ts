@@ -58,8 +58,9 @@ export function initializeColumnLayout() {
   // entry its own key; the positions stay in memory rather than writing to
   // history or storage on every scroll frame.
   const restoringEntry = typeof history.state?.dispositifReadingKey === "string";
+  const newHistoryKey = () => `${Date.now()}-${Math.random()}`;
   const ensureHistoryKey = () => {
-    const key: string = history.state?.dispositifReadingKey ?? `${Date.now()}-${Math.random()}`;
+    const key: string = history.state?.dispositifReadingKey ?? newHistoryKey();
     if (history.state && !history.state.dispositifReadingKey) {
       history.replaceState({ ...history.state, dispositifReadingKey: key }, "");
     }
@@ -665,8 +666,25 @@ export function initializeColumnLayout() {
     event.preventDefault();
     // The header's handler still needs the click to close its disclosure.
     if (!link.closest("[data-toc]")) event.stopPropagation();
+    // As in 1段, where the browser follows these links itself, a link in the
+    // article adds a history entry; the table of contents and equation
+    // references replace the current one.
+    const newEntry = Boolean(link.closest(".cl-slot")) && !link.matches('[href^="#mjx-eqn"]')
+      && url.href !== location.href;
+    if (newEntry) {
+      syncPosition();
+      saveHistoryPosition(); saveHistoryDetails(); saveHistoryAnchor();
+      entryKey = newHistoryKey();
+      historyIndex += 1;
+      history.pushState({ index: historyIndex, scrollX: window.scrollX, scrollY: window.scrollY,
+        dispositifReadingKey: entryKey }, "", url.hash);
+      // Astro's router tracks the index and URL it last saw; without this it
+      // would treat a later Back to the previous entry as a page change.
+      window.dispatchEvent(new PopStateEvent("popstate", { state: history.state }));
+    }
     navigate(target);
-    history.replaceState(history.state, "", url.hash);
+    if (newEntry) { saveHistoryPosition(); saveHistoryDetails(); }
+    else history.replaceState(history.state, "", url.hash);
     if (fromKeyboard) {
       if (!target.hasAttribute("tabindex")) {
         target.tabIndex = -1;
