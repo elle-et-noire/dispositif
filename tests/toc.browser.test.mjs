@@ -250,7 +250,7 @@ test("1段のサイドバー目次とn段の上部目次を切り替えて使え
       } finally { await page.close(); }
     });
 
-    // ROADMAP 2.1: after a keyboard jump, the next Tab continues in the
+    // After a keyboard jump, the next Tab continues in the
     // article after the heading instead of returning to the table of contents.
     for (const [mode, width, variant] of [
       ["single", 1600, "sidebar"], ["single", 390, "mobile"], ["multi", 1600, "header"], ["multi", 390, "header"],
