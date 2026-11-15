@@ -17,6 +17,7 @@ interface Block extends Box {
 
 interface RenderedRange {
   revision: number;
+  extension: number;
   from: number;
   to: number;
   /** The `from` of the last call, for the direction of travel. */
@@ -33,6 +34,8 @@ export class ColumnFragments {
   private details = new WeakMap<HTMLDetailsElement, number>();
   private collapsedStarts = new WeakMap<FragmentElement, number>();
   private revision = 0;
+  /** Counts measurements that only added blocks after the measured ones. */
+  private extension = 0;
   private rendered = new WeakMap<HTMLElement, RenderedRange>();
 
   constructor(private source: HTMLElement) {}
@@ -47,6 +50,8 @@ export class ColumnFragments {
     const visit = (parent: HTMLElement) => {
       for (const element of parent.children) {
         if (!(element instanceof HTMLElement || element instanceof SVGElement) || element.matches("script, style")) continue;
+        // Blocks not shown yet (data-cl-defer, column-layout.ts) have no box.
+        if (getComputedStyle(element).display === "none") continue;
         const rect = element.getBoundingClientRect();
         const box = {
           top: (rect.top - sourceBox.top) / scale,
@@ -92,13 +97,21 @@ export class ColumnFragments {
     };
     visit(this.source);
     blocks.sort((a, b) => a.top - b.top);
-    const unchanged = !force && boxes.size === this.boxes.size
-      && [...boxes].every(([element, box]) => {
-        const old = this.boxes.get(element);
-        return old && this.collapsedStarts.get(element) === collapsedStarts.get(element)
-          && (Object.keys(box) as (keyof Box)[]).every((key) => Math.abs(old[key] - box[key]) < 0.01);
-      });
+    const kept = (element: FragmentElement) => {
+      const old = this.boxes.get(element);
+      const box = boxes.get(element);
+      return old && box && this.collapsedStarts.get(element) === collapsedStarts.get(element)
+        && (Object.keys(box) as (keyof Box)[]).every((key) => Math.abs(old[key] - box[key]) < 0.01);
+    };
+    const unchanged = !force && boxes.size === this.boxes.size && [...boxes.keys()].every(kept);
     if (unchanged) return;
+    // Showing the text left out of the first frame (data-cl-defer,
+    // column-layout.ts) adds blocks after the others and lengthens their
+    // parents. The copies made so far stay where they are; render() only
+    // looks for the new blocks.
+    const extended = !force && this.blocks.length > 0 && blocks.length > this.blocks.length
+      && this.blocks.every((block) => kept(block.element))
+      && blocks.slice(0, this.blocks.length).every((block, i) => block.element === this.blocks[i].element);
     this.boxes = boxes;
     this.collapsedStarts = collapsedStarts;
     this.blocks = blocks;
@@ -106,7 +119,7 @@ export class ColumnFragments {
     this.bottomBounds = blocks.map((block) => (bottom = Math.max(bottom, block.bottom)));
     this.details = new WeakMap(Array.from(this.source.querySelectorAll<HTMLDetailsElement>("details"),
       (details, i) => [details, i]));
-    this.revision++;
+    if (extended) this.extension++; else this.revision++;
   }
 
   createContent() {
@@ -115,6 +128,7 @@ export class ColumnFragments {
     content.classList.add("cl-content");
     content.removeAttribute("id");
     content.removeAttribute("style");
+    content.removeAttribute("data-cl-defer");
     content.dataset.clFragmented = "";
     return content;
   }
@@ -165,8 +179,16 @@ export class ColumnFragments {
     if (!state || state.revision !== this.revision) {
       content.replaceChildren();
       content.style.height = `${length}px`;
-      state = { revision: this.revision, from: Infinity, to: -Infinity, at: from, blocks: new Map(), parents: new Map() };
+      state = { revision: this.revision, extension: this.extension, from: Infinity, to: -Infinity, at: from,
+        blocks: new Map(), parents: new Map() };
       this.rendered.set(content, state);
+    }
+    if (state.extension !== this.extension) {
+      state.extension = this.extension;
+      content.style.height = `${length}px`;
+      for (const [parent, shell] of state.parents) this.place(shell, this.boxes.get(parent)!);
+      state.from = Infinity;
+      state.to = -Infinity;
     }
     // A small pixel margin covers native scrolling between JS updates; it is
     // independent of article length and never retains departed blocks. Native
