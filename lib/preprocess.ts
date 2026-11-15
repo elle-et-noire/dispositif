@@ -149,5 +149,13 @@ ${content}
     }).replace(/^(`{3,})mermaid([^`]+)\1/g, "\n<div class='mermaid'>%%{init:{'theme':'base','themeVariables':{'primaryColor':'#007777','primaryTextColor':'#f0f6fc','primaryBorderColor':'#008888','secondaryColor':'#145055','tertiaryColor': '#fff0f0','edgeLabelBackground':'#002b3600','lineColor':'#007777CC','noteTextColor':'#e2e8f0','noteBkgColor':'#007777BB','textColor':'#f0f6fc','fontSize':'16px'},'themeCSS':'text.actor {font-size:20px !important;}'}}%%$2</div>\n")
     );
 
+  // $ の数式の波括弧が閉じないまま本文が終わると、上の置換は残りの本文をすべて
+  // その数式に取り込み、本文から消してしまう。報告には、記事内で検索できるよう、
+  // 取り込みの始まりの $…$ を書かれた形で出す。
+  if (opnum > clnum) {
+    const [, head] = evacuees[`inmath${ord}`].split(/\\[()]/);
+    throw new Error(`数式の波括弧が閉じていません。\n$${head.replace(spacer, "")}$`);
+  }
+
   return { processible, mathexprs };
 }
