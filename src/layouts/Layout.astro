@@ -81,7 +81,8 @@ const {
         const source = doc.querySelector(".cl-source");
         const reader = doc.querySelector(".cl-reader");
         const plane = reader?.querySelector(".cl-plane");
-        if (!source || !plane || plane.firstChild || reader.nextElementSibling !== source) return;
+        const copies = plane?.querySelector(":scope > .cl-copies");
+        if (!source || !copies || plane.firstChild !== copies || copies.firstChild || reader.nextElementSibling !== source) return;
         // The same structure as the reader's mountSlot().
         const part = (name) => {
           const element = doc.createElement("div");
@@ -95,7 +96,7 @@ const {
         source.style.width = "var(--cl-column-width)";
         slot.append(source, paper);
         track.append(slot);
-        plane.append(track);
+        plane.insertBefore(track, copies);
         reader.hidden = false;
         // The article's n段 layout too (not the header's, which is visible):
         // Firefox rebuilds the text's boxes when its ancestors change position.
@@ -134,7 +135,8 @@ const {
         reader.after(source);
         source.classList.remove("cl-content");
         source.style.removeProperty("width");
-        reader.querySelector(".cl-plane").replaceChildren();
+        const plane = reader.querySelector(".cl-plane");
+        plane.replaceChildren(plane.querySelector(":scope > .cl-copies"));
         reader.hidden = true;
       };
       document.addEventListener("astro:before-swap", (event) => {

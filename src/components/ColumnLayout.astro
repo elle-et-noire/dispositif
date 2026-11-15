@@ -6,6 +6,12 @@
 // The viewport's name stays short and carries no key instructions: screen
 // readers speak it whenever a click or text selection focuses the viewport,
 // and they read the original text in order, not the visual columns.
+//
+// The original's column (.cl-track) is the plane's first child, and the copies'
+// columns go at the end of .cl-copies, which has no box. Adding a copy as a
+// sibling of the original's column restyled the whole original text in the
+// reader's first frame: in Firefox when the original's column stopped being
+// the last child, in Chromium when the copy went before a later sibling.
 ---
 <div class="cl-reader" hidden>
   <div
@@ -14,7 +20,7 @@
     role="region"
     aria-label="n段の本文"
   >
-    <div class="cl-plane"></div>
+    <div class="cl-plane"><div class="cl-copies"></div></div>
   </div>
 </div>
 <slot />
