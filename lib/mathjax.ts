@@ -68,7 +68,12 @@ const config = {
     ],
   },
   tex: {
-    packages: { "[+]": ["html", "physics", "mathtools", "color", "upgreek", "centernot", "tagformat", "amscd"] },
+    packages: {
+      "[+]": ["html", "physics", "mathtools", "color", "upgreek", "centernot", "tagformat", "amscd"],
+      // noundefined は未定義のマクロを赤字のマクロ名として組版し、誤りにしない。
+      // findTexErrors が未定義のマクロを検出できるよう、外して TeX の誤り（mjx-merror）にする。
+      "[-]": ["noundefined"],
+    },
     inlineMath: [["$", "$"], ["\\(", "\\)"]],
     displayMath: [["$$", "$$"], ["\\[", "\\]"]],
     macros: {
@@ -188,24 +193,43 @@ export function renderArticleMath(texList: string[]): Promise<RenderedMath> {
     await mathjax.handleRetriesFor(() => doc.render());
 
     const html = new Array<string>(texList.length).fill("");
+    const errors: string[] = [];
     for (const slot of adaptor.childNodes(adaptor.body(doc.document)) ?? []) {
       if (adaptor.kind(slot) !== "div") continue;
       const attr = adaptor.getAttribute(slot, "data-mjx-slot");
       if (attr == null) continue;
       const containers: MathJaxNode[] = [];
+      // 組版されずに残った TeX。MathJax が区切り記号の対を見つけられなかった数式
+      // （例: 波括弧が閉じていない）は、mjx-container にならず文字のまま残る。
+      let leftover = "";
       const walk = (node: MathJaxNode) => {
-        if (adaptor.kind(node) === "mjx-container") {
+        const kind = adaptor.kind(node);
+        if (kind === "mjx-container") {
           containers.push(node);
           return;
         }
+        if (kind === "#text") leftover += adaptor.value(node);
+        if (kind.startsWith("#")) return;
         for (const child of adaptor.childNodes(node) ?? []) walk(child);
       };
       walk(slot);
+      const problems = [
+        ...(leftover.trim() ? ["数式として読み取れません。区切り記号や波括弧が閉じているか確かめてください。"] : []),
+        ...containers.flatMap((container) => findTexErrors(adaptor, container)),
+      ];
+      if (problems.length) {
+        errors.push(`${texSource(texList[Number(attr)])}\n${problems.map((problem) => `  ${problem}`).join("\n")}`);
+        continue;
+      }
       for (const container of containers) {
         labelForScreenReaders(adaptor, container);
         dropLatexSource(adaptor, container);
       }
       html[Number(attr)] = containers.map((c) => adaptor.outerHTML(c)).join("");
+    }
+
+    if (errors.length) {
+      throw new Error(`数式の誤りが${errors.length}件あります。\n${errors.join("\n")}`);
     }
 
     const css = adaptor.textContent(MathJax.chtmlStylesheet());
@@ -219,6 +243,34 @@ export function renderArticleMath(texList: string[]): Promise<RenderedMath> {
     () => undefined,
   );
   return result;
+}
+
+// MathJax は TeX の誤りでも例外を投げず、誤りを組版結果に書き込む。TeX の文法の
+// 誤りと未定義のマクロは mjx-merror になり、data-mjx-error に理由が入る。\ref と
+// \eqref は、記事内にないラベルを指すと「(???)」と href="#" のリンクになる。
+function findTexErrors(adaptor: LiteAdaptor, container: MathJaxNode): string[] {
+  const errors: string[] = [];
+  const walk = (node: MathJaxNode) => {
+    const kind = adaptor.kind(node);
+    if (kind.startsWith("#")) return;
+    if (kind === "mjx-merror") {
+      errors.push(adaptor.getAttribute(node, "data-mjx-error") ?? "TeX の誤りです。");
+      return;
+    }
+    if (kind === "a" && adaptor.getAttribute(node, "href") === "#") {
+      errors.push("\\ref・\\eqref が指すラベルが記事内にありません。");
+    }
+    for (const child of adaptor.childNodes(node) ?? []) walk(child);
+  };
+  walk(container);
+  return errors;
+}
+
+// 誤りの報告に出す TeX。記事内で検索できるよう、preprocess.ts がインライン数式に
+// 足した区切り記号と前後の間隔を外す。
+function texSource(tex: string): string {
+  const inline = tex.match(/^\\\((?:\\hspace\{[^{}]*\})?([\s\S]*?)(?:\\hspace\{[^{}]*\})?\\\)$/);
+  return inline ? inline[1] : tex;
 }
 
 // 支援技術向けに、数式を TeX のソースで読ませる（docs/math-accessibility.md）。
@@ -276,6 +328,7 @@ type LiteAdaptor = {
   removeAttribute: (node: MathJaxNode, name: string) => void;
   outerHTML: (node: MathJaxNode) => string;
   textContent: (node: MathJaxNode) => string;
+  value: (node: MathJaxNode) => string;
 };
 
 type MathJaxInstance = {

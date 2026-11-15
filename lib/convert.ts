@@ -15,6 +15,7 @@ import { preprocessMarkdown } from "./preprocess";
 import { renderArticleMath } from "./mathjax";
 import { mathFontFaces, type MathFont } from "./math-fonts";
 import { withBase } from "./base";
+import { rehypeToc, type Heading } from "./toc";
 
 // 本文リンクの安全化。Next 版の component/safelink.tsx と同じ方針：
 // 外部リンク（/ や # で始まらない）は新規タブで開き rel を付ける。
@@ -94,6 +95,8 @@ export type Converted = {
   html: string;
   // この記事で実際に使われたグリフぶんの CHTML スタイルシート。
   css: string;
+  // 目次の項目（本文の h2・h3）。
+  headings: Heading[];
 };
 
 // 記事ページと、全ページに入る記事一覧（各記事の数式フォント）の両方が同じ記事を変換する。
@@ -124,6 +127,7 @@ const convert = async (text: string): Promise<Converted> => {
 
   // 収集した数式をビルド時に一括で CHTML へ組版する。
   const { html: mathHtml, css } = await renderArticleMath(mathexprs);
+  const headings: Heading[] = [];
 
   // remark/rehype パイプライン。Next 版（next-mdx-remote の compileMDX）と同じく
   // remark-gfm → rehype-pretty-code → rehype-slug を通すが、出力は React ではなく
@@ -145,6 +149,7 @@ const convert = async (text: string): Promise<Converted> => {
     })
     .use(rehypeRaw)
     .use(rehypeSlug)
+    .use(rehypeToc({ headings, mathHtml }))
     .use(rehypeSafeLinks)
     .use(rehypeArticleImages)
     .use(rehypeBasePaths)
@@ -157,5 +162,5 @@ const convert = async (text: string): Promise<Converted> => {
     .replace(/<span data-im="(\d+)"><\/span>/g, (_, i: string) => `<span>${mathHtml[Number(i)] ?? ""}</span>`)
     .replace(/<span data-dm="(\d+)"><\/span>/g, (_, i: string) => `<span class="scrollable">${mathHtml[Number(i)] ?? ""}</span>`);
 
-  return { html, css };
+  return { html, css, headings };
 };
