@@ -26,6 +26,8 @@
 // "visible" is when cl-pending is removed, inside the reader's first frame;
 // "painted" is the first task after that frame, so visible→painted holds the
 // style, layout and paint of the first frame that shows the article.
+// "text" is when the reader shows the text it left out of the first frame
+// (data-cl-defer), and "text-painted" the first task after the next frame.
 import { chromium, firefox } from 'playwright-core';
 
 const base = process.argv[2] ?? 'http://localhost:4321/dispositif/';
@@ -62,7 +64,15 @@ const probe = () => {
       channel.port1.onmessage = () => t('painted');
       channel.port2.postMessage(null);
     }
-  }).observe(document, { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] });
+    if (window.clT?.visible !== undefined && window.clT.text === undefined && !document.querySelector('.cl-source[data-cl-defer]')) {
+      t('text');
+      requestAnimationFrame(() => {
+        const channel = new MessageChannel();
+        channel.port1.onmessage = () => t('text-painted');
+        channel.port2.postMessage(null);
+      });
+    }
+  }).observe(document, { subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'data-cl-defer'] });
   observe();
   window.clLoaf = [];
   try {

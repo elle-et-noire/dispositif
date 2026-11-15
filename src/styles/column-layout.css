@@ -112,6 +112,9 @@
 
   .cl-layout { grid-template-rows: 3rem auto; }
   .cl-source { grid-column: 1; grid-row: 2; }
+  /* The article's first layout covers only these first blocks; the reader
+     shows the rest (data-cl-defer, Layout.astro and column-layout.ts). */
+  .cl-source[data-cl-defer] > .post > :nth-child(n+13):not([data-cl-shown]) { display: none; }
   .cl-sidebar {
     grid-column: 1;
     grid-row: 1 / 3;

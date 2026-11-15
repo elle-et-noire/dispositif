@@ -122,6 +122,34 @@ export function initializeColumnLayout() {
   let headings: { id: string; t: number }[] = [];
   const fragments = new ColumnFragments(source);
 
+  // Layout.astro leaves the blocks after the first few out of the first
+  // layout of a freshly opened article (data-cl-defer, column-layout.css), so
+  // that only the text near the start is styled and laid out before the first
+  // frame. showText() adds blocks until the text reaches a given offset, and
+  // showAllText() shows the rest once that frame is painted, or earlier on
+  // input, printing or a history move, which may need any part of the text.
+  const post = source.querySelector<HTMLElement>(":scope > .post");
+  const showText = (extent: number) => {
+    if (!post || !source.hasAttribute("data-cl-defer")) return;
+    const blocks = [...post.children] as HTMLElement[];
+    let next = blocks.findIndex((block) => !block.hasAttribute("data-cl-shown")
+      && getComputedStyle(block).display === "none");
+    if (next < 0) return;
+    for (let batch = Math.max(4, next); next < blocks.length; batch *= 2) {
+      const last = blocks[next - 1];
+      if (last && offsetOf(last) + last.getBoundingClientRect().height >= extent) return;
+      const end = Math.min(blocks.length, next + batch);
+      for (; next < end; next++) blocks[next].setAttribute("data-cl-shown", "");
+    }
+  };
+  const showAllText = () => {
+    if (!source.hasAttribute("data-cl-defer")) return;
+    source.removeAttribute("data-cl-defer");
+    post?.querySelectorAll(":scope > [data-cl-shown]").forEach((block) => block.removeAttribute("data-cl-shown"));
+    // Key and pointer handlers that run after this need the whole length.
+    if (multi) { cancelAnimationFrame(measuring); measure(); }
+  };
+
   const offsetOf = (element: Element) => {
     const box = source.getBoundingClientRect();
     const scale = box.width / (parseFloat(getComputedStyle(source).width) || box.width);
@@ -409,12 +437,16 @@ export function initializeColumnLayout() {
     if (!slots.length) {
       if (premounted) { slots.push(premounted); premounted = undefined; } else mountSlot(source);
     }
+    // The visible columns and the next ones on either side.
+    showText(position + (Math.ceil(viewport.clientWidth / w) + 2) * h);
     const sourceBox = source.getBoundingClientRect();
     const scale = sourceBox.width / (parseFloat(getComputedStyle(source).width) || sourceBox.width);
     const l = Math.max(1, Math.ceil(sourceBox.height / scale));
     fragments.measure(dirty);
-    headings = Array.from(source.querySelectorAll<HTMLElement>("h2[id], h3[id]"),
-      (heading) => ({ id: heading.id, t: offsetOf(heading) }));
+    // Headings not shown yet (data-cl-defer) have no box.
+    headings = Array.from(source.querySelectorAll<HTMLElement>("h2[id], h3[id]"))
+      .filter((heading) => heading.getClientRects().length)
+      .map((heading) => ({ id: heading.id, t: offsetOf(heading) }));
     const layout = createLayout(w, gap, h, l, viewport.clientWidth, edge);
     // Layout changes preserve the logical anchor; ordinary observations never
     // reconstruct application state from native positions.
@@ -573,6 +605,7 @@ export function initializeColumnLayout() {
   // The original normally lives inside the reader. Return it to the document
   // for printing, where the reader is hidden, then resume the saved position.
   const suspendForPrint = () => {
+    showAllText();
     if (suspendedForPrint) return;
     suspendedForPrint = true;
     resumeAfterPrint = multi;
@@ -808,6 +841,7 @@ export function initializeColumnLayout() {
 
   let restoredHash: string | undefined;
   window.addEventListener("popstate", () => {
+    showAllText();
     if (!historyReady || location.pathname + location.search !== articlePath) return;
     // Native fragment navigation can create an entry with null state. Astro's
     // router ignores such entries, so give it a normal index and notify it.
@@ -853,19 +887,30 @@ export function initializeColumnLayout() {
     }
   }, { signal });
   window.addEventListener("hashchange", () => {
+    showAllText();
     if (restoredHash === location.hash) { restoredHash = undefined; return; }
     restoredHash = undefined;
     followHash();
   }, { signal });
 
+  // Window listeners in the capture phase run before every other handler.
+  for (const type of ["keydown", "pointerdown", "wheel", "touchstart"]) {
+    window.addEventListener(type, showAllText, { capture: true, passive: true, signal });
+  }
+
   root.classList.add("cl-ready");
   // All astro:page-load handlers (including copy-button enhancement) finish first.
+  let textFrame = 0;
   const initialFrame = requestAnimationFrame(() => {
     try {
+      // A saved position or a fragment can be anywhere in the text.
+      if (savedHistoryPosition || location.hash) showAllText();
       // Restore disclosure layout before measuring or applying a saved offset.
       if (savedHistoryPosition) restoreDetails(savedHistoryPosition);
       applyDefault();
       releasePremounted();
+      // In n段, measure() has shown the text for the visible columns.
+      if (!multi) showText(2 * window.innerHeight);
       if (savedHistoryPosition) restoreHistoryPosition(savedHistoryPosition);
       else followHash();
       historyReady = true;
@@ -876,6 +921,16 @@ export function initializeColumnLayout() {
       root.classList.remove("cl-pending");
       // Set with cl-pending by Layout.astro.
       articleScrollport.removeAttribute("aria-hidden");
+      // A frame callback runs only after the previous frame, this one, is
+      // produced; the task it posts shows the rest of the text after that.
+      // (Firefox can run a timer before a message posted earlier.)
+      if (source.hasAttribute("data-cl-defer")) {
+        textFrame = requestAnimationFrame(() => {
+          const channel = new MessageChannel();
+          channel.port1.onmessage = () => { if (!signal.aborted) showAllText(); };
+          channel.port2.postMessage(null);
+        });
+      }
     }
   });
   const saveReaderState = () => {
@@ -895,7 +950,7 @@ export function initializeColumnLayout() {
     controller.abort();
     resizeObserver.disconnect();
     mutationObserver.disconnect();
-    [initialFrame, measuring, scrolling, offscreenFrame].forEach(cancelAnimationFrame);
+    [initialFrame, measuring, scrolling, offscreenFrame, textFrame].forEach(cancelAnimationFrame);
     root.classList.remove("cl-multi", "cl-ready");
     article.style.removeProperty("--cl-header-height");
     if (toolbar) toolbarParent?.insertBefore(toolbar, toolbarNextSibling);

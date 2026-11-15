@@ -102,6 +102,18 @@ const {
         // Firefox rebuilds the text's boxes when its ancestors change position.
         doc.documentElement.classList.add("cl-premount");
       };
+      // Leave all but the first blocks of the article text out of its first
+      // layout (column-layout.css), which is then a fraction of the whole
+      // article; the reader shows the rest once its first frame is painted
+      // (column-layout.ts). Not for a fragment or a history entry: the
+      // position can then be anywhere in the text, and the reader shows it
+      // all at once anyway. Without JavaScript nothing is left out.
+      const deferText = (doc, url, traverse) => {
+        if (doc.documentElement.dataset.pageKind !== "article" || url.hash || traverse) return false;
+        const source = doc.querySelector(".cl-source");
+        source?.setAttribute("data-cl-defer", "");
+        return Boolean(source);
+      };
       // On a full page load, the head script runs before the body is parsed.
       // Mark the scrollport aria-hidden as soon as the parser attaches it, and
       // in n段 move .cl-source as soon as it is attached (right after
@@ -111,17 +123,20 @@ const {
       // checkpoint after the parser task that inserted the element, before the
       // next rendering opportunity. Both elements come before the article
       // text, so the observer stops early. (An inline script in the body
-      // would block the parser and cost Firefox a style pass.)
+      // would block the parser and cost Firefox a style pass.) A reload keeps
+      // the history entry's state, from which the reader restores the position.
       if (document.documentElement.classList.contains("cl-pending")) {
         let hidden = false;
         let column = wantsColumn(document, location);
+        let defer = !location.hash && typeof history.state?.dispositifReadingKey !== "string";
         const observer = new MutationObserver(() => {
           if (!hidden) hidden = hideArticle(document);
+          if (defer && deferText(document, location, false)) defer = false;
           if (column && document.querySelector(".cl-source")) {
             column = false;
             premountColumn(document, location);
           }
-          if (hidden && !column) observer.disconnect();
+          if (hidden && !column && !defer) observer.disconnect();
         });
         observer.observe(document, { childList: true, subtree: true });
         document.addEventListener("DOMContentLoaded", () => observer.disconnect(), { once: true });
@@ -144,6 +159,7 @@ const {
         if (event.newDocument.documentElement.classList.contains("cl-pending")) hideArticle(event.newDocument);
         // The address bar still shows the old page here.
         premountColumn(event.newDocument, event.to);
+        deferText(event.newDocument, event.to, event.navigationType === "traverse");
       });
       // If the reader bundle fails or stalls, leave a usable single-column
       // article instead of keeping the content hidden indefinitely.
@@ -160,6 +176,7 @@ const {
           if (root !== document.documentElement || !root.classList.contains("cl-pending")
             || root.classList.contains("cl-ready")) return;
           unmountColumn();
+          document.querySelector(".cl-source")?.removeAttribute("data-cl-defer");
           root.classList.add("cl-fallback");
           root.classList.remove("cl-pending");
           document.querySelector(".cl-article-scrollport")?.removeAttribute("aria-hidden");

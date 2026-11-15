@@ -212,11 +212,14 @@ const { headings, variant = "header" } = Astro.props;
         const { classList } = document.documentElement;
         if (classList.contains("cl-multi") || classList.contains("cl-premount")) return;
         const offset = activeOffset();
+        // Headings not shown yet (data-cl-defer, column-layout.ts) have no
+        // box, and come after the shown ones.
         const current =
           [...headings]
             .reverse()
             .find(
               (heading) =>
+                heading.getClientRects().length > 0 &&
                 heading.getBoundingClientRect().top <=
                 offset,
             ) ??
