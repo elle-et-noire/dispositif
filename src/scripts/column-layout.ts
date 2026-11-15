@@ -45,6 +45,7 @@ export function initializeColumnLayout() {
   const viewport = document.querySelector<HTMLElement>(".cl-viewport");
   const reader = document.querySelector<HTMLElement>(".cl-reader");
   const plane = document.querySelector<HTMLElement>(".cl-plane");
+  const copies = plane?.querySelector<HTMLElement>(":scope > .cl-copies");
   const ruler = document.querySelector<HTMLElement>(".cl-ruler");
   const toggle = document.querySelector<HTMLButtonElement>(".cl-toggle");
   const header = document.querySelector<HTMLElement>("[data-site-header]");
@@ -52,7 +53,7 @@ export function initializeColumnLayout() {
   const toolbar = document.querySelector<HTMLElement>(".cl-toolbar");
   const toolbarParent = toolbar?.parentNode;
   const toolbarNextSibling = toolbar?.nextSibling ?? null;
-  if (!source || !articleScrollport || !viewport || !reader || !plane || !ruler || !toggle) return;
+  if (!source || !articleScrollport || !viewport || !reader || !plane || !copies || !ruler || !toggle) return;
 
   // Astro preserves state properties on history traversal. Give each article
   // entry its own key; the positions stay in memory rather than writing to
@@ -196,6 +197,11 @@ export function initializeColumnLayout() {
     document.dispatchEvent(new CustomEvent("cl:heading", { detail: { id } }));
   };
 
+  const clearPlane = () => {
+    copies.replaceChildren();
+    plane.replaceChildren(copies);
+  };
+
   const mountSlot = (content: HTMLElement) => {
     content.classList.add("cl-content");
     const track = document.createElement("div");
@@ -209,7 +215,8 @@ export function initializeColumnLayout() {
     paper.setAttribute("aria-hidden", "true");
     slot.appendChild(paper);
     track.appendChild(slot);
-    plane.appendChild(track);
+    // The original first in the plane, the copies in .cl-copies (ColumnLayout.astro).
+    if (content === source) plane.insertBefore(track, copies); else copies.appendChild(track);
     slots.push(slot);
   };
 
@@ -533,7 +540,7 @@ export function initializeColumnLayout() {
       restoreSource();
       const target = anchorOffset(contentAnchor);
       if (target !== undefined) position = target;
-      plane.replaceChildren();
+      clearPlane();
       slots = [];
       geometry = undefined;
       reading = undefined;
@@ -552,7 +559,7 @@ export function initializeColumnLayout() {
   const releasePremounted = () => {
     if (!premounted || multi) return;
     restoreSource();
-    plane.replaceChildren();
+    clearPlane();
     reader.hidden = true;
     // The table of contents skipped its position while pre-mounted (Toc.astro).
     document.dispatchEvent(new CustomEvent("cl:single"));
@@ -894,7 +901,7 @@ export function initializeColumnLayout() {
     if (toolbar) toolbarParent?.insertBefore(toolbar, toolbarNextSibling);
     restoreSource();
     reader.hidden = true;
-    plane.replaceChildren();
+    clearPlane();
   };
   document.addEventListener("astro:before-swap", () => { dispose?.(); dispose = undefined; }, { once: true, signal });
 }

@@ -288,6 +288,14 @@
     transform: translate(0);
   }
 
+  /* The copies' columns (ColumnLayout.astro). Passes the plane's sizes on to
+     them like the plane does to the original's column. */
+  .cl-copies {
+    display: contents;
+    --cl-w: inherit;
+    --cl-h: inherit;
+  }
+
   .cl-track {
     position: absolute;
     top: 0;

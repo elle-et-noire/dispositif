@@ -508,7 +508,7 @@ for (const [name, engine] of engines) {
         assert.deepEqual(await page.locator('.cl-article-scrollport').evaluate(el => [getComputedStyle(el).clipPath, el.getAttribute('aria-hidden')]), ['none', null], label);
         assert.equal(await isMulti(page), false, label);
         // A column mounted before the swap is returned to the single article.
-        assert.equal(await page.locator('.cl-plane .cl-source, .cl-plane > *').count(), 0, label);
+        assert.equal(await page.locator('.cl-plane .cl-source, .cl-plane .cl-track').count(), 0, label);
         assert.equal(await page.locator('.cl-reader').evaluate(el => el.hidden), true, label);
         assert.ok(await page.locator('.cl-source').evaluate(el => !el.style.width && el.getBoundingClientRect().height > 0), label);
       };
