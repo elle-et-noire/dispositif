@@ -17,24 +17,20 @@ import { withBase } from "./base";
 import { speechLabel } from "./math-speech";
 
 // mathjax の node 版 API は CommonJS（node-main.cjs）で型定義も無いため、
-// Next/Turbopack のバンドル対象から外して（next.config の serverExternalPackages）
 // 実行時に node_modules から require する。
 const require = createRequire(import.meta.url);
 
 // mathjax のコンポーネント（input/tex.js など）の動的ロード元（ルート）。
-// 既定では mathjax の node-main が記録した __dirname を使うが、Turbopack が
-// （serverExternalPackages を外して）node-main をバンドルすると __dirname が
-// "/ROOT/node_modules/mathjax" のような仮想パスに書き換わり、CI のビルド時に
-// "Can't load /ROOT/node_modules/mathjax/input/tex.js" で失敗する。これを避けるため
-// 実行時の作業ディレクトリ（next build の実行元 = プロジェクトルート）から
-// 実体パスを組み立て、loader.paths.mathjax で明示する（__dirname に依存しない）。
+// 既定では mathjax の node-main が記録した __dirname を使うが、バンドラーが
+// node-main を取り込むと __dirname が仮想パスに書き換わり、コンポーネントを
+// 読み込めなくなる。これを避けるため、実行時の作業ディレクトリ（ビルドの実行元 =
+// プロジェクトルート）から実体パスを組み立て、loader.paths.mathjax で明示する。
 const MATHJAX_ROOT = join(process.cwd(), "node_modules", "mathjax");
 
 // 数式グリフのフォント。MathJax v4 既定の New Computer Modern（newcm）は線が細く、
 // 標準 DPI だとヘアラインがにじんで見えるため、MathJax v3 時代の TeX フォント
 // （mathjax-tex）を使う。これは chtml.font: "mathjax-tex" で選び、fontPath テンプレート
-// （@mathjax/%%FONT%%-font）経由でビルド時に @mathjax/mathjax-tex-font が require される
-// （next.config の serverExternalPackages で外部化）。
+// （@mathjax/%%FONT%%-font）経由でビルド時に @mathjax/mathjax-tex-font が require される。
 //
 // 数式フォントは自前ホスト（同一オリジン）で配信する。scripts/copy-math-fonts.mjs が
 // @mathjax/mathjax-tex-font の woff2 を public/fonts/mjx/ へコピーし（predev/prebuild）、
@@ -44,8 +40,7 @@ const MATHJAX_ROOT = join(process.cwd(), "node_modules", "mathjax");
 // 寄せて DNS+TLS+コネクション確立のラウンドトリップを無くす。
 const FONT_URL = withBase("fonts/mjx");
 
-// クライアント側だった component/mathenv.tsx と同一の TeX 設定を再現する。
-// 出力のみ SVG → CHTML（ビルド時）に置き換える。
+// TeX の入力と、ビルド時の CHTML 出力の設定。
 const config = {
   loader: {
     // コンポーネントのロード元を実体パスで固定する（上記 MATHJAX_ROOT 参照）。
@@ -124,7 +119,7 @@ const config = {
     // 実テキスト（mjx-utext）として出力させる。クライアント版の mtextInheritFont:true は
     // 「実行時に DOM から周囲フォントを実測する」仕組みで、DOM の無いビルド時
     // （liteAdaptor）では機能しないため、mtextFont を非空にして explicit-font 経路に乗せる。
-    // 実際のフォント指定（Zen Maru Gothic）と、メトリクス未実測による固定幅の解除は
+    // 実際のフォント指定（本文と同じ --font-sans）と、メトリクス未実測による固定幅の解除は
     // globals.css の `.post mjx-utext` 側で行う（ビルド時は実フォント幅を測れないため）。
     mtextFont: "inherit",
     scale: 1.0,
@@ -149,8 +144,8 @@ function getMathJax(): Promise<MathJaxInstance> {
 }
 
 // adaptiveCSS の使用グリフ集計は出力 Jax（global 共有）に溜まる。ページごとに
-// clearCache → 一括組版 → スタイルシート抽出を行うため、Next が複数ページを
-// 並行生成しても状態が混ざらないよう、この一連の処理を直列化する。
+// clearCache → 一括組版 → スタイルシート抽出を行うため、複数ページを並行して
+// 生成しても状態が混ざらないよう、この一連の処理を直列化する。
 let renderChain: Promise<unknown> = Promise.resolve();
 
 export type RenderedMath = {
@@ -183,8 +178,7 @@ export function renderArticleMath(texList: string[]): Promise<RenderedMath> {
     OutputJax.font?.clearCache?.();
 
     // TeX の式番号と \label を記事ごとに初期化する。InputJax は全ページで共有される
-    // ため、リセットしないと前のページ（や Next が同一ワーカーで同じページを複数回
-    // 生成した際）の \label が登録されたまま残り、同じラベルに再遭遇すると
+    // ため、リセットしないと前のページの \label が登録されたまま残り、同じラベルに再遭遇すると
     // "Label multiply defined" となって、その数式が組版結果の代わりにエラー文字列へ
     // 置き換わってしまう（例: sympoly の eq:jacobi-trudi）。
     MathJax.texReset?.();

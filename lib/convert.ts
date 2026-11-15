@@ -17,7 +17,7 @@ import { mathFontFaces, type MathFont } from "./math-fonts";
 import { withBase } from "./base";
 import { rehypeToc, type Heading } from "./toc";
 
-// 本文リンクの安全化。Next 版の component/safelink.tsx と同じ方針：
+// 本文リンクの安全化。
 // 外部リンク（/ や # で始まらない）は新規タブで開き rel を付ける。
 // 空 href はサイトのベースURLへ向ける。
 function rehypeSafeLinks() {
@@ -129,8 +129,7 @@ const convert = async (text: string): Promise<Converted> => {
   const { html: mathHtml, css } = await renderArticleMath(mathexprs);
   const headings: Heading[] = [];
 
-  // remark/rehype パイプライン。Next 版（next-mdx-remote の compileMDX）と同じく
-  // remark-gfm → rehype-pretty-code → rehype-slug を通すが、出力は React ではなく
+  // remark/rehype パイプライン。remark-gfm → rehype-pretty-code → rehype-slug を通し、
   // HTML 文字列にする。前処理で差し込んだ生 HTML（details/box/span/プレースホルダ）は
   // remark-rehype の allowDangerousHtml + rehype-raw で本物のノードへ変換する。
   // rehype-pretty-code は rehype-raw より前に走らせ、コードフェンスの meta（言語・
@@ -157,7 +156,7 @@ const convert = async (text: string): Promise<Converted> => {
     .process(processible);
 
   // 組版済み CHTML をプレースホルダへ流し込む。Imath は素の span、Dmath は
-  // 横スクロール可能な span.scrollable で包む（Next 版の Imath/Dmath と同じ）。
+  // 横スクロール可能な span.scrollable で包む。
   const html = String(file)
     .replace(/<span data-im="(\d+)"><\/span>/g, (_, i: string) => `<span>${mathHtml[Number(i)] ?? ""}</span>`)
     .replace(/<span data-dm="(\d+)"><\/span>/g, (_, i: string) => `<span class="scrollable">${mathHtml[Number(i)] ?? ""}</span>`);
