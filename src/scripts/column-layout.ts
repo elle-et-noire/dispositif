@@ -125,26 +125,56 @@ export function initializeColumnLayout() {
   // Layout.astro leaves the blocks after the first few out of the first
   // layout of a freshly opened article (data-cl-defer, column-layout.css), so
   // that only the text near the start is styled and laid out before the first
-  // frame. showText() adds blocks until the text reaches a given offset, and
-  // showAllText() shows the rest once that frame is painted, or earlier on
-  // input, printing or a history move, which may need any part of the text.
+  // frame. showText() adds blocks until the text reaches a given offset.
+  // Once that frame is painted, showTextInSteps() shows the rest a few blocks
+  // per task. showAllText() shows it at once on key or pointer input,
+  // printing or a history move, which may need any part of the text.
   const post = source.querySelector<HTMLElement>(":scope > .post");
+  const deferMark = () => post?.querySelector<HTMLElement>(":scope > [data-cl-defer]");
+  // The first block after the mark that is not shown yet, or -1.
+  const nextHidden = (blocks: HTMLCollection) => {
+    const mark = deferMark();
+    if (!mark) return -1;
+    let next = Array.prototype.indexOf.call(blocks, mark) + 1;
+    while (next < blocks.length && blocks[next].hasAttribute("data-cl-shown")) next++;
+    return next < blocks.length ? next : -1;
+  };
   const showText = (extent: number) => {
-    if (!post || !source.hasAttribute("data-cl-defer")) return;
-    const blocks = [...post.children] as HTMLElement[];
-    let next = blocks.findIndex((block) => !block.hasAttribute("data-cl-shown")
-      && getComputedStyle(block).display === "none");
+    if (!post) return;
+    const blocks = post.children;
+    let next = nextHidden(blocks);
     if (next < 0) return;
     for (let batch = Math.max(4, next); next < blocks.length; batch *= 2) {
       const last = blocks[next - 1];
-      if (last && offsetOf(last) + last.getBoundingClientRect().height >= extent) return;
+      if (offsetOf(last) + last.getBoundingClientRect().height >= extent) return;
       const end = Math.min(blocks.length, next + batch);
       for (; next < end; next++) blocks[next].setAttribute("data-cl-shown", "");
     }
   };
+  // Each task lays out blocks until it has run this long, then yields, so
+  // that input is handled between the tasks. Scrolling does not wait for
+  // them: the shown text covers the screen and the next columns.
+  const TEXT_STEP_MS = 20;
+  const showTextInSteps = () => {
+    if (signal.aborted || !post) return;
+    const start = performance.now();
+    const blocks = post.children;
+    let next = nextHidden(blocks);
+    for (; next >= 0 && next < blocks.length && performance.now() - start < TEXT_STEP_MS; next++) {
+      blocks[next].setAttribute("data-cl-shown", "");
+      // Lay it out in this task rather than in one long frame afterwards.
+      blocks[next].getBoundingClientRect();
+    }
+    if (next >= 0 && next < blocks.length) {
+      const channel = new MessageChannel();
+      channel.port1.onmessage = showTextInSteps;
+      channel.port2.postMessage(null);
+    } else showAllText();
+  };
   const showAllText = () => {
-    if (!source.hasAttribute("data-cl-defer")) return;
-    source.removeAttribute("data-cl-defer");
+    const mark = deferMark();
+    if (!mark) return;
+    mark.removeAttribute("data-cl-defer");
     post?.querySelectorAll(":scope > [data-cl-shown]").forEach((block) => block.removeAttribute("data-cl-shown"));
     // Key and pointer handlers that run after this need the whole length.
     if (multi) { cancelAnimationFrame(measuring); measure(); }
@@ -894,7 +924,7 @@ export function initializeColumnLayout() {
   }, { signal });
 
   // Window listeners in the capture phase run before every other handler.
-  for (const type of ["keydown", "pointerdown", "wheel", "touchstart"]) {
+  for (const type of ["keydown", "pointerdown"]) {
     window.addEventListener(type, showAllText, { capture: true, passive: true, signal });
   }
 
@@ -922,12 +952,12 @@ export function initializeColumnLayout() {
       // Set with cl-pending by Layout.astro.
       articleScrollport.removeAttribute("aria-hidden");
       // A frame callback runs only after the previous frame, this one, is
-      // produced; the task it posts shows the rest of the text after that.
+      // produced; the task it posts starts showing the rest of the text.
       // (Firefox can run a timer before a message posted earlier.)
-      if (source.hasAttribute("data-cl-defer")) {
+      if (deferMark()) {
         textFrame = requestAnimationFrame(() => {
           const channel = new MessageChannel();
-          channel.port1.onmessage = () => { if (!signal.aborted) showAllText(); };
+          channel.port1.onmessage = showTextInSteps;
           channel.port2.postMessage(null);
         });
       }
