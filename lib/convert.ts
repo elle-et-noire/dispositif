@@ -41,6 +41,33 @@ function rehypeSafeLinks() {
 // Markdown から生成されたルート相対 URL に Astro の base を付ける。
 // .astro 内のリンクと異なり、Markdown 本文の /foo はビルド時に自動変換されないため、
 // GitHub Pages のプロジェクトサイトでは /dispositif/foo に補正する必要がある。
+// GFM のタスクリストのチェックボックスに、項目の文を名前として付ける。remark-gfm の
+// 出力のままでは名前がなく、スクリーンリーダーで部品を一覧すると、名前のない
+// チェックボックスが並ぶ。チェックボックスと、その後の文（入れ子のリストの手前まで）を
+// <label> で包む。id を使わないので、n段の複製で id を外しても関係が壊れない。
+function rehypeTaskListLabels() {
+  const block = /^(?:ul|ol|p|div|pre|figure|blockquote|table|details|h[1-6])$/;
+  const isTaskItem = (node: Element | Root | undefined) => node?.type === "element" && node.tagName === "li"
+    && [node.properties.className ?? []].flat().includes("task-list-item");
+  return (tree: Root) => {
+    // 項目が段落を持つ（項目の間に空行がある）リストでは、チェックボックスは段落の中にある。
+    visit(tree, "element", (node: Element, _, parent) => {
+      if (!isTaskItem(node) && !(node.tagName === "p" && isTaskItem(parent))) return;
+      const i = node.children.findIndex((child) => child.type === "element" && child.tagName === "input"
+        && child.properties.type === "checkbox");
+      if (i < 0) return;
+      let end = i + 1;
+      while (end < node.children.length) {
+        const child = node.children[end];
+        if (child.type === "element" && block.test(child.tagName)) break;
+        end++;
+      }
+      const label: Element = { type: "element", tagName: "label", properties: {}, children: node.children.slice(i, end) };
+      node.children.splice(i, end - i, label);
+    });
+  };
+}
+
 function rehypeBasePaths() {
   const base = withBase();
   const baseWithoutTrailingSlash = base.replace(/\/$/, "");
@@ -151,6 +178,7 @@ const convert = async (text: string): Promise<Converted> => {
     .use(rehypeToc({ headings, mathHtml }))
     .use(rehypeSafeLinks)
     .use(rehypeArticleImages)
+    .use(rehypeTaskListLabels)
     .use(rehypeBasePaths)
     .use(rehypeStringify, { allowDangerousHtml: true })
     .process(processible);

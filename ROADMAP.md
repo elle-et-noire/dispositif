@@ -17,10 +17,6 @@
   - 1段で、標準の横バーの矢印をクリックした直後、まだ動いているうちにHomeを押すと、先頭まで戻らずに止まる（`single-column`）
   - 別の記事で段組みを切り替えてから履歴で戻ると、約半数の実行で見出しが17pxほど上にずれる（`column-review-fixes`）
   - n段で段をまたぐと `NativeViewport.place`（`src/scripts/column-viewport.ts`）が `scrollTop` を書き、WebKitの動いている途中のホイールスクロールを打ち切る。Safariでホイールのスクロールが滑らかに動く場合は、速くスクロールしても進まなくなる。Safariでは確かめていない
-- 目次の選ばれていない項目の文字色（`src/styles/globals.css` の `.toc-link`）が、背景とのコントラスト比でWCAG 1.4.3の4.5:1に届かない。1段のサイドバー、n段の上部、モバイルの目次のすべてで起きる。見た目が変わるので、色を決めてから直す
-- はみ出したディスプレイ数式の包み（`lib/convert.ts` の `span.scrollable`）は、Chromium・FirefoxではTabで止まって横へ送れるが、名前もロールも持たない。Chromiumでは読み上げで何も読まれない停止位置になる。Safariはスクロールする要素にTabで止まらないので、キーボードで横へ送れない。はみ出している包みにだけ `tabindex`、ロール、名前を付ける必要がある。コードの `pre` はrehype-pretty-codeが `tabindex="0"` を付けるので問題ない
-- GFMのタスクリストのチェックボックス（remark-gfmの出力そのまま）に名前がない。disabledなのでTabでは止まらないが、スクリーンリーダーの部品一覧では名前のないチェックボックスになる
-- 脚注を使うと、remark-rehypeが作る見えない見出し `h2#footnote-label`（「Footnotes」）を `lib/toc.ts` が目次に載せる。今は脚注を使う記事がない
 
 ## 維持すること
 

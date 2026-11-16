@@ -8,6 +8,9 @@ import { ColumnMotion } from "./column-motion";
 import { opensMulti, COLUMNS_STORAGE_KEY } from "./column-preference";
 import { type HistoryPosition, HISTORY_STORAGE_KEY, parseSavedHistory, mergeHistory, resolveHistoryEntry } from "./reading-history";
 
+// The headings listed in the TOC (lib/toc.ts). The footnotes' hidden heading has
+// an id for the footnote references' aria-describedby, but is not in the TOC.
+const TOC_HEADINGS = ":is(h2, h3)[id]:not([data-footnotes] *)";
 let dispose: (() => void) | undefined;
 // Saves the active reader's current position; the single pagehide listener
 // below calls it before persisting so storage is written once per unload.
@@ -474,7 +477,7 @@ export function initializeColumnLayout() {
     const l = Math.max(1, Math.ceil(sourceBox.height / scale));
     fragments.measure(dirty);
     // Headings not shown yet (data-cl-defer) have no box.
-    headings = Array.from(source.querySelectorAll<HTMLElement>("h2[id], h3[id]"))
+    headings = Array.from(source.querySelectorAll<HTMLElement>(TOC_HEADINGS))
       .filter((heading) => heading.getClientRects().length)
       .map((heading) => ({ id: heading.id, t: offsetOf(heading) }));
     const layout = createLayout(w, gap, h, l, viewport.clientWidth, edge);
@@ -535,7 +538,7 @@ export function initializeColumnLayout() {
     preferredSourceColumn = Math.floor((fromCss(offsetOf(target)) - reading.point.y) / reading.layout.h);
     rangeStart = NaN;
     present(true);
-    if (target.matches("h2[id], h3[id]")) {
+    if (target.matches(TOC_HEADINGS)) {
       // At the trailing edge a heading can land in a column to the right.
       // Keep the selected TOC entry until the reader moves again.
       navigationHeading = { id: target.id, position };

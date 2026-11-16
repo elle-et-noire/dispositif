@@ -8,6 +8,7 @@ CHTMLの字形の箱（`mjx-c`）には𝑎や+などの文字が入っている
 
 - 各数式の `mjx-container` に `role="img"` と、TeXのソースを `aria-label` として付ける（`lib/mathjax.ts`、`lib/math-speech.ts`）。前処理で足す前後の `\hspace` と、`\label`・`\tag` は除き、見えている式番号を末尾に「(1)」のように足す。字形の箱 `mjx-math` には `aria-hidden` を付け、二重に読まれないようにする（`tests/math-speech.browser.test.mjs`）。
 - `\eqref` を含む数式は中にリンクがある。`img` にするとリンクが支援技術から消えるのにTabでは止まるので、手を加えない。
+- 幅からはみ出したディスプレイ数式は、包み（`span.scrollable`）に `tabindex="0"`、`role="group"`、`aria-label` を付け、名前を持つTabの停止位置にする（`src/components/ArticleInteractions.astro`）。ChromiumとFirefoxは、はみ出したスクロール要素にtabindexがなくてもTabで止まるが、名前もロールもないので、Chromiumでは何も読まれない停止位置になる。Safariはスクロール要素にTabで止まらないので、キーボードで横へ送れない。はみ出さない数式では止まらないよう、包みと数式の幅が変わるたびに付け外しする。
 
 ## 採らなかった案
 
