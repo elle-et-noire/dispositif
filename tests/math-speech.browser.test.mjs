@@ -50,3 +50,52 @@ test("数式は TeX のソースを名前にした画像として読み上げの
     }
   } finally { await browser.close(); }
 });
+
+// Overflowing display math is a named Tab stop (src/components/ArticleInteractions.astro):
+// without a name and role, Chromium stops Tab on a wrapper that screen readers read as
+// nothing, and Safari does not stop on it at all. Math that fits is not a Tab stop.
+test("はみ出したディスプレイ数式だけが、名前を持つTabの停止位置になり、幅が変わると付け外しされる", { timeout: 60_000 }, async () => {
+  const browser = await launch(chromium);
+  try {
+    for (const mode of ["single", "multi"]) {
+      const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+      try {
+        await storeColumns(page, mode);
+        await page.goto(new URL("symmetric-polynomial/", BASE_URL).href);
+        await waitForColumnLayout(page);
+        const scrollers = () => page.evaluate(async () => {
+          await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+          const all = [...document.querySelectorAll(".cl-source .scrollable")]
+            .filter((s) => s.getClientRects().length);
+          const overflowing = all.filter((s) => s.scrollWidth > s.clientWidth);
+          const named = (s) => s.tabIndex === 0 && s.getAttribute("role") === "group" && !!s.getAttribute("aria-label");
+          return {
+            overflowing: overflowing.length,
+            unnamed: overflowing.filter((s) => !named(s)).length,
+            stops: all.filter((s) => !overflowing.includes(s) && s.hasAttribute("tabindex")).length,
+          };
+        });
+        const narrow = await scrollers();
+        assert.ok(narrow.overflowing > 0, `${mode}: ${JSON.stringify(narrow)}`);
+        assert.equal(narrow.unnamed, 0, mode);
+        assert.equal(narrow.stops, 0, mode);
+
+        await page.locator(".cl-source .scrollable[tabindex='0']").first().focus();
+        const cdp = await page.context().newCDPSession(page);
+        const { node } = await cdp.send("DOM.describeNode", {
+          objectId: (await cdp.send("Runtime.evaluate", { expression: "document.activeElement" })).result.objectId,
+        });
+        const { nodes } = await cdp.send("Accessibility.getPartialAXTree", { backendNodeId: node.backendNodeId, fetchRelatives: false });
+        assert.equal(nodes[0].role?.value, "group", mode);
+        assert.equal(nodes[0].name?.value, "数式の横スクロール", mode);
+
+        await page.setViewportSize({ width: 1280, height: 900 });
+        await waitForColumnLayout(page);
+        const wide = await scrollers();
+        assert.ok(wide.overflowing < narrow.overflowing, `${mode}: ${JSON.stringify(wide)}`);
+        assert.equal(wide.unnamed, 0, mode);
+        assert.equal(wide.stops, 0, mode);
+      } finally { await page.close(); }
+    }
+  } finally { await browser.close(); }
+});

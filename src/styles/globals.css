@@ -168,7 +168,7 @@ body {
 }
 
 .toc-list-item .toc-link {
-  @apply inline-block w-full font-medium text-gray-400 no-underline;
+  @apply inline-block w-full font-medium text-gray-500 no-underline;
   border-inline-start: 4px solid var(--color-gray-200, #e5e7eb);
   padding-inline: 0.5rem 0;
   padding-block: 0.375rem;

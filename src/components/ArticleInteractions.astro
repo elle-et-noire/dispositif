@@ -67,7 +67,49 @@
     }
   };
 
+  // はみ出したディスプレイ数式の包み（lib/convert.ts の span.scrollable）だけを、名前を
+  // 持つTabの停止位置にする。ChromiumとFirefoxは、はみ出したスクロール要素に
+  // tabindexがなくてもTabで止まるが、名前もロールもないので、スクリーンリーダーでは
+  // 何も読まれない位置になる。Safariはスクロール要素にTabで止まらないので、
+  // キーボードで数式を横へ送れない。はみ出さない数式でTabが止まらないよう、幅が
+  // 変わるたびに付け外しする。数式の字形の箱（mjx-math）も見るのは、数式フォントが
+  // 届いて、包みの幅は変わらずに数式の幅だけが変わることがあるため。
+  // n段の複製の段は、column-fragments.ts が支援技術とTabの対象から外すので見ない。
+  let mathScrollObserver: ResizeObserver | undefined;
+  const observeMathScrollers = () => {
+    mathScrollObserver?.disconnect();
+    mathScrollObserver = new ResizeObserver((entries) => {
+      const scrollers = new Set<HTMLElement>();
+      for (const { target } of entries) {
+        const scroller = target.closest<HTMLElement>(".scrollable");
+        if (scroller) scrollers.add(scroller);
+      }
+      // 幅をすべて読んでから属性を書き、読むたびにレイアウトし直さないようにする。
+      const overflows = Array.from(scrollers, (scroller) =>
+        [scroller, scroller.scrollWidth > scroller.clientWidth] as const);
+      for (const [scroller, overflowing] of overflows) {
+        if (overflowing === scroller.hasAttribute("tabindex")) continue;
+        if (overflowing) {
+          scroller.tabIndex = 0;
+          scroller.setAttribute("role", "group");
+          scroller.setAttribute("aria-label", "数式の横スクロール");
+        } else {
+          scroller.removeAttribute("tabindex");
+          scroller.removeAttribute("role");
+          scroller.removeAttribute("aria-label");
+        }
+      }
+    });
+    document.querySelectorAll<HTMLElement>(".post .scrollable").forEach((scroller) => {
+      if (scroller.closest(".cl-copies")) return;
+      mathScrollObserver!.observe(scroller);
+      const math = scroller.querySelector("mjx-math");
+      if (math) mathScrollObserver!.observe(math);
+    });
+  };
+
   const enhanceArticle = () => {
+    observeMathScrollers();
     document.querySelectorAll<HTMLDetailsElement>(".post details").forEach((details) => {
       if (details.querySelector(":scope > .details-close-button")) return;
 

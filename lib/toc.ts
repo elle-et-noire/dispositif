@@ -17,11 +17,16 @@ export type Heading = {
 //
 // 引用（blockquote）の中の見出しは、引用元の文章の見出しで、記事の節ではないので、
 // 目次に入れず、id も外す。
+//
+// 脚注の欄（remark-rehype の section[data-footnotes]）の見出しは、画面に表示しない
+// 読み上げ用の見出しなので、目次に入れない。id は脚注の参照の aria-describedby が
+// 指すので残し、段組みも同じ見出しを除く（column-layout.ts の TOC_HEADINGS）。
 export function rehypeToc({ headings, mathHtml }: { headings: Heading[]; mathHtml: string[] }) {
   return () => (tree: Root) => {
     const visit = (node: Root | Element, quoted: boolean) => {
       for (const child of node.children) {
         if (child.type !== "element") continue;
+        if (child.properties.dataFootnotes !== undefined) continue;
         if (quoted && /^h[1-6]$/.test(child.tagName)) {
           delete child.properties.id;
         } else if ((child.tagName === "h2" || child.tagName === "h3") && typeof child.properties.id === "string") {
