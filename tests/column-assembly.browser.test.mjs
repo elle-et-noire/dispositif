@@ -109,9 +109,11 @@ const checkPremount = async (engine) => {
 // into the first column as soon as the parser attaches it. A ResizeObserver
 // attached as soon as the original is parsed reports every size it is rendered
 // at, from the first frame on. Frames of the original while it is still empty
-// are ignored.
+// are ignored. Scrollbars take space here, as in desktop Chrome: a reload
+// restored the position only approximately when the first measurement ran
+// before the horizontal bar appeared.
 const checkDirectPremount = async (engine) => {
-  const browser = await launch(engine);
+  const browser = await launch(engine, { ignoreDefaultArgs: ["--hide-scrollbars"] });
   try {
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     await context.addInitScript(() => {

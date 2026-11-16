@@ -7,8 +7,12 @@ const settle = (page) => page.evaluate(async () => {
   for (let i = 0; i < 5; i++) await new Promise(requestAnimationFrame);
 });
 
+// Scrollbars take space in the history tests, as in desktop Chrome, so a
+// restore that depends on when the bars appear fails here.
+const showScrollbars = { ignoreDefaultArgs: ["--hide-scrollbars"] };
+
 for (const columns of ["single", "multi"]) test(`${columns}: 本文内リンクの履歴ごとに位置と折りたたみを保存し、戻る・進む・一覧からの復帰で復元する`, { timeout: 45_000 }, async () => {
-  const browser = await launch(chromium);
+  const browser = await launch(chromium, showScrollbars);
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   try {
     await storeColumns(page, columns);
@@ -160,7 +164,7 @@ const readingPoint = (page, mode) => page.evaluate((mode) => mode === "single"
   : [document.querySelector(".cl-plane").dataset.clXTicks, document.querySelector(".cl-plane").dataset.clYTicks], mode);
 
 test("履歴復元では折りたたみの開閉状態を先に戻し、中や後の読書位置を保つ", { timeout: 90_000 }, async () => {
-  const browser = await launch(chromium);
+  const browser = await launch(chromium, showScrollbars);
   try {
     for (const mode of ["single", "multi"]) for (const location of ["inside", "after"]) {
       const page = await browser.newPage({ viewport: { width: 1280, height: 700 } });
