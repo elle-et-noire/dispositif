@@ -410,6 +410,7 @@ export function initializeColumnLayout() {
     reducedMotion,
     (active) => viewport.toggleAttribute("data-cl-animating", active),
     signal,
+    () => geometry?.unit ?? 0,
   );
 
   const syncPosition = () => {

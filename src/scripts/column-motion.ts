@@ -1,4 +1,4 @@
-import { ticks, horizontalDestination, type ReadingPoint as Point, type ColumnMetrics } from "./column-coordinates";
+import { fromCss, ticks, horizontalDestination, type ReadingPoint as Point, type ColumnMetrics } from "./column-coordinates";
 interface ColumnAnimation {
   from: Point;
   to: Point;
@@ -18,6 +18,8 @@ export class ColumnMotion {
     private reducedMotion: MediaQueryList,
     private animationChanged: (active: boolean) => void,
     signal: AbortSignal,
+    // The native scroll step in CSS px (0 when unknown).
+    private scrollUnit: () => number = () => 0,
   ) {
     reducedMotion.addEventListener("change", () => {
       if (!reducedMotion.matches || !this.animation) return;
@@ -64,10 +66,16 @@ export class ColumnMotion {
       if (this.animation !== animation) return;
       const progress = Math.min(1, Math.max(0, (time - animation.start) / 180));
       const eased = 1 - (1 - progress) ** 3;
-      this.move({
-        x: ticks(animation.from.x + (animation.to.x - animation.from.x) * eased),
-        y: animation.from.y,
-      });
+      // Step the frames between the ends by whole native scroll steps. The
+      // browser rounds a scroll offset to its step, and the columns absorb
+      // the rounded-off fraction (cssGeometry's leading), so an off-step
+      // frame rewrote every column's position and repainted the text.
+      const step = fromCss(this.scrollUnit());
+      const distance = (animation.to.x - animation.from.x) * eased;
+      const x = progress < 1 && step > 0
+        ? ticks(animation.from.x + Math.round(distance / step) * step)
+        : ticks(animation.from.x + distance);
+      this.move({ x, y: animation.from.y });
       if (progress < 1) this.frame = requestAnimationFrame(tick);
       else this.cancelAnimation();
     };
