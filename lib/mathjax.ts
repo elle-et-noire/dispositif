@@ -218,6 +218,7 @@ export function renderArticleMath(texList: string[]): Promise<RenderedMath> {
       for (const container of containers) {
         labelForScreenReaders(adaptor, container);
         dropLatexSource(adaptor, container);
+        mergeGlyphBoxes(adaptor, container);
       }
       html[Number(attr)] = containers.map((c) => adaptor.outerHTML(c)).join("");
     }
@@ -226,7 +227,7 @@ export function renderArticleMath(texList: string[]): Promise<RenderedMath> {
       throw new Error(`数式の誤りが${errors.length}件あります。\n${errors.join("\n")}`);
     }
 
-    const css = adaptor.textContent(MathJax.chtmlStylesheet());
+    const css = glyphBoxStyles(adaptor.textContent(MathJax.chtmlStylesheet()));
     return { html, css };
   };
 
@@ -309,6 +310,47 @@ function dropLatexSource(adaptor: LiteAdaptor, node: MathJaxNode) {
   for (const child of adaptor.childNodes(node) ?? []) dropLatexSource(adaptor, child);
 }
 
+// MathJaxは文字の要素（mjx-mi・mjx-mo・mjx-mn）の中に、字形ごとの箱（mjx-c）を
+// 入れる。文字の要素が字形を1つだけ持つときは、外側の要素を省き、その属性（大きさと
+// 前後の間隔）をmjx-cに移す。外側の要素はインラインブロックとしてmjx-cをそのまま
+// 包むだけで、寸法も位置もmjx-cと同じなので、省いても表示は変わらない。数式記事では
+// 本文の要素の約3割がこの外側の要素なので、省くと、ブラウザーがスタイル計算と
+// レイアウトをする要素と、n段で複製する要素が減る。外側の要素を前提にしたMathJaxの
+// 規則は、glyphBoxStylesで書き換える。
+const GLYPH_PARENTS = new Set(["mjx-mi", "mjx-mo", "mjx-mn"]);
+const MOVABLE_ATTRIBUTES = new Set(["size", "space", "rspace"]);
+
+function mergeGlyphBoxes(adaptor: LiteAdaptor, node: MathJaxNode) {
+  if (adaptor.kind(node).startsWith("#")) return;
+  for (const child of [...(adaptor.childNodes(node) ?? [])]) mergeGlyphBoxes(adaptor, child);
+  if (!GLYPH_PARENTS.has(adaptor.kind(node))) return;
+  const children = adaptor.childNodes(node) ?? [];
+  const glyph = children[0];
+  if (children.length !== 1 || adaptor.kind(glyph) !== "mjx-c") return;
+  const attributes = adaptor.allAttributes(node);
+  if (attributes.some(({ name }) => !MOVABLE_ATTRIBUTES.has(name) || adaptor.getAttribute(glyph, name) != null)) return;
+  for (const { name, value } of attributes) adaptor.setAttribute(glyph, name, value);
+  adaptor.replace(glyph, node);
+}
+
+// mergeGlyphBoxesで外側の要素を省いたmjx-cが、省く前と同じ切り抜きと字体で
+// 表示されるよう、MathJaxのスタイルシートを書き換える。
+// - 文字の要素の中のmjx-cを切り抜く規則（`mjx-mo > mjx-c` など）の対象に、外側の
+//   要素のないmjx-cを加える。文字の要素の外にあるmjx-cは伸びる記号の部品だけなので、
+//   それは対象から除く。
+// - 改行できるインライン数式の子に字体を指定する規則（`mjx-math.TEX-N[breakable] > *`）
+//   の対象から、mjx-cを外す。外側の要素があったときは、mjx-cは自分のクラスの字体
+//   （.TEX-SOなど）で表示されていた。この規則のほうが詳細度が高いので、mjx-cが数式の
+//   直接の子になると、この規則の字体で表示される（例: `\int \dd{x}` の積分記号）。
+function glyphBoxStyles(css: string): string {
+  const clip = /(mjx-mo > mjx-c, mjx-mi > mjx-c, mjx-mn > mjx-c[^{]*)\{/;
+  // MathJaxの更新で規則の書き方が変わると、字形を切り抜けなくなるので、ビルドを止める。
+  if (!clip.test(css)) throw new Error("MathJax のスタイルシートに mjx-c の切り抜きの規則が見つかりません。");
+  return css
+    .replace(clip, "$1, mjx-c:not(mjx-stretchy-h > * > mjx-c) {")
+    .replace(/(mjx-math\.[\w-]+\[breakable\] > )\*/g, "$1:not(mjx-c)");
+}
+
 // --- 最小限の型（mathjax node 版に型定義が無いため必要なぶんだけ宣言）---
 
 type MathJaxNode = unknown;
@@ -320,6 +362,8 @@ type LiteAdaptor = {
   getAttribute: (node: MathJaxNode, name: string) => string | null;
   setAttribute: (node: MathJaxNode, name: string, value: string) => void;
   removeAttribute: (node: MathJaxNode, name: string) => void;
+  allAttributes: (node: MathJaxNode) => { name: string; value: string }[];
+  replace: (newNode: MathJaxNode, oldNode: MathJaxNode) => MathJaxNode;
   outerHTML: (node: MathJaxNode) => string;
   textContent: (node: MathJaxNode) => string;
   value: (node: MathJaxNode) => string;
