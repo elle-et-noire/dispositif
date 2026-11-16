@@ -219,6 +219,7 @@ export function renderArticleMath(texList: string[]): Promise<RenderedMath> {
         labelForScreenReaders(adaptor, container);
         dropLatexSource(adaptor, container);
         mergeGlyphBoxes(adaptor, container);
+        mergeGapBreaks(adaptor, container);
       }
       html[Number(attr)] = containers.map((c) => adaptor.outerHTML(c)).join("");
     }
@@ -351,6 +352,32 @@ function glyphBoxStyles(css: string): string {
     .replace(/(mjx-math\.[\w-]+\[breakable\] > )\*/g, "$1:not(mjx-c)");
 }
 
+// preprocess.tsは、文中の数式の前後に\hspaceを入れ、前後の文字との間を空ける。
+// MathJaxはこれを、改行できる位置（mjx-break）と、その後ろの間隔（mjx-mspace）の
+// 2つの要素にする。この形では、そこで改行すると間隔が次の行の先頭に残り、行頭が
+// 字下げされたように見える。2つの要素を、間隔と同じ幅の空白を持つ1つのmjx-breakに
+// まとめる。空白の後ろで改行すると、空白は行末で消え、次の行は間隔なしで始まる。
+// 空白と閉じ括弧・句読点の間では改行しないので、それらが行頭に来ることもない。
+// mjx-breakの空白は、MathJaxの改行用のフォント（MJX-BRK）で幅が1emなので、
+// letter-spacingで「間隔の幅 − 1em」を足して、間隔と同じ幅にする（MathJaxの
+// mjx-break[size] の規則と同じ方法）。
+function mergeGapBreaks(adaptor: LiteAdaptor, node: MathJaxNode) {
+  if (adaptor.kind(node).startsWith("#")) return;
+  const children = [...(adaptor.childNodes(node) ?? [])];
+  for (const child of children) mergeGapBreaks(adaptor, child);
+  for (let i = 0; i + 1 < children.length; i++) {
+    const [breaker, space] = [children[i], children[i + 1]];
+    if (adaptor.kind(breaker) !== "mjx-break" || adaptor.kind(space) !== "mjx-mspace") continue;
+    if (adaptor.allAttributes(breaker).length !== 1 || adaptor.getAttribute(breaker, "size") !== "0") continue;
+    if (adaptor.allAttributes(space).length !== 1 || (adaptor.childNodes(space) ?? []).length) continue;
+    const width = adaptor.getAttribute(space, "style")?.match(/^width: (\d*\.?\d+)em;$/)?.[1];
+    if (!width) continue;
+    adaptor.setAttribute(breaker, "style", `letter-spacing: ${(Number(width) - 1).toFixed(3)}em;`);
+    adaptor.remove(space);
+    i++;
+  }
+}
+
 // --- 最小限の型（mathjax node 版に型定義が無いため必要なぶんだけ宣言）---
 
 type MathJaxNode = unknown;
@@ -364,6 +391,7 @@ type LiteAdaptor = {
   removeAttribute: (node: MathJaxNode, name: string) => void;
   allAttributes: (node: MathJaxNode) => { name: string; value: string }[];
   replace: (newNode: MathJaxNode, oldNode: MathJaxNode) => MathJaxNode;
+  remove: (node: MathJaxNode) => MathJaxNode;
   outerHTML: (node: MathJaxNode) => string;
   textContent: (node: MathJaxNode) => string;
   value: (node: MathJaxNode) => string;
