@@ -13,7 +13,7 @@
 - 文中の数式の要素を減らす（PR #52、`lib/convert.ts`、`lib/mathjax.ts` の `mergeGapBreaks`）: 文中の数式は、`<span>` で包まずに本文へ入れます。この `<span>` はスタイルを持たず、表示に関わっていなかったためです。文中の数式の前後の間隔は、改行できる位置と間隔の2つの要素を、1つの `mjx-break` にまとめます。要素を減らすためと、行頭に間隔を出さないためです（理由は `mergeGapBreaks` のコメント）。
 - 準備中の本文の隠し方（PR #7）: `clip-path: inset(50%)` と、スクロールポートの `aria-hidden="true"` で隠します。`visibility: hidden` は外すときに本文全体のスタイル計算を起こすので使いません。JavaScriptが無いときは何も付けません。準備中はTabキーを無視し、隠れた本文にフォーカスが入らないようにします。`inert` は `visibility` と同じく付け外しで本文全体のスタイル計算を起こすので使いません。
 - `not-prose` の書き換え（PR #7、`astro.config.mjs`）: Viteプラグインが、Tailwind Typographyの `[class~=not-prose]` を `.not-prose` に書き換えます。`<html>` のクラスが変わるたびにChromiumが文書全体のスタイルを計算し直すのを避けるためです。
-- 段組みのCSS変数（PR #3、`src/styles/column-layout.css` の `@property`）: 段組みが設定する変数は継承しないものとして登録し、使う要素だけが受け取ります。継承されると、値が変わるたびに本文の全要素のスタイルを計算し直すためです。画面の外にある段は、表示した1フレーム後に埋めます（`src/scripts/column-layout.ts` の `offscreenFrame`）。
+- 段組みのCSS変数（PR #3、`src/styles/column-layout.css` の `@property`）: 段組みが設定する変数は継承しないものとして登録し、使う要素だけが受け取ります。継承されると、値が変わるたびに本文の全要素のスタイルを計算し直すためです。画面の外にある段は、表示したフレームが描画された後に埋めます（`src/scripts/column-layout.ts` の `offscreenFrame`、理由は `docs/column-layout.md` の「操作への応答」）。
 - 複製の段の置き場所（PR #48、`src/components/ColumnLayout.astro`）: 原本の段は `.cl-plane` の最初の子にし、複製の段は箱を作らない `.cl-copies` の末尾に足します。原本の段の兄弟が増減すると、Firefoxでは原本の段が最後の子でなくなったときに、Chromiumでは後ろの兄弟の手前に段を入れたときに、原本全体のスタイルを計算し直したためです。
 
 ## 計測

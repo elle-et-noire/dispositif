@@ -6,7 +6,7 @@ import { ColumnViewport } from "./column-viewport";
 import { ColumnFragments, SCROLLERS } from "./column-fragments";
 import { ColumnMotion } from "./column-motion";
 import { opensMulti, COLUMNS_STORAGE_KEY } from "./column-preference";
-import { type HistoryPosition, HISTORY_STORAGE_KEY, parseSavedHistory, mergeHistory, resolveHistoryEntry } from "./reading-history";
+import { type HistoryPosition, HISTORY_STORAGE_KEY, parseSavedHistory, mergeHistory, resolveHistoryEntry, trimHistory } from "./reading-history";
 
 // The headings listed in the TOC (lib/toc.ts). The footnotes' hidden heading has
 // an id for the footnote references' aria-describedby, but is not in the TOC.
@@ -379,7 +379,14 @@ export function initializeColumnLayout() {
       if (includeOffscreen || (left < nativeX + viewportWidth && left + geometry.w > nativeX)) {
         fragments.render(content, from, geometry.h, geometry.l);
       } else if (!offscreenFrame) {
-        offscreenFrame = requestAnimationFrame(() => { offscreenFrame = 0; updateSlots(true); });
+        // Fill it once the frame showing the visible columns is produced. A
+        // frame request made in an input handler runs before that frame, so
+        // post a task from the next frame callback instead.
+        offscreenFrame = requestAnimationFrame(() => {
+          const channel = new MessageChannel();
+          channel.port1.onmessage = () => { offscreenFrame = 0; if (!signal.aborted) updateSlots(true); };
+          channel.port2.postMessage(null);
+        });
       }
     }
   };
@@ -419,10 +426,13 @@ export function initializeColumnLayout() {
   function saveHistoryPosition() {
     if (!historyReady || suspendedForPrint) return;
     const details = historyPositions.get(entryKey)?.details;
+    // Move the entry to the newest end, as mergeHistory does in storage.
+    historyPositions.delete(entryKey);
     historyPositions.set(entryKey, multi
       ? { mode: "multi", position, point: reading?.point, layout: reading?.layout, details }
       : { mode: "single", position: articleScrollport!.scrollTop, details });
     dirtyHistoryPositions.add(entryKey);
+    trimHistory(historyPositions, dirtyHistoryPositions, entryKey);
   }
 
   const goToEdge = (end: boolean) => {
