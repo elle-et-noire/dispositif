@@ -1,6 +1,6 @@
 // Shared setup for the browser tests: which site and browsers to use, and when
 // an article is ready to be operated on.
-import { chromium, firefox } from "playwright-core";
+import { chromium, firefox, webkit } from "playwright-core";
 
 /** The site under test. CI serves the production build here with astro preview. */
 export const BASE_URL = process.env.TEST_BASE_URL ?? "http://localhost:4321/dispositif/";
@@ -12,8 +12,12 @@ export const articleUrl = (slug = "symmetric-polynomial", suffix = "") => new UR
 export const ARTICLE_URL = articleUrl();
 
 const selected = process.env.TEST_ENGINES?.split(",");
-/** [name, engine] pairs for the tests that run in both engines. TEST_ENGINES=chromium,firefox narrows them. */
-export const engines = Object.entries({ chromium, firefox }).filter(([name]) => !selected || selected.includes(name));
+/**
+ * [name, engine] pairs for the tests that run in both engines. TEST_ENGINES=chromium,firefox narrows them.
+ * WebKit runs only when TEST_ENGINES names it, as in TEST_ENGINES=webkit.
+ */
+export const engines = Object.entries({ chromium, firefox, webkit })
+  .filter(([name]) => selected ? selected.includes(name) : name !== "webkit");
 
 /** Launches a browser. TEST_BROWSER_PATH replaces Playwright's Chromium with a local one. */
 export function launch(engine, options = {}) {
