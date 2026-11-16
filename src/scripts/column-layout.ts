@@ -12,6 +12,9 @@ import { type HistoryPosition, HISTORY_STORAGE_KEY, parseSavedHistory, mergeHist
 // an id for the footnote references' aria-describedby, but is not in the TOC.
 const TOC_HEADINGS = ":is(h2, h3)[id]:not([data-footnotes] *)";
 let dispose: (() => void) | undefined;
+// Whether the next reader is the first one of a full page load. On a full
+// load this module runs before the load event.
+let loadedDocument = document.readyState !== "complete";
 // Saves the active reader's current position; the single pagehide listener
 // below calls it before persisting so storage is written once per unload.
 let saveActiveReader: (() => void) | undefined;
@@ -697,7 +700,29 @@ export function initializeColumnLayout() {
     setMulti(!multi);
   }, { signal });
 
+  // After a full load with a fragment in the URL, WebKit scrolls to the
+  // fragment's target once more after the first frame has placed the reading
+  // position (docs/column-layout.md, "保存と復元"). Until the user's first
+  // input, put back one scroll that leaves the target where that scroll puts
+  // it: its scroll-margin-top below the top of the scrolling area. Set in the
+  // first frame.
+  const fragmentLoad = loadedDocument && Boolean(location.hash);
+  loadedDocument = false;
+  let fragmentGuard = false;
+  let fragmentTop = 0;
+  const fragmentScrolled = (scroller: HTMLElement) => {
+    if (!fragmentGuard || !historyReady) return false;
+    const target = hashTarget(location.hash);
+    if (!target) return false;
+    const offset = target.getBoundingClientRect().top - scroller.getBoundingClientRect().top
+      - (parseFloat(getComputedStyle(target).scrollMarginTop) || 0);
+    if (Math.abs(offset) >= 1) return false;
+    fragmentGuard = false;
+    return true;
+  };
+  const endFragmentGuard = () => { fragmentGuard = false; };
   viewport.addEventListener("scroll", () => {
+    if (fragmentScrolled(viewport)) { present(true); return; }
     if (!scrolling) scrolling = requestAnimationFrame(() => {
       scrolling = 0;
       // ResizeObserver's anchor takes priority over scrolls caused by resizing.
@@ -710,12 +735,18 @@ export function initializeColumnLayout() {
     settleTimer = window.setTimeout(settleWindow, 200);
   }, { passive: true, signal });
   viewport.addEventListener("scrollend", settleWindow, { passive: true, signal });
-  articleScrollport.addEventListener("scroll", saveHistoryPosition, { passive: true, signal });
+  articleScrollport.addEventListener("scroll", () => {
+    if (!multi && fragmentScrolled(articleScrollport) && articleScrollport.scrollTop !== fragmentTop) {
+      articleScrollport.scrollTop = fragmentTop;
+      return;
+    }
+    saveHistoryPosition();
+  }, { passive: true, signal });
   // Native vertical input never initiates horizontal movement, including at
   // an edge. Manual gestures only interrupt an explicit key animation.
-  viewport.addEventListener("wheel", () => motion.cancelAnimation(), { passive: true, signal });
+  viewport.addEventListener("wheel", () => { endFragmentGuard(); motion.cancelAnimation(); }, { passive: true, signal });
   viewport.addEventListener("pointerdown", () => motion.cancelAnimation(), { passive: true, signal });
-  viewport.addEventListener("touchstart", () => motion.cancelAnimation(), { passive: true, signal });
+  viewport.addEventListener("touchstart", () => { endFragmentGuard(); motion.cancelAnimation(); }, { passive: true, signal });
 
   // Firefox reports detail=1 for Enter-generated clicks on links. Remember
   // the activating key as well as supporting detail=0 from other browsers
@@ -957,7 +988,7 @@ export function initializeColumnLayout() {
 
   // Window listeners in the capture phase run before every other handler.
   for (const type of ["keydown", "pointerdown"]) {
-    window.addEventListener(type, showAllText, { capture: true, passive: true, signal });
+    window.addEventListener(type, () => { endFragmentGuard(); showAllText(); }, { capture: true, passive: true, signal });
   }
 
   root.classList.add("cl-ready");
@@ -976,6 +1007,9 @@ export function initializeColumnLayout() {
       if (savedHistoryPosition) restoreHistoryPosition(savedHistoryPosition);
       else followHash();
       historyReady = true;
+      // In 1段 the browser itself scrolls to a fragment without a saved position.
+      fragmentGuard = fragmentLoad && (multi || Boolean(savedHistoryPosition));
+      fragmentTop = articleScrollport.scrollTop;
       saveHistoryPosition();
     } finally {
       // The layout fallback stands down once cl-ready is set, so never leave
