@@ -693,6 +693,13 @@ export function initializeColumnLayout() {
     });
   }, { passive: true, signal });
   articleScrollport.addEventListener("scroll", saveHistoryPosition, { passive: true, signal });
+  // In WebKit, Home or End pressed while a scroll animation runs (a scrollbar
+  // arrow, PageDown, the wheel) stops short of the edge by the distance that
+  // animation had left. Writing the position stops the animation, so the key
+  // scrolls from rest. In n段 the key handler below moves the text instead.
+  document.addEventListener("keydown", (event) => {
+    if (!multi && (event.key === "Home" || event.key === "End")) articleScrollport.scrollTop = articleScrollport.scrollTop;
+  }, { signal });
   // Native vertical input never initiates horizontal movement, including at
   // an edge. Manual gestures only interrupt an explicit key animation.
   viewport.addEventListener("wheel", () => motion.cancelAnimation(), { passive: true, signal });
