@@ -108,11 +108,13 @@ const {
       // (column-layout.ts). Not for a fragment or a history entry: the
       // position can then be anywhere in the text, and the reader shows it
       // all at once anyway. Without JavaScript nothing is left out.
+      // The mark goes on the twelfth block; the blocks after it are left out.
+      // Returns whether it was placed.
       const deferText = (doc, url, traverse) => {
         if (doc.documentElement.dataset.pageKind !== "article" || url.hash || traverse) return false;
-        const source = doc.querySelector(".cl-source");
-        source?.setAttribute("data-cl-defer", "");
-        return Boolean(source);
+        const block = doc.querySelector(".cl-source > .post")?.children[11];
+        block?.setAttribute("data-cl-defer", "");
+        return Boolean(block);
       };
       // On a full page load, the head script runs before the body is parsed.
       // Mark the scrollport aria-hidden as soon as the parser attaches it, and
@@ -122,9 +124,11 @@ const {
       // lay it out in its column. Mutation callbacks run at the microtask
       // checkpoint after the parser task that inserted the element, before the
       // next rendering opportunity. Both elements come before the article
-      // text, so the observer stops early. (An inline script in the body
-      // would block the parser and cost Firefox a style pass.) A reload keeps
-      // the history entry's state, from which the reader restores the position.
+      // text; the observer stops once the twelfth block of the text is marked
+      // (deferText), or at DOMContentLoaded for a shorter article. (An inline
+      // script in the body would block the parser and cost Firefox a style
+      // pass.) A reload keeps the history entry's state, from which the reader
+      // restores the position.
       if (document.documentElement.classList.contains("cl-pending")) {
         let hidden = false;
         let column = wantsColumn(document, location);
@@ -176,7 +180,7 @@ const {
           if (root !== document.documentElement || !root.classList.contains("cl-pending")
             || root.classList.contains("cl-ready")) return;
           unmountColumn();
-          document.querySelector(".cl-source")?.removeAttribute("data-cl-defer");
+          document.querySelector(".cl-source > .post > [data-cl-defer]")?.removeAttribute("data-cl-defer");
           root.classList.add("cl-fallback");
           root.classList.remove("cl-pending");
           document.querySelector(".cl-article-scrollport")?.removeAttribute("aria-hidden");

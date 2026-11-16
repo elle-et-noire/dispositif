@@ -112,9 +112,14 @@
 
   .cl-layout { grid-template-rows: 3rem auto; }
   .cl-source { grid-column: 1; grid-row: 2; }
-  /* The article's first layout covers only these first blocks; the reader
-     shows the rest (data-cl-defer, Layout.astro and column-layout.ts). */
-  .cl-source[data-cl-defer] > .post > :nth-child(n+13):not([data-cl-shown]) { display: none; }
+  /* The article's first layout covers only the blocks up to the marked one;
+     the reader shows the rest (data-cl-defer, Layout.astro and
+     column-layout.ts). The mark is on a block, not on .cl-source: when an
+     attribute of .cl-source changed, Chromium restyled the whole article
+     for this rule. A block's mark changes only its later siblings. Copies
+     (.cl-content without .cl-source) keep whatever marks they were cloned
+     with, so the rule must not reach them. */
+  .cl-source > .post > [data-cl-defer] ~ :not([data-cl-shown]) { display: none; }
   .cl-sidebar {
     grid-column: 1;
     grid-row: 1 / 3;

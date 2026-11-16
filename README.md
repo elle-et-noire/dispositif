@@ -67,7 +67,7 @@ npm run test:browser   # astro preview などを起動した状態で
 
 `npm test` は、段組みの座標（Home／Endの対称性・縦操作専用の余白・片軸操作・到達経路によらない位置・本文の被覆・有限平面・位置復元・ネイティブ座標の読み戻し、小数のネイティブ座標で往復しても投影原点が揺れないこと）、段組みの選択、読書位置の履歴、数式フォント、数式の読み上げ名を確かめます。
 
-`npm run test:browser` は、開発サーバーまたはビルド済みサイトのプレビューを起動した状態で実行します。初回と、`playwright-core` を更新した後は、`npx playwright-core install chromium firefox` で検証用ブラウザーを用意します。既存のChromiumは `TEST_BROWSER_PATH`、別のサーバーは `TEST_BASE_URL` で指定できます。ChromiumとFirefoxの両方で実行するテストは、`TEST_ENGINES=chromium` のように実行するブラウザーを絞れます。対象サイトのURL、ブラウザーの起動、段組みの開始待ちなど、テストに共通の準備処理は `tests/browser.mjs` にまとめています。段組みが始まる前にスクロールすると失われるので、記事を操作するテストは `waitForColumnLayout` で待ってから操作します。
+`npm run test:browser` は、開発サーバーまたはビルド済みサイトのプレビューを起動した状態で実行します。初回と、`playwright-core` を更新した後は、`npx playwright-core install chromium firefox` で検証用ブラウザーを用意します。既存のChromiumは `TEST_BROWSER_PATH`、別のサーバーは `TEST_BASE_URL` で指定できます。ChromiumとFirefoxの両方で実行するテストは、`TEST_ENGINES=chromium` のように実行するブラウザーを絞れます。対象サイトのURL、ブラウザーの起動、段組みの開始待ちなど、テストに共通の準備処理は `tests/browser.mjs` にまとめています。段組みが始まる前のスクロールは失われ、本文の後半が表示される前のスクロールは表示済みの本文の末尾で止まるので、記事を操作するテストは `waitForColumnLayout` で待ってから操作します。
 
 各ブラウザーテストが確かめることは次のとおりです。「両方」はChromiumとFirefox、それ以外はChromiumだけで実行します。
 

@@ -128,7 +128,6 @@ export class ColumnFragments {
     content.classList.add("cl-content");
     content.removeAttribute("id");
     content.removeAttribute("style");
-    content.removeAttribute("data-cl-defer");
     content.dataset.clFragmented = "";
     return content;
   }

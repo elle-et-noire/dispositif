@@ -15,12 +15,14 @@ const frames = (page, count = 2) => page.evaluate(async (count) => {
 }, count);
 // History traversal changes the URL before Astro swaps in the destination, so
 // the previous article (still ready) can briefly sit under the new path. Also
-// require that the destination itself has finished loading.
+// require that the destination itself has finished loading, and that it
+// shows the whole text (waitForColumnLayout in browser.mjs).
 const articleReady = (page, slug) => page.waitForFunction((slug) => {
   const root = document.documentElement;
   return location.pathname.endsWith(`/${slug}/`) && window.clLoadedPath?.endsWith(`/${slug}/`)
     && root.dataset.pageKind === 'article'
-    && root.classList.contains('cl-ready') && !root.classList.contains('cl-pending');
+    && root.classList.contains('cl-ready') && !root.classList.contains('cl-pending')
+    && !document.querySelector('.cl-source [data-cl-defer]');
 }, slug);
 const indexReady = page => page.waitForFunction(() => document.documentElement.dataset.pageKind === 'index');
 const isMulti = page => page.evaluate(() => document.documentElement.classList.contains('cl-multi'));

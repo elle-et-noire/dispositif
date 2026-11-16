@@ -64,7 +64,7 @@ const probe = () => {
       channel.port1.onmessage = () => t('painted');
       channel.port2.postMessage(null);
     }
-    if (window.clT?.visible !== undefined && window.clT.text === undefined && !document.querySelector('.cl-source[data-cl-defer]')) {
+    if (window.clT?.visible !== undefined && window.clT.text === undefined && !document.querySelector('.cl-source [data-cl-defer]')) {
       t('text');
       requestAnimationFrame(() => {
         const channel = new MessageChannel();

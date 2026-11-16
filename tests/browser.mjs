@@ -30,7 +30,14 @@ export function storeColumns(target, mode) {
  * Waits until the column layout has started on an article. cl-ready is set
  * before the layout applies the column choice and the first position in its first
  * frame, which removes cl-pending; a scroll made before that frame is lost.
+ * It also waits for the text left out of that frame (data-cl-defer), which
+ * the layout shows over the following tasks; until then a scroll stops at
+ * the end of the shown text.
  */
 export function waitForColumnLayout(page) {
-  return page.waitForSelector('html[data-page-kind="article"].cl-ready:not(.cl-pending)');
+  return page.waitForFunction(() => {
+    const root = document.documentElement;
+    return root.dataset.pageKind === "article" && root.classList.contains("cl-ready")
+      && !root.classList.contains("cl-pending") && !document.querySelector(".cl-source [data-cl-defer]");
+  });
 }
