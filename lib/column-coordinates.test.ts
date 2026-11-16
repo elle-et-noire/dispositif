@@ -171,6 +171,7 @@ class BrowserPort {
   get scrollTop(){return this.y;}
   set scrollTop(value:number){this.y=Math.max(0,Math.min(Math.floor(this.span("height")/this.unit)*this.unit,Math.round(value/this.unit)*this.unit));}
   scrollTo(point:{left:number;top:number}){this.scrollLeft=point.left;this.scrollTop=point.top;}
+  scrollBy(delta:{left:number;top:number}){this.scrollTo({left:this.x+delta.left,top:this.y+delta.top});}
 }
 
 test("Home/Endの書き込みを読み戻しても丸め誤差で論理位置や移動範囲を変えない", () => {
