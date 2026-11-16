@@ -31,10 +31,14 @@ function axisWindow(value: Tick, range: ReadingRange, capacity: Tick, period: Ti
   origin = ticks(clamp(origin, range.min, Math.max(range.min, range.max - span)));
   return { origin, span, min: range.min, max: range.max, first: origin === range.min, last: origin + span === range.max };
 }
-export function nativeWindow(point: ReadingPoint, g: ColumnMetrics, previous?: NativeWindow): NativeWindow {
+/** `keep` reuses an axis of `previous` as it is, even where its range no longer matches. */
+export function nativeWindow(point: ReadingPoint, g: ColumnMetrics, previous?: NativeWindow,
+  keep: { x?: boolean; y?: boolean } = {}): NativeWindow {
   const capacity = Math.max(128, ceilDiv(g.viewportWidth, g.p) + 32);
-  const x = axisWindow(point.x, horizontalInputRange(point, g), ticks((capacity - 2) * g.p), g.p, previous?.x);
-  const y = axisWindow(point.y, verticalInputRange(point, g), ticks(127 * g.h), g.h, previous?.y);
+  const x = keep.x && previous ? previous.x
+    : axisWindow(point.x, horizontalInputRange(point, g), ticks((capacity - 2) * g.p), g.p, previous?.x);
+  const y = keep.y && previous ? previous.y
+    : axisWindow(point.y, verticalInputRange(point, g), ticks(127 * g.h), g.h, previous?.y);
   const column = floorDiv(x.origin, g.p);
   const count = g.l <= g.h ? 1 : Math.max(1, ceilDiv(x.origin + x.span + g.viewportWidth - g.edge, g.p) - column);
   return { x, y, column, count };
