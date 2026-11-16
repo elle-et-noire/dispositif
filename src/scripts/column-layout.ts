@@ -379,7 +379,14 @@ export function initializeColumnLayout() {
       if (includeOffscreen || (left < nativeX + viewportWidth && left + geometry.w > nativeX)) {
         fragments.render(content, from, geometry.h, geometry.l);
       } else if (!offscreenFrame) {
-        offscreenFrame = requestAnimationFrame(() => { offscreenFrame = 0; updateSlots(true); });
+        // Fill it once the frame showing the visible columns is produced. A
+        // frame request made in an input handler runs before that frame, so
+        // post a task from the next frame callback instead.
+        offscreenFrame = requestAnimationFrame(() => {
+          const channel = new MessageChannel();
+          channel.port1.onmessage = () => { offscreenFrame = 0; if (!signal.aborted) updateSlots(true); };
+          channel.port2.postMessage(null);
+        });
       }
     }
   };
