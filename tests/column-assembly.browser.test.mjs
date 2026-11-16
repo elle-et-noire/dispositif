@@ -5,13 +5,16 @@ import { BASE_URL, engines, launch } from "./browser.mjs";
 
 // Columns that a slot shows but that lie outside the viewport, and whether
 // each has its copied blocks yet. Columns outside the article have no paper.
+// The viewport, not the slot, gives the height the columns show: WebKit leaves
+// a slot 0 px high for a while after the plane's --cl-h changes, which readers
+// do not see (ROADMAP.md, WebKit).
 const columns = () => {
   const viewport = document.querySelector('.cl-viewport');
   const bounds = viewport.getBoundingClientRect();
   return [...document.querySelectorAll('.cl-slot')]
     .filter((slot) => {
-      const window = slot.getBoundingClientRect(), paper = slot.querySelector('.cl-paper').getBoundingClientRect();
-      return Math.min(paper.bottom, window.bottom) > Math.max(paper.top, window.top);
+      const paper = slot.querySelector('.cl-paper').getBoundingClientRect();
+      return Math.min(paper.bottom, bounds.bottom) > Math.max(paper.top, bounds.top);
     })
     .map((slot) => {
       const box = slot.parentElement.getBoundingClientRect();
