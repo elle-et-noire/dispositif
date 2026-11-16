@@ -12,7 +12,6 @@
 表示速度の残りの課題は `docs/article-open.md` の「残っている課題」に、読み込んだ後の操作の遅さは `docs/column-layout.md` の「操作への応答」にある。
 
 - 数式の読み上げをスクリーンリーダーで確認する（実機での手作業。下の「数式の読み上げ」）
-- n段の再読み込みで、スクロールバーが場所を取る環境（Windows・LinuxのChrome、スクロールバーを常に表示するmacOSのSafariなど）では、読書位置が段の先頭へ寄る。最初の計測が横スクロールバーの出る前の `viewport.clientHeight` を読み（`src/scripts/column-layout.ts` の `--cl-h` を設定する箇所）、保存時の段の高さと合わないので、`restoreExactPoint` が正確な位置をあきらめ、アンカーからの近似で戻すためである。CIのヘッドレスChromiumはスクロールバーを隠すので、`column-assembly` の再読み込みと `column-review-fixes` の履歴の検査がこれを検知できない。Chromiumでスクロールバーを表示して実行すると、この3件が失敗する
 - WebKitはCIで実行していない。`tests/browser.mjs` は `TEST_ENGINES=webkit` で指定したときだけWebKitで実行する（ブランチ `test/webkit-browser-tests`、未マージ）。WebKitで失敗するテストの多くは、テスト側の前提による：CDPに頼る検査、WebKitが親の `--cl-h` の変化を `--cl-h: inherit` の `.cl-slot` の高さへ反映しない（閲覧者には見えない）ことを前提にしない箱の判定、ネイティブスクロールのアニメーションを待たないこと、横バーの矢印の移動量の固定値。原因が分かっていないもの、または閲覧者が気づくかもしれないものは次の3つ
   - 1段で、標準の横バーの矢印をクリックした直後、まだ動いているうちにHomeを押すと、先頭まで戻らずに止まる（`single-column`）
   - 別の記事で段組みを切り替えてから履歴で戻ると、約半数の実行で見出しが17pxほど上にずれる（`column-review-fixes`）
