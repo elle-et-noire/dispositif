@@ -12,9 +12,8 @@
 表示速度の残りの課題は `docs/article-open.md` の「残っている課題」に、読み込んだ後の操作の遅さは `docs/column-layout.md` の「操作への応答」にある。
 
 - 数式の読み上げをスクリーンリーダーで確認する（実機での手作業。下の「数式の読み上げ」）
-- WebKitはCIで実行していない。`tests/browser.mjs` は `TEST_ENGINES=webkit` で指定したときだけWebKitで実行する（ブランチ `test/webkit-browser-tests`、未マージ）。WebKitで失敗するテストの多くは、テスト側の前提による：CDPに頼る検査、WebKitが親の `--cl-h` の変化を `--cl-h: inherit` の `.cl-slot` の高さへ反映しない（閲覧者には見えない）ことを前提にしない箱の判定、ネイティブスクロールのアニメーションを待たないこと、横バーの矢印の移動量の固定値。原因が分かっていないもの、または閲覧者が気づくかもしれないものは次の3つ
-  - n段で縦にスクロールして段の境界をまたぐと、横の移動範囲が1段分ずれるので、`ColumnViewport.place`（`src/scripts/column-viewport.ts`）がブラウザー上の平面の横の原点を組み替えて `scrollLeft` を書く。横にスクロールして段の境界をまたぐと、同じ理由で `scrollTop` を書く。WebKitとFirefoxは、この書き込みで動いている途中のホイールスクロールのアニメーションを止めるので、ホイールで送った距離の一部が失われる。Playwright WebKitとFirefox（Linux）で、書き込みを捨てると失われないことを確かめた。Chromiumでは失われない。Safariと、非同期スクロール（APZ）が動くデスクトップのFirefoxでは確かめていない。動いていない軸の書き込みをスクロールが止まるまで遅らせ、書き込みを `scrollBy` の差にする変更がPR #62にある
-  - n段で、縦のスクロールで生じた左の余白（`docs/column-layout.md` の「座標と移動範囲」）から右へ横にスクロールして戻ると、余白を増やす方向へ動けないよう、`ColumnViewport.place` がスクロールのたびに横の原点を組み替えて `scrollLeft` を書く。WebKitはこの書き込みで動いている途中のホイールのスクロールを止めるので、送った距離より少なく進む。Playwright WebKitで確かめた。PR #62の変更の上では、ChromiumとFirefoxは送った距離だけ進む。直すには、余白を増やす方向へのネイティブのスクロールを許すかを決める必要がある
+- WebKitはCIで実行していない。`tests/browser.mjs` は `TEST_ENGINES=webkit` で指定したときだけWebKitで実行する（ブランチ `test/webkit-browser-tests`、未マージ）。WebKitで失敗するテストの多くは、テスト側の前提による：CDPに頼る検査、WebKitが親の `--cl-h` の変化を `--cl-h: inherit` の `.cl-slot` の高さへ反映しない（閲覧者には見えない）ことを前提にしない箱の判定、ネイティブスクロールのアニメーションを待たないこと、横バーの矢印の移動量の固定値。原因が分かっていないもの、または閲覧者が気づくかもしれないものは次の2つ
+  - n段で、縦のスクロールで生じた左の余白（`docs/column-layout.md` の「座標と移動範囲」）から右へ横にスクロールして戻ると、余白を増やす方向へ動けないよう、`ColumnViewport.place` がスクロールのたびに横の原点を組み替えて `scrollLeft` を書く。WebKitはこの書き込みで動いている途中のホイールのスクロールを止めるので、送った距離より少なく進む。Playwright WebKitで確かめた。ChromiumとFirefoxは送った距離だけ進む。直すには、余白を増やす方向へのネイティブのスクロールを許すかを決める必要がある
   - n段で `location.hash` を変えて見出しへ移動してから再読み込みすると、WebKitでは見出しが移動した位置より24px下に表示される。ChromiumとFirefoxでは移動した位置に戻る。WebKitでも、ハッシュ付きのURLを直接開いたときと、ハッシュなしで再読み込みしたときはずれない。目次のリンクで移動した場合と、原因は調べていない
 
 ## 維持すること

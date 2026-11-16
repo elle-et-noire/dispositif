@@ -2,7 +2,7 @@ import { devicePixels, type ColumnGeometry } from "./column-geometry";
 import type { ColumnMetrics, ReadingPoint } from "./column-coordinates";
 import { createLayout, fromCss, toCss, ticks, zero, paperWindow, slotColumns, visibleColumnCount,
   ReadingState, endPoint, refitPoint } from "./column-coordinates";
-import { ColumnViewport } from "./column-viewport";
+import { ColumnViewport, type NativeMovement } from "./column-viewport";
 import { ColumnFragments, SCROLLERS } from "./column-fragments";
 import { ColumnMotion } from "./column-motion";
 import { opensMulti, COLUMNS_STORAGE_KEY } from "./column-preference";
@@ -111,6 +111,7 @@ export function initializeColumnLayout() {
   let position = 0;
   let measuring = 0;
   let scrolling = 0;
+  let settleTimer = 0;
   let reading: ReadingState | undefined;
   const native = new ColumnViewport(viewport, plane);
   let rangeStart = NaN;
@@ -391,9 +392,9 @@ export function initializeColumnLayout() {
     }
   };
 
-  const present = (force = false) => {
+  const present = (force = false, moved?: NativeMovement) => {
     if (!multi || !reading || printing.matches) return;
-    geometry = native.place(reading.point, reading.layout, force);
+    geometry = native.place(reading.point, reading.layout, force, moved);
     position = toCss(reading.anchor);
     updateSlots();
     announceHeading();
@@ -413,14 +414,26 @@ export function initializeColumnLayout() {
     () => geometry?.unit ?? 0,
   );
 
-  const syncPosition = () => {
+  // `continuing` is true while the scroll may go on, which lets place() keep
+  // the window of the axis that did not move (column-viewport.ts).
+  const syncPosition = (continuing = false) => {
     if (!multi || !reading || printing.matches) return;
     const movement = native.read(reading.point);
     if (!movement) return;
     motion.cancelAnimation();
     if (movement.x !== undefined) reading.horizontal(movement.x);
     if (movement.y !== undefined) reading.vertical(movement.y);
-    present();
+    present(false, continuing ? movement : undefined);
+  };
+  // Replace a window kept during a scroll once the scroll ends. scrollend can
+  // come before the frame that handles the last scroll event, so take that
+  // movement here.
+  const settleWindow = () => {
+    clearTimeout(settleTimer);
+    settleTimer = 0;
+    if (measuring) return;
+    syncPosition();
+    if (native.deferred) present();
   };
 
   function saveHistoryPosition() {
@@ -688,10 +701,15 @@ export function initializeColumnLayout() {
     if (!scrolling) scrolling = requestAnimationFrame(() => {
       scrolling = 0;
       // ResizeObserver's anchor takes priority over scrolls caused by resizing.
-      if (!measuring) syncPosition();
+      if (!measuring) syncPosition(true);
       saveHistoryPosition();
     });
+    // Not every browser fires scrollend after a wheel scroll (Playwright's
+    // Firefox does not), so a pause in scroll events also ends the scroll.
+    clearTimeout(settleTimer);
+    settleTimer = window.setTimeout(settleWindow, 200);
   }, { passive: true, signal });
+  viewport.addEventListener("scrollend", settleWindow, { passive: true, signal });
   articleScrollport.addEventListener("scroll", saveHistoryPosition, { passive: true, signal });
   // Native vertical input never initiates horizontal movement, including at
   // an edge. Manual gestures only interrupt an explicit key animation.
@@ -995,6 +1013,7 @@ export function initializeColumnLayout() {
     resizeObserver.disconnect();
     mutationObserver.disconnect();
     [initialFrame, measuring, scrolling, offscreenFrame, textFrame].forEach(cancelAnimationFrame);
+    clearTimeout(settleTimer);
     root.classList.remove("cl-multi", "cl-ready");
     article.style.removeProperty("--cl-header-height");
     if (toolbar) toolbarParent?.insertBefore(toolbar, toolbarNextSibling);

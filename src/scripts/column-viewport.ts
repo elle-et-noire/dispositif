@@ -1,5 +1,7 @@
 import { fromCss, ticks, toCss, type ColumnMetrics, type ReadingPoint, type Tick } from "./column-coordinates.ts";
-import { cssGeometry, nativeWindow, type NativeWindow, type ColumnGeometry } from "./column-geometry.ts";
+import { cssGeometry, nativeWindow, type NativeAxis, type NativeWindow, type ColumnGeometry } from "./column-geometry.ts";
+
+const sameAxis = (a: NativeAxis, b: NativeAxis) => a.origin === b.origin && a.span === b.span;
 
 export interface NativeMovement { x?: Tick; y?: Tick }
 /** The sole boundary between browser floats and integer application positions. */
@@ -42,10 +44,22 @@ export class ColumnViewport {
     }
     return movement;
   }
-  place(point: ReadingPoint, layout: ColumnMetrics, force = false): ColumnGeometry {
-    const next = nativeWindow(point, layout, this.window);
-    const changed = !this.window || next.x.origin !== this.window.x.origin || next.y.origin !== this.window.y.origin
-      || next.x.span !== this.window.x.span || next.y.span !== this.window.y.span;
+  /** True while place() keeps an axis's old window. A place() without `moved` replaces it. */
+  deferred = false;
+  /** `moved` is the native movement that led to this point. */
+  place(point: ReadingPoint, layout: ColumnMetrics, force = false, moved?: NativeMovement): ColumnGeometry {
+    const previous = this.window;
+    let next = nativeWindow(point, layout, previous);
+    // Crossing a column boundary along one axis shifts the other axis's range,
+    // and a new window there needs an offset write on that axis. WebKit stops
+    // a running scroll animation on any offset write, so the rest of a wheel
+    // scroll would be lost. The point has not moved along that axis, so its
+    // old window still holds it: keep it until the scroll ends.
+    const keepX = !force && !!moved && moved.x === undefined && !!previous && !sameAxis(next.x, previous.x);
+    const keepY = !force && !!moved && moved.y === undefined && !!previous && !sameAxis(next.y, previous.y);
+    if (keepX || keepY) next = nativeWindow(point, layout, previous, { x: keepX, y: keepY });
+    this.deferred = keepX || keepY;
+    const changed = !previous || !sameAxis(next.x, previous.x) || !sameAxis(next.y, previous.y);
     this.window = next;
     const width = `calc(100% + ${toCss(next.x.span)}px)`, height = `calc(100% + ${toCss(next.y.span)}px)`;
     if (this.plane.style.width !== width) this.plane.style.width = width;
@@ -54,8 +68,11 @@ export class ColumnViewport {
       const x = toCss(point.x - next.x.origin), y = toCss(point.y - next.y.origin);
       if (force) this.viewport.scrollTo({ left: x, top: y, behavior: "instant" });
       else {
-        if (Math.abs(this.viewport.scrollLeft - x) > this.unit / 2) this.viewport.scrollLeft = x;
-        if (Math.abs(this.viewport.scrollTop - y) > this.unit / 2) this.viewport.scrollTop = y;
+        // Firefox carries a running scroll animation over a relative scroll,
+        // but stops it on an absolute write.
+        const dx = x - this.viewport.scrollLeft, dy = y - this.viewport.scrollTop;
+        const left = Math.abs(dx) > this.unit / 2 ? dx : 0, top = Math.abs(dy) > this.unit / 2 ? dy : 0;
+        if (left || top) this.viewport.scrollBy({ left, top, behavior: "instant" });
       }
     }
     // A write is acknowledged by its REALIZED offsets, never fed back as input.

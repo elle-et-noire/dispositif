@@ -472,4 +472,34 @@ for (const [name, engine] of engines) {
       }
     } finally { await browser.close(); }
   });
+
+  test(`${name}: ホイールのスクロールが動いている途中に段の境界をまたいでも、回した分だけ進む`, { timeout: 90_000 }, async () => {
+    const browser = await launch(engine);
+    try {
+      for (const axis of ["y", "x"]) {
+        // Reduced motion would turn the scroll animation off, so leave it unset.
+        const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+        await storeColumns(page, "multi");
+        await page.goto(ARTICLE_URL);
+        await waitForColumnLayout(page);
+        await settle(page);
+        const key = axis === "y" ? "clYTicks" : "clXTicks";
+        const point = () => page.locator(".cl-plane").evaluate((plane, key) => Number(plane.dataset[key]) / 1024, key);
+        const box = await page.locator(".cl-viewport").boundingBox();
+        await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+        const before = await point();
+        // Ten ticks sent without waiting cross several column boundaries
+        // while the scroll is still moving.
+        for (let i = 0; i < 10; i++) await page.mouse.wheel(axis === "x" ? 312 : 0, axis === "y" ? 312 : 0);
+        let previous, current = await point();
+        while (current !== previous) {
+          previous = current;
+          await page.waitForTimeout(300);
+          current = await point();
+        }
+        assert.equal(current - before, 3120, `${axis}: 段の境界で動いている途中のスクロールが止まった`);
+        await page.close();
+      }
+    } finally { await browser.close(); }
+  });
 }
