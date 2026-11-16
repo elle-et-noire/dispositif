@@ -124,7 +124,7 @@ test("長い記事でも表示外のブロックを残さず、表示中の断�
   } finally { await page.close(); await browser.close(); }
 });
 
-test("表・番号付きリスト・画像・SVGの内部配置を保つ", { timeout: 60_000 }, async () => {
+test("表・番号付きリスト・画像・SVGの内部配置を保ち、横にスクロールする複製でTabが止まらない", { timeout: 60_000 }, async () => {
   const browser = await launch(chromium);
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   try {
@@ -162,6 +162,32 @@ test("表・番号付きリスト・画像・SVGの内部配置を保つ", { tim
       assert.deepEqual(errors, []);
     }
     assert.equal(await page.locator('.cl-source ol[data-test-kind="list"]').getAttribute("start"), "7");
+
+    // A formula or a table wider than the column and taller than it, so that
+    // the next column shows a copy of its lower part. Chromium makes an
+    // overflowing scroll container a Tab stop, but the copy is hidden from
+    // assistive technologies, so the Tab after the original must not stop on it.
+    for (const [kind, html] of [
+      ["math", '<span class="scrollable" data-test-kind="wide">WIDE</span>'],
+      ["table", '<table data-test-kind="wide"><tbody><tr><td>WIDE</td></tr></tbody></table>'],
+    ]) {
+      await page.locator(".cl-source").evaluate((source, html) => {
+        const h = parseFloat(document.querySelector(".cl-plane").style.getPropertyValue("--cl-h"));
+        const wide = `<span style="display:inline-block;width:3000px;height:${Math.round(h * 1.5)}px"></span>`;
+        source.innerHTML = `<div class="post"><div style="height:200px"></div>${html.replace("WIDE", wide)}<div style="height:4000px"></div></div>`;
+      }, html);
+      await page.locator(".cl-viewport").focus();
+      await page.keyboard.press("Home");
+      await page.waitForSelector('[data-cl-fragmented] [data-test-kind="wide"]');
+      await settle(page);
+      await page.locator('.cl-source [data-test-kind="wide"]').focus();
+      await settle(page);
+      assert.equal(await page.locator('[data-cl-fragmented] [data-test-kind="wide"]').count(), 1, `${kind}の複製が表示されていない`);
+      await page.keyboard.press("Tab");
+      const focused = await page.evaluate(() => document.activeElement.closest("[data-cl-fragmented]")
+        ? document.activeElement.outerHTML.slice(0, 80) : null);
+      assert.equal(focused, null, `${kind}の元本文からのTabで複製へフォーカスが移った`);
+    }
   } finally { await page.close(); await browser.close(); }
 });
 

@@ -9,6 +9,9 @@ interface Box {
 
 type FragmentElement = HTMLElement | SVGElement;
 
+/** The article's elements that scroll their own text sideways (globals.css). */
+export const SCROLLERS = "pre, .scrollable, table";
+
 interface Block extends Box {
   element: FragmentElement;
   parent: HTMLElement;
@@ -147,7 +150,9 @@ export class ColumnFragments {
       ? [copy as HTMLDetailsElement, ...copy.querySelectorAll<HTMLDetailsElement>("details")]
       : [...copy.querySelectorAll<HTMLDetailsElement>("details")];
     copiedDetails.forEach((details, i) => { details.dataset.clDetails = String(this.details.get(originalDetails[i])); });
-    const controls = "a, button, input, select, textarea, summary, [tabindex], [contenteditable], audio, video";
+    // A scroll container whose text overflows is a Tab stop in Chromium even
+    // without tabindex. The copy is aria-hidden, so it is left out as well.
+    const controls = `a, button, input, select, textarea, summary, [tabindex], [contenteditable], audio, video, ${SCROLLERS}`;
     const interactive = [...copy.querySelectorAll<HTMLElement>(controls)];
     if (copy instanceof HTMLElement && copy.matches(controls)) interactive.push(copy);
     interactive.forEach((node) => {

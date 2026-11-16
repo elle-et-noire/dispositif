@@ -3,7 +3,7 @@ import type { ColumnMetrics, ReadingPoint } from "./column-coordinates";
 import { createLayout, fromCss, toCss, ticks, zero, paperWindow, slotColumns, visibleColumnCount,
   ReadingState, endPoint, refitPoint } from "./column-coordinates";
 import { ColumnViewport } from "./column-viewport";
-import { ColumnFragments } from "./column-fragments";
+import { ColumnFragments, SCROLLERS } from "./column-fragments";
 import { ColumnMotion } from "./column-motion";
 import { opensMulti, COLUMNS_STORAGE_KEY } from "./column-preference";
 import { type HistoryPosition, HISTORY_STORAGE_KEY, parseSavedHistory, mergeHistory, resolveHistoryEntry } from "./reading-history";
@@ -785,7 +785,7 @@ export function initializeColumnLayout() {
     const target = event.target instanceof Element ? event.target : null;
     if (target?.closest('input, textarea, select, button, summary, [contenteditable="true"], [data-toc]')) return;
     if (event.key === " " && target?.closest("a")) return;
-    const scrollable = target?.closest<HTMLElement>("pre, .scrollable, table");
+    const scrollable = target?.closest<HTMLElement>(SCROLLERS);
     if (scrollable && (scrollable.scrollWidth > scrollable.clientWidth || scrollable.scrollHeight > scrollable.clientHeight)) return;
     if (!reading) return;
     syncPosition();
