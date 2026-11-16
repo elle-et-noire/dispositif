@@ -552,7 +552,7 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
         await page.keyboard.press("ArrowRight");
         await settle(page);
         await page.emulateMedia({ media: "print" });
-        await page.waitForSelector(".cl-layout > .cl-source", { state: "attached" });
+        await page.waitForSelector(".cl-original-slot:not(.cl-slot) > .cl-source:not(.cl-content)", { state: "attached" });
         assert.ok(await page.locator(".cl-source").isVisible(), "印刷時に元本文が消えた");
         await page.emulateMedia({ media: "screen" });
         await page.waitForSelector(".cl-slot .cl-source");
@@ -570,7 +570,7 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
         assert.ok(await original.evaluate((source) => source.isConnected && !!source.closest(".cl-slot")));
         for (let i = 0; i < 2; i++) {
           await toggleColumns(page);
-          assert.ok(await original.evaluate((source) => source.parentElement.classList.contains("cl-layout")
+          assert.ok(await original.evaluate((source) => !source.closest(".cl-slot") && !source.classList.contains("cl-content")
             && !source.style.width && !source.style.left && !source.style.translate));
           await toggleColumns(page);
           await page.waitForSelector(".cl-slot .cl-source");

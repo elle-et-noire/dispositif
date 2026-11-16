@@ -57,11 +57,12 @@ const {
       document.addEventListener("keydown", (event) => {
         if (event.key === "Tab" && document.documentElement.classList.contains("cl-pending")) event.preventDefault();
       }, { capture: true });
-      // With n段 stored, put the article text in the reader's first column
-      // before the swap, at the column width. Its first layout, during which
-      // the math fonts are found, is then the one the reader measures, instead
-      // of a single-column layout that the reader would repeat at the column
-      // width. The new document is not rendered yet, so moving it is free.
+      // With n段 stored, make the original's column around the article text
+      // (ColumnLayout.astro) the reader's first column before the swap, at the
+      // column width. The text's first layout, during which the math fonts are
+      // found, is then the one the reader measures, instead of a single-column
+      // layout that the reader would repeat at the column width. The new
+      // document is not rendered yet, so this is free.
       // On a full page load, the observer below does the same while the article
       // is being parsed.
       // ?columns=multi or ?columns=single in the destination URL wins over the
@@ -78,26 +79,14 @@ const {
       };
       const premountColumn = (doc, url) => {
         if (!wantsColumn(doc, url)) return;
-        const source = doc.querySelector(".cl-source");
-        const reader = doc.querySelector(".cl-reader");
-        const plane = reader?.querySelector(".cl-plane");
-        const copies = plane?.querySelector(":scope > .cl-copies");
-        if (!source || !copies || plane.firstChild !== copies || copies.firstChild || reader.nextElementSibling !== source) return;
-        // The same structure as the reader's mountSlot().
-        const part = (name) => {
-          const element = doc.createElement("div");
-          element.className = name;
-          return element;
-        };
-        const track = part("cl-track"), slot = part("cl-slot"), paper = part("cl-paper");
-        paper.setAttribute("aria-hidden", "true");
+        const source = doc.querySelector(".cl-original > .cl-original-slot > .cl-source");
+        if (!source) return;
+        // The same classes as the reader's mountOriginal().
+        source.parentElement.classList.add("cl-slot");
+        source.parentElement.parentElement.classList.add("cl-track");
         source.classList.add("cl-content");
         // The reader replaces this with the same width in px.
         source.style.width = "var(--cl-column-width)";
-        slot.append(source, paper);
-        track.append(slot);
-        plane.insertBefore(track, copies);
-        reader.hidden = false;
         // The article's n段 layout too (not the header's, which is visible):
         // Firefox rebuilds the text's boxes when its ancestors change position.
         doc.documentElement.classList.add("cl-premount");
@@ -118,12 +107,11 @@ const {
       };
       // On a full page load, the head script runs before the body is parsed.
       // Mark the scrollport aria-hidden as soon as the parser attaches it, and
-      // in n段 move .cl-source as soon as it is attached (right after
-      // .cl-reader, ColumnLayout.astro). The parser keeps appending the rest of
-      // the text to the moved element, so the frames rendered during the parse
-      // lay it out in its column. Mutation callbacks run at the microtask
-      // checkpoint after the parser task that inserted the element, before the
-      // next rendering opportunity. Both elements come before the article
+      // in n段 make the column around .cl-source a column as soon as the text
+      // is attached, so the frames rendered during the parse lay the text out
+      // there. Mutation callbacks run at the microtask checkpoint after the
+      // parser task that inserted the element, before the next rendering
+      // opportunity. Both elements come before the article
       // text; the observer stops once the twelfth block of the text is marked
       // (deferText), or at DOMContentLoaded for a shorter article. (An inline
       // script in the body would block the parser and cost Firefox a style
@@ -147,16 +135,12 @@ const {
       }
       // Undo premountColumn() for the single-column fallback below.
       const unmountColumn = () => {
-        const source = document.querySelector(".cl-plane .cl-source");
-        const reader = document.querySelector(".cl-reader");
         document.documentElement.classList.remove("cl-premount");
-        if (!source || !reader) return;
-        reader.after(source);
-        source.classList.remove("cl-content");
-        source.style.removeProperty("width");
-        const plane = reader.querySelector(".cl-plane");
-        plane.replaceChildren(plane.querySelector(":scope > .cl-copies"));
-        reader.hidden = true;
+        document.querySelector(".cl-original")?.classList.remove("cl-track");
+        document.querySelector(".cl-original-slot")?.classList.remove("cl-slot");
+        const source = document.querySelector(".cl-source");
+        source?.classList.remove("cl-content");
+        source?.style.removeProperty("width");
       };
       document.addEventListener("astro:before-swap", (event) => {
         markPending(event.newDocument.documentElement);

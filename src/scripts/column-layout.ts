@@ -46,7 +46,6 @@ export function initializeColumnLayout() {
   const source = document.querySelector<HTMLElement>(".cl-source");
   const articleScrollport = document.querySelector<HTMLElement>(".cl-article-scrollport");
   const viewport = document.querySelector<HTMLElement>(".cl-viewport");
-  const reader = document.querySelector<HTMLElement>(".cl-reader");
   const plane = document.querySelector<HTMLElement>(".cl-plane");
   const copies = plane?.querySelector<HTMLElement>(":scope > .cl-copies");
   const ruler = document.querySelector<HTMLElement>(".cl-ruler");
@@ -56,7 +55,11 @@ export function initializeColumnLayout() {
   const toolbar = document.querySelector<HTMLElement>(".cl-toolbar");
   const toolbarParent = toolbar?.parentNode;
   const toolbarNextSibling = toolbar?.nextSibling ?? null;
-  if (!source || !articleScrollport || !viewport || !reader || !plane || !copies || !ruler || !toggle) return;
+  // The original's column, around the text in both column layouts (ColumnLayout.astro).
+  const originalSlot = source?.parentElement;
+  const originalTrack = originalSlot?.parentElement;
+  if (!source || !articleScrollport || !viewport || !plane || !copies || !ruler || !toggle
+    || !originalSlot?.matches(".cl-original-slot") || !originalTrack) return;
 
   // Astro preserves state properties on history traversal. Give each article
   // entry its own key; the positions stay in memory rather than writing to
@@ -85,15 +88,10 @@ export function initializeColumnLayout() {
   const savedHistoryPosition = historyPositions.get(entryKey);
   let historyReady = false;
 
-  // With n段 stored, Layout.astro has already put the original in the first
+  // With n段 stored, Layout.astro has already made the original's column a
   // column (at astro:before-swap, or while a full load parses it), so that its
-  // first layout is at the column width. Adopt that slot instead of mounting
-  // the original again.
-  let premounted = source.parentElement?.matches(".cl-plane > .cl-track > .cl-slot")
-    ? source.parentElement : undefined;
-  // The pre-mounted original came from just after the reader.
-  const sourceParent = premounted ? reader.parentNode! : source.parentNode!;
-  const sourceNextSibling = premounted ? reader.nextSibling : source.nextSibling;
+  // first layout is at the column width.
+  let premounted = originalSlot.classList.contains("cl-slot");
   const controller = new AbortController();
   const { signal } = controller;
   const printing = window.matchMedia("print");
@@ -259,9 +257,33 @@ export function initializeColumnLayout() {
     document.dispatchEvent(new CustomEvent("cl:heading", { detail: { id } }));
   };
 
-  const clearPlane = () => {
-    copies.replaceChildren();
-    plane.replaceChildren(copies);
+  const clearPlane = () => copies.replaceChildren();
+
+  // The original's column only changes its classes and styles: moving the
+  // text would make the browser style and lay out all of it from scratch
+  // (ColumnLayout.astro).
+  const mountOriginal = () => {
+    originalTrack.classList.add("cl-track");
+    originalSlot.classList.add("cl-slot");
+    source.classList.add("cl-content");
+    // Not laid out at its own width before measure() sets the column's.
+    if (!source.style.width) source.style.width = "var(--cl-column-width)";
+    slots.push(originalSlot);
+  };
+  const unmountOriginal = () => {
+    premounted = false;
+    root.classList.remove("cl-premount");
+    originalTrack.classList.remove("cl-track");
+    originalSlot.classList.remove("cl-slot");
+    source.classList.remove("cl-content");
+    for (const property of ["width", "left", "translate"]) source.style.removeProperty(property);
+    for (const property of ["left", "clip-path"]) originalTrack.style.removeProperty(property);
+    const paper = originalSlot.lastElementChild as HTMLElement;
+    for (const property of ["translate", "height"]) paper.style.removeProperty(property);
+    delete originalSlot.dataset.clK;
+    placements.delete(originalSlot);
+    // The native plane's extent (column-viewport.ts); place() sets it again.
+    for (const property of ["width", "height"]) plane.style.removeProperty(property);
   };
 
   const mountSlot = (content: HTMLElement) => {
@@ -270,15 +292,14 @@ export function initializeColumnLayout() {
     track.className = "cl-track";
     const slot = document.createElement("div");
     slot.className = "cl-slot";
-    if (content !== source) slot.setAttribute("aria-hidden", "true");
+    slot.setAttribute("aria-hidden", "true");
     slot.appendChild(content);
     const paper = document.createElement("div");
     paper.className = "cl-paper";
     paper.setAttribute("aria-hidden", "true");
     slot.appendChild(paper);
     track.appendChild(slot);
-    // The original first in the plane, the copies in .cl-copies (ColumnLayout.astro).
-    if (content === source) plane.insertBefore(track, copies); else copies.appendChild(track);
+    copies.appendChild(track);
     slots.push(slot);
   };
 
@@ -307,7 +328,9 @@ export function initializeColumnLayout() {
         }
         return true;
       });
-      while (slots.length < count) mountSlot(slots.length === 0 ? source : fragments.createContent());
+      while (slots.length < count) {
+        if (slots.length) mountSlot(fragments.createContent()); else mountOriginal();
+      }
       const retained = new Set(slots.map((slot) => Number(slot.dataset.clK)));
       const missing = [...wanted].filter((k) => !retained.has(k));
       for (const slot of slots) {
@@ -459,9 +482,11 @@ export function initializeColumnLayout() {
   const measure = () => {
     measuring = 0;
     if (!multi || printing.matches) return;
-    // On enabling, detach the original while reading the page's new geometry,
-    // so it is not laid out at an intermediate width before its column.
-    if (!slots.length && !premounted) source.remove();
+    // Lay the original out in its column, at the column width estimated in
+    // CSS until it is set below. A pre-mounted original was laid out there
+    // already, at the same width unless the column width differs from the
+    // estimate (then once more here).
+    if (!slots.length) { premounted = false; mountOriginal(); }
     // The scroll handler skips a native scroll while this frame is pending.
     // Apply it before reading the old point, or the point kept below (or the
     // offsets present() acknowledges) drops it and the view snaps back. After
@@ -488,12 +513,6 @@ export function initializeColumnLayout() {
     const h = Math.max(1, viewport.clientHeight);
     plane.style.setProperty("--cl-w", `${w}px`);
     plane.style.setProperty("--cl-h", `${h}px`);
-    // Lay the original out once, at W and in its column. A pre-mounted
-    // original was laid out there already, at the same width unless the
-    // column width differs from the CSS estimate (then once more here).
-    if (!slots.length) {
-      if (premounted) { slots.push(premounted); premounted = undefined; } else mountSlot(source);
-    }
     // The visible columns and the next ones on either side.
     showText(position + (Math.ceil(viewport.clientWidth / w) + 2) * h);
     const sourceBox = source.getBoundingClientRect();
@@ -583,14 +602,6 @@ export function initializeColumnLayout() {
     if (target) navigate(target);
   };
 
-  const restoreSource = () => {
-    premounted = undefined;
-    root.classList.remove("cl-premount");
-    sourceParent.insertBefore(source, sourceNextSibling);
-    source.classList.remove("cl-content");
-    for (const property of ["width", "left", "translate"]) source.style.removeProperty(property);
-  };
-
   const setMulti = (next: boolean, anchor?: number) => {
     if (next === multi) return;
     const toggleFocused = document.activeElement === toggle;
@@ -612,7 +623,15 @@ export function initializeColumnLayout() {
       if (multi && header) header.appendChild(toolbar);
       else toolbarParent?.insertBefore(toolbar, toolbarNextSibling);
     }
-    reader.hidden = !multi;
+    // The viewport's name stays short and carries no key instructions:
+    // screen readers speak it whenever a click or text selection focuses the
+    // viewport, and they read the original text in order, not the visual
+    // columns. In 1段 the viewport is a plain block around the text.
+    if (multi) {
+      viewport.tabIndex = 0;
+      viewport.setAttribute("role", "region");
+      viewport.setAttribute("aria-label", "n段の本文");
+    } else for (const name of ["tabindex", "role", "aria-label"]) viewport.removeAttribute(name);
     toggle.setAttribute("aria-pressed", String(multi));
     toggle.title = multi ? "1段表示に切り替える" : "n段表示に切り替える";
     activeHeading = "";
@@ -626,7 +645,7 @@ export function initializeColumnLayout() {
       if (target !== undefined && reading) { reading.restore(fromCss(target)); present(true); }
       articleScrollport.scrollTo({ top: 0, behavior: "instant" });
     } else {
-      restoreSource();
+      unmountOriginal();
       const target = anchorOffset(contentAnchor);
       if (target !== undefined) position = target;
       clearPlane();
@@ -647,9 +666,8 @@ export function initializeColumnLayout() {
   // reader does not start in n段 (print, a changed preference, the fallback).
   const releasePremounted = () => {
     if (!premounted || multi) return;
-    restoreSource();
+    unmountOriginal();
     clearPlane();
-    reader.hidden = true;
     // The table of contents skipped its position while pre-mounted (Toc.astro).
     document.dispatchEvent(new CustomEvent("cl:single"));
   };
@@ -659,8 +677,7 @@ export function initializeColumnLayout() {
     setMulti(startMulti);
   };
 
-  // The original normally lives inside the reader. Return it to the document
-  // for printing, where the reader is hidden, then resume the saved position.
+  // Print the article in 1段, then resume the saved position.
   const suspendForPrint = () => {
     showAllText();
     if (suspendedForPrint) return;
@@ -1017,8 +1034,7 @@ export function initializeColumnLayout() {
     root.classList.remove("cl-multi", "cl-ready");
     article.style.removeProperty("--cl-header-height");
     if (toolbar) toolbarParent?.insertBefore(toolbar, toolbarNextSibling);
-    restoreSource();
-    reader.hidden = true;
+    unmountOriginal();
     clearPlane();
   };
   document.addEventListener("astro:before-swap", () => { dispose?.(); dispose = undefined; }, { once: true, signal });
