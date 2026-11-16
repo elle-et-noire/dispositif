@@ -15,6 +15,7 @@
     "preview": "astro preview",
     "test": "node --experimental-strip-types --test lib/*.test.ts",
     "test:browser": "node --test tests/*.browser.test.mjs",
+    "test:links": "node --test tests/links.test.mjs",
     "astro": "astro"
   },
   "dependencies": {

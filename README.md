@@ -26,7 +26,7 @@ Astroベースの記事サイトです。記事はビルド時にMarkdownからH
 │   │   └── [slug].astro
 │   ├── scripts/            # 段組み、読書位置の履歴、数式フォントの先読み、背景の一覧
 │   └── styles/             # globals.css、column-layout.css
-└── tests/                  # ブラウザーテスト（*.browser.test.mjs）と共通の準備処理（browser.mjs）・段組みの操作（column-controls.mjs）
+└── tests/                  # ビルド結果のリンク検査（links.test.mjs）、ブラウザーテスト（*.browser.test.mjs）と共通の準備処理（browser.mjs）・段組みの操作（column-controls.mjs）
 ```
 
 今後の予定と残っている課題は `ROADMAP.md` にまとめています。
@@ -60,12 +60,15 @@ npx astro dev stop
 npm run astro -- check
 npm test               # lib/*.test.ts の単体テスト
 npm run build
+npm run test:links     # npm run build の後に
 npm run test:browser   # astro preview などを起動した状態で
 ```
 
 テストを追加する基準は `AGENTS.md` の「テストの追加」にあります。
 
 `npm test` は、段組みの座標（Home／Endの対称性・縦操作専用の余白・片軸操作・到達経路によらない位置・本文の被覆・有限平面・位置復元・ネイティブ座標の読み戻し、小数のネイティブ座標で往復しても投影原点が揺れないこと）、段組みの選択、読書位置の履歴、数式フォント、数式の読み上げ名を確かめます。
+
+`npm run test:links` は、`dist/` の全ページについて、サイト内へのリンクと読み込むファイル（`href`、`src`、`<style>` の `url()` など）の行き先が `dist/` にあり、ベースパス（`astro.config.mjs` の `base`）の下を指すこと、`#id` へのリンク（目次、式番号への参照、脚注など）の行き先と `aria-controls` などが指すidがそのページにあること、idが重複しないことを確かめます。外部サイトへのリンクはたどりません。
 
 `npm run test:browser` は、開発サーバーまたはビルド済みサイトのプレビューを起動した状態で実行します。初回と、`playwright-core` を更新した後は、`npx playwright-core install chromium firefox` で検証用ブラウザーを用意します。既存のChromiumは `TEST_BROWSER_PATH`、別のサーバーは `TEST_BASE_URL` で指定できます。ChromiumとFirefoxの両方で実行するテストは、`TEST_ENGINES=chromium` のように実行するブラウザーを絞れます。対象サイトのURL、ブラウザーの起動、段組みの開始待ちなど、テストに共通の準備処理は `tests/browser.mjs` にまとめています。段組みが始まる前のスクロールは失われ、本文の後半が表示される前のスクロールは表示済みの本文の末尾で止まるので、記事を操作するテストは `waitForColumnLayout` で待ってから操作します。
 
