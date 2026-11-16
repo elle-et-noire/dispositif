@@ -166,10 +166,19 @@ const checkDirectPremount = async (engine) => {
     await page.reload();
     await shown('reload');
     assert.deepEqual(await position(), before, 'reload');
-    // A fragment in the address is followed from the premounted column.
+    // A fragment in the address is followed from the premounted column. From
+    // the article itself, page.goto() with a fragment would not load it again.
+    await page.goto(BASE_URL);
     await page.goto(`${article}#${encodeURIComponent('cauchy和公式')}`);
     await shown('hash');
     assert.notDeepEqual(await position(), ['0', '0'], 'hash');
+    // With a fragment, too, a reload restores the position scrolled to.
+    await page.locator('.cl-viewport').evaluate((viewport) => { viewport.scrollTop += 150; });
+    await frames();
+    const scrolled = await position();
+    await page.reload();
+    await shown('hash reload');
+    assert.deepEqual(await position(), scrolled, 'hash reload');
     // Astro runs inline scripts again after swapping a page in. There the
     // navigation has already premounted the article.
     await page.locator('.cl-close:visible').click();

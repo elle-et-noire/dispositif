@@ -28,5 +28,19 @@
 
 <script>
   import { initializeColumnLayout } from "../scripts/column-layout";
-  document.addEventListener("astro:page-load", initializeColumnLayout);
+  // On a full load, Astro dispatches the first astro:page-load from the
+  // window's load event. If initializeColumnLayout starts there with a
+  // fragment in the URL, WebKit scrolls to the fragment's target once more
+  // after the first frame has restored the reading position, and that
+  // scroll is then taken as the user's (docs/column-layout.md, "保存と復元").
+  // Starting a task later avoids it.
+  let firstLoad = true;
+  document.addEventListener("astro:page-load", () => {
+    const defer = firstLoad && location.hash;
+    firstLoad = false;
+    if (!defer) { initializeColumnLayout(); return; }
+    const channel = new MessageChannel();
+    channel.port1.onmessage = () => initializeColumnLayout();
+    channel.port2.postMessage(null);
+  });
 </script>
