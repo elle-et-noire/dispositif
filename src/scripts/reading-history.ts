@@ -45,6 +45,22 @@ export function mergeHistory(stored: Map<string, HistoryPosition>, local: Map<st
 }
 
 /**
+ * Keeps the in-memory positions to the newest `limit` entries, as
+ * mergeHistory keeps the stored copy. ClientRouter navigations keep the same
+ * document, so without this every opened article would add an entry until
+ * pagehide. `keep` (the current entry) is never dropped.
+ */
+export function trimHistory(local: Map<string, HistoryPosition>, changed: Set<string>, keep: string,
+  limit = HISTORY_LIMIT) {
+  for (const key of local.keys()) {
+    if (local.size <= limit) break;
+    if (key === keep) continue;
+    local.delete(key);
+    changed.delete(key);
+  }
+}
+
+/**
  * Chooses the position to restore for an existing history entry. A local
  * change not yet persisted is the newest; otherwise storage may hold a newer
  * position written by another document since this one loaded.

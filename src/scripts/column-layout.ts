@@ -6,7 +6,7 @@ import { ColumnViewport } from "./column-viewport";
 import { ColumnFragments, SCROLLERS } from "./column-fragments";
 import { ColumnMotion } from "./column-motion";
 import { opensMulti, COLUMNS_STORAGE_KEY } from "./column-preference";
-import { type HistoryPosition, HISTORY_STORAGE_KEY, parseSavedHistory, mergeHistory, resolveHistoryEntry } from "./reading-history";
+import { type HistoryPosition, HISTORY_STORAGE_KEY, parseSavedHistory, mergeHistory, resolveHistoryEntry, trimHistory } from "./reading-history";
 
 // The headings listed in the TOC (lib/toc.ts). The footnotes' hidden heading has
 // an id for the footnote references' aria-describedby, but is not in the TOC.
@@ -418,10 +418,13 @@ export function initializeColumnLayout() {
   function saveHistoryPosition() {
     if (!historyReady || suspendedForPrint) return;
     const details = historyPositions.get(entryKey)?.details;
+    // Move the entry to the newest end, as mergeHistory does in storage.
+    historyPositions.delete(entryKey);
     historyPositions.set(entryKey, multi
       ? { mode: "multi", position, point: reading?.point, layout: reading?.layout, details }
       : { mode: "single", position: articleScrollport!.scrollTop, details });
     dirtyHistoryPositions.add(entryKey);
+    trimHistory(historyPositions, dirtyHistoryPositions, entryKey);
   }
 
   const goToEdge = (end: boolean) => {
