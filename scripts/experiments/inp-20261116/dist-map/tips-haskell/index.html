@@ -1,0 +1,180 @@
+<!DOCTYPE html><html data-astro-transition-scope="astro-yztbsuuz-1" lang="ja" class="antialiased" data-page-kind="article"><head><meta charset="UTF-8"><script>
+      (() => {
+      // With JavaScript enabled, keep the article out of the first paint until
+      // the reader has selected its initial column layout and restored its position.
+      // This script runs once per full load; client-side navigations mark the
+      // destination before Astro swaps it in, since inline head scripts do not
+      // run while Astro parses that document.
+      const markPending = (root) => {
+        if (root.dataset.pageKind === "article") root.classList.add("cl-pending");
+      };
+      markPending(document.documentElement);
+      // cl-pending hides the article with clip-path, which leaves it in the
+      // accessibility tree; aria-hidden keeps it out for the same span. The
+      // reader removes both in its first frame (column-layout.ts), as does the
+      // fallback below. Without JavaScript neither is set.
+      const hideArticle = (doc) => {
+        const scrollport = doc.querySelector(".cl-article-scrollport");
+        scrollport?.setAttribute("aria-hidden", "true");
+        return Boolean(scrollport);
+      };
+      // The hidden article stays focusable: Tab would reach the scrollport and
+      // the links and buttons inside it while they are aria-hidden and clipped.
+      // inert would prevent that, but it is inherited through style like
+      // visibility, so toggling it restyles the whole article (~35-40 ms in
+      // both engines). Instead, ignore Tab for the pending span, usually one
+      // frame to a few hundred ms. Focus moved by script (the reader focuses a
+      // hash target before it clears cl-pending) is left alone.
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Tab" && document.documentElement.classList.contains("cl-pending")) event.preventDefault();
+      }, { capture: true });
+      // With n段 stored, put the article text in the reader's first column
+      // before the swap, at the column width. Its first layout, during which
+      // the math fonts are found, is then the one the reader measures, instead
+      // of a single-column layout that the reader would repeat at the column
+      // width. The new document is not rendered yet, so moving it is free.
+      // On a full page load, the observer below does the same while the article
+      // is being parsed.
+      // ?columns=multi or ?columns=single in the destination URL wins over the
+      // stored choice (opensMulti() in column-preference.ts). After a reader
+      // toggles such a page, reloading it keeps the toggled column layout, which this
+      // guess ignores; the reader then undoes the premount (releasePremounted).
+      const wantsColumn = (doc, url) => {
+        const columns = new URLSearchParams(url.search).get("columns");
+        let multi = columns === "multi";
+        if (columns !== "multi" && columns !== "single") {
+          try { multi = localStorage.getItem("dispositif:columns") === "multi"; } catch { /* storage is optional */ }
+        }
+        return multi && doc.documentElement.dataset.pageKind === "article" && !matchMedia("print").matches;
+      };
+      const premountColumn = (doc, url) => {
+        if (!wantsColumn(doc, url)) return;
+        const source = doc.querySelector(".cl-source");
+        const reader = doc.querySelector(".cl-reader");
+        const plane = reader?.querySelector(".cl-plane");
+        const copies = plane?.querySelector(":scope > .cl-copies");
+        if (!source || !copies || plane.firstChild !== copies || copies.firstChild || reader.nextElementSibling !== source) return;
+        // The same structure as the reader's mountSlot().
+        const part = (name) => {
+          const element = doc.createElement("div");
+          element.className = name;
+          return element;
+        };
+        const track = part("cl-track"), slot = part("cl-slot"), paper = part("cl-paper");
+        paper.setAttribute("aria-hidden", "true");
+        source.classList.add("cl-content");
+        // The reader replaces this with the same width in px.
+        source.style.width = "var(--cl-column-width)";
+        slot.append(source, paper);
+        track.append(slot);
+        plane.insertBefore(track, copies);
+        reader.hidden = false;
+        // The article's n段 layout too (not the header's, which is visible):
+        // Firefox rebuilds the text's boxes when its ancestors change position.
+        doc.documentElement.classList.add("cl-premount");
+      };
+      // Leave all but the first blocks of the article text out of its first
+      // layout (column-layout.css), which is then a fraction of the whole
+      // article; the reader shows the rest once its first frame is painted
+      // (column-layout.ts). Not for a fragment or a history entry: the
+      // position can then be anywhere in the text, and the reader shows it
+      // all at once anyway. Without JavaScript nothing is left out.
+      // The mark goes on the twelfth block; the blocks after it are left out.
+      // Returns whether it was placed.
+      const deferText = (doc, url, traverse) => {
+        if (doc.documentElement.dataset.pageKind !== "article" || url.hash || traverse) return false;
+        const block = doc.querySelector(".cl-source > .post")?.children[11];
+        block?.setAttribute("data-cl-defer", "");
+        return Boolean(block);
+      };
+      // On a full page load, the head script runs before the body is parsed.
+      // Mark the scrollport aria-hidden as soon as the parser attaches it, and
+      // in n段 move .cl-source as soon as it is attached (right after
+      // .cl-reader, ColumnLayout.astro). The parser keeps appending the rest of
+      // the text to the moved element, so the frames rendered during the parse
+      // lay it out in its column. Mutation callbacks run at the microtask
+      // checkpoint after the parser task that inserted the element, before the
+      // next rendering opportunity. Both elements come before the article
+      // text; the observer stops once the twelfth block of the text is marked
+      // (deferText), or at DOMContentLoaded for a shorter article. (An inline
+      // script in the body would block the parser and cost Firefox a style
+      // pass.) A reload keeps the history entry's state, from which the reader
+      // restores the position.
+      if (document.documentElement.classList.contains("cl-pending")) {
+        let hidden = false;
+        let column = wantsColumn(document, location);
+        let defer = !location.hash && typeof history.state?.dispositifReadingKey !== "string";
+        const observer = new MutationObserver(() => {
+          if (!hidden) hidden = hideArticle(document);
+          if (defer && deferText(document, location, false)) defer = false;
+          if (column && document.querySelector(".cl-source")) {
+            column = false;
+            premountColumn(document, location);
+          }
+          if (hidden && !column && !defer) observer.disconnect();
+        });
+        observer.observe(document, { childList: true, subtree: true });
+        document.addEventListener("DOMContentLoaded", () => observer.disconnect(), { once: true });
+      }
+      // Undo premountColumn() for the single-column fallback below.
+      const unmountColumn = () => {
+        const source = document.querySelector(".cl-plane .cl-source");
+        const reader = document.querySelector(".cl-reader");
+        document.documentElement.classList.remove("cl-premount");
+        if (!source || !reader) return;
+        reader.after(source);
+        source.classList.remove("cl-content");
+        source.style.removeProperty("width");
+        const plane = reader.querySelector(".cl-plane");
+        plane.replaceChildren(plane.querySelector(":scope > .cl-copies"));
+        reader.hidden = true;
+      };
+      document.addEventListener("astro:before-swap", (event) => {
+        markPending(event.newDocument.documentElement);
+        if (event.newDocument.documentElement.classList.contains("cl-pending")) hideArticle(event.newDocument);
+        // The address bar still shows the old page here.
+        premountColumn(event.newDocument, event.to);
+        deferText(event.newDocument, event.to, event.navigationType === "traverse");
+      });
+      // If the reader bundle fails or stalls, leave a usable single-column
+      // article instead of keeping the content hidden indefinitely.
+      // Only one navigation can be pending, so a newer arm replaces the timer
+      // left by an earlier one. Once the reader has started (cl-ready), it
+      // owns clearing cl-pending: its first frame may be delayed for longer
+      // than this timeout in a background tab, which is not a failure.
+      let fallbackTimer;
+      const armReaderFallback = () => {
+        clearTimeout(fallbackTimer);
+        const root = document.documentElement;
+        if (!root.classList.contains("cl-pending")) return;
+        fallbackTimer = setTimeout(() => {
+          if (root !== document.documentElement || !root.classList.contains("cl-pending")
+            || root.classList.contains("cl-ready")) return;
+          unmountColumn();
+          document.querySelector(".cl-source > .post > [data-cl-defer]")?.removeAttribute("data-cl-defer");
+          root.classList.add("cl-fallback");
+          root.classList.remove("cl-pending");
+          document.querySelector(".cl-article-scrollport")?.removeAttribute("aria-hidden");
+          // The table of contents skipped its position while pre-mounted (Toc.astro).
+          document.dispatchEvent(new CustomEvent("cl:single"));
+        }, 10000);
+      };
+      armReaderFallback();
+      document.addEventListener("astro:after-swap", armReaderFallback);
+      })();
+    </script><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="generator" content="Astro v7.4.7"><meta name="description" content="Description of something with working codes"><link rel="icon" href="/dispositif/favicon.ico"><!-- The same page with ?columns= (the column layout) is not another page. --><link rel="canonical" href="https://elle-et-noire.github.io/dispositif/tips-haskell/"><title>Tips for Haskell</title><meta name="astro-view-transitions-enabled" content="true"><meta name="astro-view-transitions-fallback" content="animate"><script type="module" src="/dispositif/_astro/ClientRouter.astro_astro_type_script_index_0_lang.C5ME9JiI.js"></script><link rel="stylesheet" href="/dispositif/_astro/Layout.Cv_ONpI2.css"><script type="module" src="/dispositif/_astro/page.CZpLv-iH.js"></script><style>[data-astro-transition-scope="astro-yztbsuuz-1"] { view-transition-name: astro-yztbsuuz-1; }@layer astro { ::view-transition-old(astro-yztbsuuz-1) { animation: none; opacity: 0; mix-blend-mode: normal; }::view-transition-new(astro-yztbsuuz-1) { animation: none; mix-blend-mode: normal; }::view-transition-group(astro-yztbsuuz-1) { animation: none } }[data-astro-transition-fallback="old"] [data-astro-transition-scope="astro-yztbsuuz-1"],
+			[data-astro-transition-fallback="old"][data-astro-transition-scope="astro-yztbsuuz-1"] { animation: none; mix-blend-mode: normal; }[data-astro-transition-fallback="new"] [data-astro-transition-scope="astro-yztbsuuz-1"],
+			[data-astro-transition-fallback="new"][data-astro-transition-scope="astro-yztbsuuz-1"] { animation: none; mix-blend-mode: normal; }</style></head><body><main class="min-h-svh bg-[#a0bac8] pb-12"><header data-site-header class="fixed inset-x-0 top-0 z-0 w-full bg-[#f8f8f8] pb-2 pt-4 text-center font-system text-lg text-[#112b45] underline decoration-yellow-300 decoration-4 underline-offset-[12px] shadow-[0_1px_1px_1px_rgba(0,0,0,0.3)] md:text-2xl site-header--toc"><a href="/dispositif/" class="site-article-index text-inherit decoration-inherit">記事一覧</a><details data-toc data-toc-variant="header" class="toc-header not-prose"><summary class="toc-toggle"><span>目次</span><svg class="toc-chevron" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5"></path></svg></summary><div class="toc-header-row"><button class="toc-scroll-arrow" data-toc-direction="-1" type="button" aria-label="目次を左へスクロール" aria-controls="toc-header-scroll" disabled><svg aria-hidden="true" viewBox="0 0 0.8660254 1"><polygon points="0,0.5 0.8660254,0 0.8660254,1" fill="currentColor"></polygon></svg></button><nav id="toc-header-scroll" aria-label="目次" class="toc toc-scrollable toc-header-scroll" data-toc-scroll tabindex="0"><ul class="toc-list"><li class="toc-list-item toc-level-2" data-toc-id="フィボナッチ数列"><a href="#フィボナッチ数列" class="toc-link">フィボナッチ数列</a></li></ul></nav><button class="toc-scroll-arrow" data-toc-direction="1" type="button" aria-label="目次を右へスクロール" aria-controls="toc-header-scroll" disabled><svg aria-hidden="true" viewBox="0 0 0.8660254 1"><polygon points="0.8660254,0.5 0,0 0,1" fill="currentColor"></polygon></svg></button></div></details><script type="module" src="/dispositif/_astro/Toc.astro_astro_type_script_index_0_lang.B_P8bbgD.js"></script></header><div class="article-index-shell" inert aria-hidden="true"><div data-astro-transition-persist="article-index" data-article-index class="mx-auto flex w-full flex-col items-center gap-3 px-2 pb-16 pt-20 md:w-[48rem]"><a href="/dispositif/symmetric-polynomial/" data-astro-prefetch="hover" data-math-fonts="[[&quot;MJX-TEX-ZERO&quot;,&quot;/dispositif/fonts/mjx/mjx-tex-zero.woff2&quot;],[&quot;MJX-BRK&quot;,&quot;/dispositif/fonts/mjx/mjx-tex-brk.woff2&quot;],[&quot;MJX-TEX-N&quot;,&quot;/dispositif/fonts/mjx/mjx-tex-n.woff2&quot;],[&quot;MJX-TEX-SO&quot;,&quot;/dispositif/fonts/mjx/mjx-tex-so.woff2&quot;],[&quot;MJX-TEX-LO&quot;,&quot;/dispositif/fonts/mjx/mjx-tex-lo.woff2&quot;],[&quot;MJX-TEX-S3&quot;,&quot;/dispositif/fonts/mjx/mjx-tex-s3.woff2&quot;],[&quot;MJX-TEX-S4&quot;,&quot;/dispositif/fonts/mjx/mjx-tex-s4.woff2&quot;]]" class="block w-full overflow-hidden rounded-md border-[0.5pt] border-[#dadfe4] bg-[#f8f8f8] px-3 pb-1 pt-2 text-[#324e73] no-underline shadow-[0_1px_1px_1px_rgba(0,0,0,0.2)] sm:pb-2 sm:pt-4 md:px-6"><h2 class="mb-1 font-sans text-base font-semibold md:text-xl">対称多項式環</h2><dl class="date-info not-prose text-xs md:text-sm"><div class="date-info-item"><dt>投稿日</dt><dd><time datetime="2026-04-27">2026-04-27</time></dd></div><div class="date-info-item"><dt>最終更新日</dt><dd><time datetime="2026-04-28">2026-04-28</time></dd></div></dl></a><a href="/dispositif/tips-python/" data-astro-prefetch="hover" class="block w-full overflow-hidden rounded-md border-[0.5pt] border-[#dadfe4] bg-[#f8f8f8] px-3 pb-1 pt-2 text-[#324e73] no-underline shadow-[0_1px_1px_1px_rgba(0,0,0,0.2)] sm:pb-2 sm:pt-4 md:px-6"><h2 class="mb-1 font-sans text-base font-semibold md:text-xl">Tips for Python</h2><dl class="date-info not-prose text-xs md:text-sm"><div class="date-info-item"><dt>投稿日</dt><dd><time datetime="2025-05-09">2025-05-09</time></dd></div><div class="date-info-item"><dt>最終更新日</dt><dd><time datetime="2025-05-09">2025-05-09</time></dd></div></dl></a><a href="/dispositif/how-to-write/" data-astro-prefetch="hover" data-math-fonts="[[&quot;MJX-TEX-ZERO&quot;,&quot;/dispositif/fonts/mjx/mjx-tex-zero.woff2&quot;],[&quot;MJX-BRK&quot;,&quot;/dispositif/fonts/mjx/mjx-tex-brk.woff2&quot;],[&quot;MJX-TEX-N&quot;,&quot;/dispositif/fonts/mjx/mjx-tex-n.woff2&quot;],[&quot;MJX-TEX-SO&quot;,&quot;/dispositif/fonts/mjx/mjx-tex-so.woff2&quot;],[&quot;MJX-TEX-S3&quot;,&quot;/dispositif/fonts/mjx/mjx-tex-s3.woff2&quot;],[&quot;MJX-TEX-S4&quot;,&quot;/dispositif/fonts/mjx/mjx-tex-s4.woff2&quot;]]" class="block w-full overflow-hidden rounded-md border-[0.5pt] border-[#dadfe4] bg-[#f8f8f8] px-3 pb-1 pt-2 text-[#324e73] no-underline shadow-[0_1px_1px_1px_rgba(0,0,0,0.2)] sm:pb-2 sm:pt-4 md:px-6"><h2 class="mb-1 font-sans text-base font-semibold md:text-xl">仕様確認</h2><dl class="date-info not-prose text-xs md:text-sm"><div class="date-info-item"><dt>投稿日</dt><dd><time datetime="2025-05-05">2025-05-05</time></dd></div><div class="date-info-item"><dt>最終更新日</dt><dd><time datetime="2025-05-05">2025-05-05</time></dd></div></dl></a><a href="/dispositif/tips-haskell/" data-astro-prefetch="hover" class="block w-full overflow-hidden rounded-md border-[0.5pt] border-[#dadfe4] bg-[#f8f8f8] px-3 pb-1 pt-2 text-[#324e73] no-underline shadow-[0_1px_1px_1px_rgba(0,0,0,0.2)] sm:pb-2 sm:pt-4 md:px-6"><h2 class="mb-1 font-sans text-base font-semibold md:text-xl">Tips for Haskell</h2><dl class="date-info not-prose text-xs md:text-sm"><div class="date-info-item"><dt>投稿日</dt><dd><time datetime="2025-02-18">2025-02-18</time></dd></div><div class="date-info-item"><dt>最終更新日</dt><dd><time datetime="2025-02-18">2025-02-18</time></dd></div></dl></a><a href="/dispositif/tips-rust/" data-astro-prefetch="hover" class="block w-full overflow-hidden rounded-md border-[0.5pt] border-[#dadfe4] bg-[#f8f8f8] px-3 pb-1 pt-2 text-[#324e73] no-underline shadow-[0_1px_1px_1px_rgba(0,0,0,0.2)] sm:pb-2 sm:pt-4 md:px-6"><h2 class="mb-1 font-sans text-base font-semibold md:text-xl">Tips for Rust</h2><dl class="date-info not-prose text-xs md:text-sm"><div class="date-info-item"><dt>投稿日</dt><dd><time datetime="2025-02-03">2025-02-03</time></dd></div></dl></a><a href="/dispositif/tips-typst/" data-astro-prefetch="hover" class="block w-full overflow-hidden rounded-md border-[0.5pt] border-[#dadfe4] bg-[#f8f8f8] px-3 pb-1 pt-2 text-[#324e73] no-underline shadow-[0_1px_1px_1px_rgba(0,0,0,0.2)] sm:pb-2 sm:pt-4 md:px-6"><h2 class="mb-1 font-sans text-base font-semibold md:text-xl">Tips for Typst</h2><dl class="date-info not-prose text-xs md:text-sm"><div class="date-info-item"><dt>投稿日</dt><dd><time datetime="2025-01-23">2025-01-23</time></dd></div></dl></a><a href="/dispositif/tips-julia/" data-astro-prefetch="hover" data-math-fonts="[[&quot;MJX-TEX-ZERO&quot;,&quot;/dispositif/fonts/mjx/mjx-tex-zero.woff2&quot;],[&quot;MJX-BRK&quot;,&quot;/dispositif/fonts/mjx/mjx-tex-brk.woff2&quot;],[&quot;MJX-TEX-N&quot;,&quot;/dispositif/fonts/mjx/mjx-tex-n.woff2&quot;],[&quot;MJX-TEX-SO&quot;,&quot;/dispositif/fonts/mjx/mjx-tex-so.woff2&quot;],[&quot;MJX-TEX-LO&quot;,&quot;/dispositif/fonts/mjx/mjx-tex-lo.woff2&quot;],[&quot;MJX-TEX-S3&quot;,&quot;/dispositif/fonts/mjx/mjx-tex-s3.woff2&quot;]]" class="block w-full overflow-hidden rounded-md border-[0.5pt] border-[#dadfe4] bg-[#f8f8f8] px-3 pb-1 pt-2 text-[#324e73] no-underline shadow-[0_1px_1px_1px_rgba(0,0,0,0.2)] sm:pb-2 sm:pt-4 md:px-6"><h2 class="mb-1 font-sans text-base font-semibold md:text-xl">Tips for Julia</h2><dl class="date-info not-prose text-xs md:text-sm"><div class="date-info-item"><dt>投稿日</dt><dd><time datetime="2025-01-01">2025-01-01</time></dd></div><div class="date-info-item"><dt>最終更新日</dt><dd><time datetime="2025-05-06">2025-05-06</time></dd></div></dl></a><a href="/dispositif/nextjs-mdx/" data-astro-prefetch="hover" class="block w-full overflow-hidden rounded-md border-[0.5pt] border-[#dadfe4] bg-[#f8f8f8] px-3 pb-1 pt-2 text-[#324e73] no-underline shadow-[0_1px_1px_1px_rgba(0,0,0,0.2)] sm:pb-2 sm:pt-4 md:px-6"><h2 class="mb-1 font-sans text-base font-semibold md:text-xl">Next.js + MDXでブログサイト制作入門</h2><dl class="date-info not-prose text-xs md:text-sm"><div class="date-info-item"><dt>投稿日</dt><dd><time datetime="2024-12-19">2024-12-19</time></dd></div><div class="date-info-item"><dt>最終更新日</dt><dd><time datetime="2025-05-05">2025-05-05</time></dd></div></dl></a><a href="/dispositif/tips-wsl/" data-astro-prefetch="hover" class="block w-full overflow-hidden rounded-md border-[0.5pt] border-[#dadfe4] bg-[#f8f8f8] px-3 pb-1 pt-2 text-[#324e73] no-underline shadow-[0_1px_1px_1px_rgba(0,0,0,0.2)] sm:pb-2 sm:pt-4 md:px-6"><h2 class="mb-1 font-sans text-base font-semibold md:text-xl">Tips for WSL</h2><dl class="date-info not-prose text-xs md:text-sm"><div class="date-info-item"><dt>投稿日</dt><dd><time datetime="2024-12-19">2024-12-19</time></dd></div><div class="date-info-item"><dt>最終更新日</dt><dd><time datetime="2025-04-17">2025-04-17</time></dd></div></dl></a></div><script type="module" src="/dispositif/_astro/ArticleIndex.astro_astro_type_script_index_0_lang.D5qRtCRH.js"></script></div><div aria-hidden="true" class="cl-backdrop fixed inset-0 z-10 block cursor-pointer bg-[#76ddfc]/15 backdrop-blur-[3px]"></div><div class="cl-article-scrollport" tabindex="0" role="region" aria-label="記事本文"><a href="/dispositif/" data-astro-prefetch="hover" tabindex="-1" aria-hidden="true" class="cl-dismiss block cursor-pointer"></a><article class="cl-article prose relative z-20 mx-auto mt-8 flex w-[calc(100%-1rem)] max-w-[68rem] flex-col px-4 pb-16 md:pl-16 md:pr-4"><div class="cl-layout grid min-w-0 grid-cols-1"><aside class="cl-sidebar"><div class="cl-sidebar-stack"><div class="cl-toolbar not-prose"><button class="cl-toggle" type="button" aria-pressed="false" aria-label="n段表示" title="n段表示に切り替える"><svg width="30" height="30" viewBox="0 0 30 30" fill="none" color="#324e73" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="cl-toggle-to-multi" aria-hidden="true">
+  <rect x="3" y="5" width="24" height="20" rx="1" />
+  <path d="M15 5v20M7 10h4M7 15h4M7 20h4M19 10h4M19 15h4M19 20h2" />
+</svg><svg width="30" height="30" viewBox="0 0 30 30" fill="none" color="#324e73" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="cl-toggle-to-single" aria-hidden="true">
+  <rect x="3" y="5" width="24" height="20" rx="1" />
+  <path d="M8 10h14M8 15h14M8 20h10" />
+</svg></button><details data-toc data-toc-variant="mobile" class="cl-mobile-toc not-prose"><summary class="toc-mobile-toggle" aria-label="目次を開閉"><svg aria-hidden="true" viewBox="0 0 30 30" width="30" height="30"><path d="m5 10 10 10 10-10" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg></summary><nav aria-label="目次" class="toc-mobile-panel"><h2 class="toc-sidebar-title">目次</h2><div class="toc toc-scrollable toc-sidebar-scroll" data-toc-scroll tabindex="0" role="group" aria-label="目次の縦スクロール"><ul class="toc-list"><li class="toc-list-item toc-level-2" data-toc-id="フィボナッチ数列"><a href="#フィボナッチ数列" class="toc-link">フィボナッチ数列</a></li></ul></div></nav></details><a href="/dispositif/" data-astro-prefetch="hover" aria-label="記事を閉じて一覧へ戻る" class="cl-close"><span class="batsu" aria-hidden="true"></span></a></div><div class="cl-toc hidden md:flex"><nav aria-label="目次" data-toc data-toc-variant="sidebar" class="toc-sidebar not-prose"><h2 class="toc-sidebar-title">目次</h2><div class="toc toc-scrollable toc-sidebar-scroll" data-toc-scroll tabindex="0" role="group" aria-label="目次の縦スクロール"><ul class="toc-list"><li class="toc-list-item toc-level-2" data-toc-id="フィボナッチ数列"><a href="#フィボナッチ数列" class="toc-link">フィボナッチ数列</a></li></ul></div></nav></div></div></aside><div class="cl-reader" hidden><div class="cl-viewport" tabindex="0" role="region" aria-label="n段の本文"><div class="cl-plane"><div class="cl-copies"></div></div></div></div><div class="cl-source min-w-0 w-full font-noto-sans"><h1 class="mb-1 text-lg font-semibold text-[#101828] sm:text-3xl md:mb-3 md:text-4xl">Tips for Haskell</h1><dl class="date-info not-prose text-xs sm:text-base"><div class="date-info-item"><dt>投稿日</dt><dd><time datetime="2025-02-18">2025-02-18</time></dd></div><div class="date-info-item"><dt>最終更新日</dt><dd><time datetime="2025-02-18">2025-02-18</time></dd></div></dl><div class="post"><h2 id="フィボナッチ数列">フィボナッチ数列</h2>
+<p>遅延評価のおかげで無限のフィボナッチ数列の先頭からn個取るという書き方ができる。</p>
+<figure data-rehype-pretty-code-figure=""><pre tabindex="0" data-show-line-numbers="true" data-language="haskell" data-theme="github-dark-dimmed"><code data-show-line-numbers="true" data-language="haskell" data-theme="github-dark-dimmed" style="display: grid;"><span data-line=""><span style="color:#ADBAC7">fibs n </span><span style="color:#F47067">=</span><span style="color:#ADBAC7"> take n </span><span style="color:#F47067">$</span><span style="color:#ADBAC7"> f </span><span style="color:#6CB6FF">0</span><span style="color:#6CB6FF"> 1</span></span>
+<span data-line=""><span style="color:#F47067">  where</span><span style="color:#ADBAC7"> f a b </span><span style="color:#F47067">=</span><span style="color:#ADBAC7"> a </span><span style="color:#F47067">:</span><span style="color:#ADBAC7"> f b (a </span><span style="color:#F47067">+</span><span style="color:#ADBAC7"> b)</span></span>
+<span data-line=""> </span>
+<span data-line=""><span style="color:#768390">-- fibs 7 == [0,1,1,2,3,5,8]</span></span></code><style>pre[data-show-line-numbers='true'], code[data-show-line-numbers='true'] { counter-increment: step 0; font-variant-numeric: tabular-nums; counter-reset: step 0; } code[data-show-line-numbers='true'] > span[data-line]::before { color: #6a737d; text-align: right; margin-right: 0.75rem; display: inline-block; content: counter(step); counter-increment: step; font-variant-numeric: tabular-nums; } code[data-show-line-numbers='true'] > span[data-line]:empty::before, span[data-rehype-pretty-code-figure] > code > span[data-line]::before { content: none; }</style></pre></figure></div></div><div class="cl-ruler" aria-hidden="true"><div></div></div><script type="module" src="/dispositif/_astro/ColumnLayout.astro_astro_type_script_index_0_lang.B6OPVn9h.js"></script></div></article></div><script type="module">var e=[`left`,`right`,`bottom`],t=new WeakMap,n=()=>window.matchMedia(`(prefers-reduced-motion: reduce)`).matches,r=e=>{let t=e.querySelectorAll(`pre code [data-line]`);return t.length>0?Array.from(t,e=>e.textContent??``).join(`
+`):e.querySelector(`pre`)?.innerText??``},i=e=>{let n=e.querySelector(`.code-copy-tooltip`);e.dataset.copied=`true`,n&&(n.textContent=`Copied!`);let r=t.get(e);r&&window.clearTimeout(r),t.set(e,window.setTimeout(()=>{delete e.dataset.copied,n&&(n.textContent=``)},2e3))},a=async e=>{if(navigator.clipboard?.writeText)try{return await navigator.clipboard.writeText(e),!0}catch{return!1}let t=document.createElement(`textarea`);t.value=e,t.style.cssText=`position:fixed;opacity:0`,document.body.appendChild(t),t.select();try{return document.execCommand.bind(document)(`copy`)}catch{return!1}finally{t.remove()}};document.addEventListener(`astro:page-load`,()=>{document.querySelectorAll(`.post details`).forEach(t=>{t.querySelector(`:scope > .details-close-button`)||e.forEach(e=>{let n=document.createElement(`button`);n.type=`button`,n.className=`details-close-button details-close-button--${e}`,n.dataset.detailsClose=``,n.setAttribute(`aria-label`,`詳細を閉じる`),n.title=`詳細を閉じる`,e!==`bottom`&&(n.tabIndex=-1),t.appendChild(n)})}),document.querySelectorAll(`.post figure[data-rehype-pretty-code-figure]`).forEach(e=>{if(e.querySelector(`.code-copy-button`))return;let t=document.createElement(`button`);t.type=`button`,t.className=`code-copy-button`,t.setAttribute(`aria-label`,`コードをコピー`),t.innerHTML=`<svg class="copy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg><span class="code-copy-tooltip" role="status"></span>`,e.appendChild(t)}),document.querySelectorAll(`.post a[href^="#mjx-eqn"]`).forEach(e=>{e.dataset.mathrefBound||(e.dataset.mathrefBound=`true`,e.addEventListener(`click`,t=>{if(t.button!==0||t.metaKey||t.ctrlKey||t.shiftKey||t.altKey)return;let r=decodeURIComponent(e.hash.slice(1)),i=document.getElementById(r);i&&(t.preventDefault(),i.scrollIntoView({behavior:n()?`auto`:`smooth`,block:`start`}),history.replaceState(history.state,``,e.hash),t.detail>0&&e.blur())}))})}),document.addEventListener(`click`,async e=>{let t=e.target,n=t?.closest(`[data-details-close]`);if(n){let e=n.closest(`details`),t=e?.querySelector(`:scope > summary`);if(!e||!t)return;let r=t.getBoundingClientRect(),i=r.bottom>0&&r.top<window.innerHeight;e.open=!1,t.focus({preventScroll:!0}),i||t.scrollIntoView({behavior:`instant`,block:`start`});return}let o=t?.closest(`.code-copy-button`);if(o){let t=o.closest(`figure`);if(!t)return;e.detail!==0&&o.blur(),await a(r(t))&&i(o)}}),document.addEventListener(`pointerup`,e=>{let t=e.target?.closest(`.post pre`);t&&document.activeElement===t&&t.blur()});
+//# sourceMappingURL=ArticleInteractions.astro_astro_type_script_index_0_lang.D8pIyk8e.js.map</script></main></body></html>

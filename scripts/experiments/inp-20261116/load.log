@@ -1,0 +1,22 @@
+start chromium x1 21:03:56  21:03:56 up 49 days,  5:32,  3 users,  load average: 36.43, 24.74, 21.15
+end   chromium x1 21:11:11  21:11:11 up 49 days,  5:39,  3 users,  load average: 13.75, 18.54, 19.88
+start chromium x4 21:11:11  21:11:11 up 49 days,  5:39,  3 users,  load average: 13.75, 18.54, 19.88
+--- restart
+start chromium x1 21:13:25  21:13:25 up 49 days,  5:42,  3 users,  load average: 11.27, 15.82, 18.69
+end   chromium x1 21:27:58  21:27:58 up 49 days,  5:56,  3 users,  load average: 9.83, 9.42, 12.69
+start chromium x4 21:27:58  21:27:58 up 49 days,  5:56,  3 users,  load average: 9.83, 9.42, 12.69
+end   chromium x4 21:44:37  21:44:37 up 49 days,  6:13,  3 users,  load average: 16.31, 9.68, 10.54
+start firefox x1 21:44:37  21:44:37 up 49 days,  6:13,  3 users,  load average: 16.31, 9.68, 10.54
+end   firefox x1 22:00:27  22:00:27 up 49 days,  6:29,  3 users,  load average: 7.07, 9.85, 10.42
+start trace 22:04:22  22:04:22 up 49 days,  6:32,  3 users,  load average: 2.96, 6.52, 8.95
+end   trace 22:04:50  22:04:50 up 49 days,  6:33,  3 users,  load average: 2.92, 6.17, 8.75
+start trace2 22:05:17  22:05:17 up 49 days,  6:33,  3 users,  load average: 3.07, 5.94, 8.61
+end   trace2 22:11:58  22:11:58 up 49 days,  6:40,  3 users,  load average: 9.97, 7.06, 8.20
+start keys chromium x1 22:16:37  22:16:37 up 49 days,  6:45,  3 users,  load average: 7.85, 8.30, 8.50
+end   keys chromium x1 22:27:37  22:27:37 up 49 days,  6:56,  3 users,  load average: 7.11, 8.33, 8.58
+start keys chromium x4 22:27:37  22:27:37 up 49 days,  6:56,  3 users,  load average: 7.11, 8.33, 8.58
+end   keys chromium x4 22:40:12  22:40:12 up 49 days,  7:08,  3 users,  load average: 7.32, 7.76, 8.43
+start keys firefox x1 22:40:12  22:40:12 up 49 days,  7:08,  3 users,  load average: 7.32, 7.76, 8.43
+end   keys firefox x1 22:51:47  22:51:47 up 49 days,  7:20,  3 users,  load average: 8.86, 8.20, 7.93
+start willchange 22:54:11  22:54:11 up 49 days,  7:22,  3 users,  load average: 11.35, 10.32, 8.85
+end   willchange 22:58:57  22:58:57 up 49 days,  7:27,  3 users,  load average: 8.21, 9.47, 8.93

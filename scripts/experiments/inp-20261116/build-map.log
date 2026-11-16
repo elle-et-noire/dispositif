@@ -1,0 +1,29 @@
+22:00:43 [types] Generated 68ms
+22:00:43 [build] output: "static"
+22:00:43 [build] mode: "static"
+22:00:43 [build] directory: /home/shimizu/dispositif/.claude/worktrees/agent-af66d5144b89aa253/.measure-inp/dist-map/
+22:00:43 [build] Collecting build info...
+22:00:43 [build] ✓ Completed in 105ms.
+22:00:43 [build] Building static entrypoints...
+22:00:44 [vite] ✓ built in 690ms
+22:00:44 [WARN] [vite] [plugin astro:transitions] [33m[SOURCEMAP_BROKEN] [0mSourcemap is likely to be incorrect: a plugin (astro:transitions) was used to transform files, but didn't generate a sourcemap for the transformation. Consult the plugin documentation for help: https://rolldown.rs/guide/troubleshooting#warning-sourcemap-is-likely-to-be-incorrect
+
+22:00:44 [vite] ✓ built in 197ms
+22:00:44 [build] Rearranging server assets...
+
+ generating static routes 
+22:00:44   ├─ /how-to-write/index.html (+3.27s) 
+22:00:48   ├─ /nextjs-mdx/index.html (+9ms) 
+22:00:48   ├─ /symmetric-polynomial/index.html (+15ms) 
+22:00:48   ├─ /tips-haskell/index.html (+19ms) 
+22:00:48   ├─ /tips-julia/index.html (+11ms) 
+22:00:48   ├─ /tips-python/index.html (+7ms) 
+22:00:48   ├─ /tips-rust/index.html (+7ms) 
+22:00:48   ├─ /tips-typst/index.html (+17ms) 
+22:00:48   ├─ /tips-wsl/index.html (+11ms) 
+22:00:48   ├─ /index.html (+8ms) 
+22:00:48 ✓ Completed in 3.49s.
+
+22:00:48 [build] ✓ Completed in 4.43s.
+22:00:48 [build] 10 page(s) built in 4.54s
+22:00:48 [build] Complete!

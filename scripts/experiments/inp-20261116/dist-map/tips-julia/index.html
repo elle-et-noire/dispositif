@@ -1,0 +1,1594 @@
+<!DOCTYPE html><html data-astro-transition-scope="astro-yztbsuuz-1" lang="ja" class="antialiased" data-page-kind="article"><head><meta charset="UTF-8"><script>
+      (() => {
+      // With JavaScript enabled, keep the article out of the first paint until
+      // the reader has selected its initial column layout and restored its position.
+      // This script runs once per full load; client-side navigations mark the
+      // destination before Astro swaps it in, since inline head scripts do not
+      // run while Astro parses that document.
+      const markPending = (root) => {
+        if (root.dataset.pageKind === "article") root.classList.add("cl-pending");
+      };
+      markPending(document.documentElement);
+      // cl-pending hides the article with clip-path, which leaves it in the
+      // accessibility tree; aria-hidden keeps it out for the same span. The
+      // reader removes both in its first frame (column-layout.ts), as does the
+      // fallback below. Without JavaScript neither is set.
+      const hideArticle = (doc) => {
+        const scrollport = doc.querySelector(".cl-article-scrollport");
+        scrollport?.setAttribute("aria-hidden", "true");
+        return Boolean(scrollport);
+      };
+      // The hidden article stays focusable: Tab would reach the scrollport and
+      // the links and buttons inside it while they are aria-hidden and clipped.
+      // inert would prevent that, but it is inherited through style like
+      // visibility, so toggling it restyles the whole article (~35-40 ms in
+      // both engines). Instead, ignore Tab for the pending span, usually one
+      // frame to a few hundred ms. Focus moved by script (the reader focuses a
+      // hash target before it clears cl-pending) is left alone.
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Tab" && document.documentElement.classList.contains("cl-pending")) event.preventDefault();
+      }, { capture: true });
+      // With n段 stored, put the article text in the reader's first column
+      // before the swap, at the column width. Its first layout, during which
+      // the math fonts are found, is then the one the reader measures, instead
+      // of a single-column layout that the reader would repeat at the column
+      // width. The new document is not rendered yet, so moving it is free.
+      // On a full page load, the observer below does the same while the article
+      // is being parsed.
+      // ?columns=multi or ?columns=single in the destination URL wins over the
+      // stored choice (opensMulti() in column-preference.ts). After a reader
+      // toggles such a page, reloading it keeps the toggled column layout, which this
+      // guess ignores; the reader then undoes the premount (releasePremounted).
+      const wantsColumn = (doc, url) => {
+        const columns = new URLSearchParams(url.search).get("columns");
+        let multi = columns === "multi";
+        if (columns !== "multi" && columns !== "single") {
+          try { multi = localStorage.getItem("dispositif:columns") === "multi"; } catch { /* storage is optional */ }
+        }
+        return multi && doc.documentElement.dataset.pageKind === "article" && !matchMedia("print").matches;
+      };
+      const premountColumn = (doc, url) => {
+        if (!wantsColumn(doc, url)) return;
+        const source = doc.querySelector(".cl-source");
+        const reader = doc.querySelector(".cl-reader");
+        const plane = reader?.querySelector(".cl-plane");
+        const copies = plane?.querySelector(":scope > .cl-copies");
+        if (!source || !copies || plane.firstChild !== copies || copies.firstChild || reader.nextElementSibling !== source) return;
+        // The same structure as the reader's mountSlot().
+        const part = (name) => {
+          const element = doc.createElement("div");
+          element.className = name;
+          return element;
+        };
+        const track = part("cl-track"), slot = part("cl-slot"), paper = part("cl-paper");
+        paper.setAttribute("aria-hidden", "true");
+        source.classList.add("cl-content");
+        // The reader replaces this with the same width in px.
+        source.style.width = "var(--cl-column-width)";
+        slot.append(source, paper);
+        track.append(slot);
+        plane.insertBefore(track, copies);
+        reader.hidden = false;
+        // The article's n段 layout too (not the header's, which is visible):
+        // Firefox rebuilds the text's boxes when its ancestors change position.
+        doc.documentElement.classList.add("cl-premount");
+      };
+      // Leave all but the first blocks of the article text out of its first
+      // layout (column-layout.css), which is then a fraction of the whole
+      // article; the reader shows the rest once its first frame is painted
+      // (column-layout.ts). Not for a fragment or a history entry: the
+      // position can then be anywhere in the text, and the reader shows it
+      // all at once anyway. Without JavaScript nothing is left out.
+      // The mark goes on the twelfth block; the blocks after it are left out.
+      // Returns whether it was placed.
+      const deferText = (doc, url, traverse) => {
+        if (doc.documentElement.dataset.pageKind !== "article" || url.hash || traverse) return false;
+        const block = doc.querySelector(".cl-source > .post")?.children[11];
+        block?.setAttribute("data-cl-defer", "");
+        return Boolean(block);
+      };
+      // On a full page load, the head script runs before the body is parsed.
+      // Mark the scrollport aria-hidden as soon as the parser attaches it, and
+      // in n段 move .cl-source as soon as it is attached (right after
+      // .cl-reader, ColumnLayout.astro). The parser keeps appending the rest of
+      // the text to the moved element, so the frames rendered during the parse
+      // lay it out in its column. Mutation callbacks run at the microtask
+      // checkpoint after the parser task that inserted the element, before the
+      // next rendering opportunity. Both elements come before the article
+      // text; the observer stops once the twelfth block of the text is marked
+      // (deferText), or at DOMContentLoaded for a shorter article. (An inline
+      // script in the body would block the parser and cost Firefox a style
+      // pass.) A reload keeps the history entry's state, from which the reader
+      // restores the position.
+      if (document.documentElement.classList.contains("cl-pending")) {
+        let hidden = false;
+        let column = wantsColumn(document, location);
+        let defer = !location.hash && typeof history.state?.dispositifReadingKey !== "string";
+        const observer = new MutationObserver(() => {
+          if (!hidden) hidden = hideArticle(document);
+          if (defer && deferText(document, location, false)) defer = false;
+          if (column && document.querySelector(".cl-source")) {
+            column = false;
+            premountColumn(document, location);
+          }
+          if (hidden && !column && !defer) observer.disconnect();
+        });
+        observer.observe(document, { childList: true, subtree: true });
+        document.addEventListener("DOMContentLoaded", () => observer.disconnect(), { once: true });
+      }
+      // Undo premountColumn() for the single-column fallback below.
+      const unmountColumn = () => {
+        const source = document.querySelector(".cl-plane .cl-source");
+        const reader = document.querySelector(".cl-reader");
+        document.documentElement.classList.remove("cl-premount");
+        if (!source || !reader) return;
+        reader.after(source);
+        source.classList.remove("cl-content");
+        source.style.removeProperty("width");
+        const plane = reader.querySelector(".cl-plane");
+        plane.replaceChildren(plane.querySelector(":scope > .cl-copies"));
+        reader.hidden = true;
+      };
+      document.addEventListener("astro:before-swap", (event) => {
+        markPending(event.newDocument.documentElement);
+        if (event.newDocument.documentElement.classList.contains("cl-pending")) hideArticle(event.newDocument);
+        // The address bar still shows the old page here.
+        premountColumn(event.newDocument, event.to);
+        deferText(event.newDocument, event.to, event.navigationType === "traverse");
+      });
+      // If the reader bundle fails or stalls, leave a usable single-column
+      // article instead of keeping the content hidden indefinitely.
+      // Only one navigation can be pending, so a newer arm replaces the timer
+      // left by an earlier one. Once the reader has started (cl-ready), it
+      // owns clearing cl-pending: its first frame may be delayed for longer
+      // than this timeout in a background tab, which is not a failure.
+      let fallbackTimer;
+      const armReaderFallback = () => {
+        clearTimeout(fallbackTimer);
+        const root = document.documentElement;
+        if (!root.classList.contains("cl-pending")) return;
+        fallbackTimer = setTimeout(() => {
+          if (root !== document.documentElement || !root.classList.contains("cl-pending")
+            || root.classList.contains("cl-ready")) return;
+          unmountColumn();
+          document.querySelector(".cl-source > .post > [data-cl-defer]")?.removeAttribute("data-cl-defer");
+          root.classList.add("cl-fallback");
+          root.classList.remove("cl-pending");
+          document.querySelector(".cl-article-scrollport")?.removeAttribute("aria-hidden");
+          // The table of contents skipped its position while pre-mounted (Toc.astro).
+          document.dispatchEvent(new CustomEvent("cl:single"));
+        }, 10000);
+      };
+      armReaderFallback();
+      document.addEventListener("astro:after-swap", armReaderFallback);
+      })();
+    </script><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="generator" content="Astro v7.4.7"><meta name="description" content="Description of something with working codes"><link rel="icon" href="/dispositif/favicon.ico"><!-- The same page with ?columns= (the column layout) is not another page. --><link rel="canonical" href="https://elle-et-noire.github.io/dispositif/tips-julia/"><title>Tips for Julia</title><meta name="astro-view-transitions-enabled" content="true"><meta name="astro-view-transitions-fallback" content="animate"><script type="module" src="/dispositif/_astro/ClientRouter.astro_astro_type_script_index_0_lang.C5ME9JiI.js"></script><link data-math-font-preload rel="preload" as="font" type="font/woff2" href="/dispositif/fonts/mjx/mjx-tex-zero.woff2" crossorigin="anonymous"><link data-math-font-preload rel="preload" as="font" type="font/woff2" href="/dispositif/fonts/mjx/mjx-tex-brk.woff2" crossorigin="anonymous"><link data-math-font-preload rel="preload" as="font" type="font/woff2" href="/dispositif/fonts/mjx/mjx-tex-n.woff2" crossorigin="anonymous"><link data-math-font-preload rel="preload" as="font" type="font/woff2" href="/dispositif/fonts/mjx/mjx-tex-so.woff2" crossorigin="anonymous"><link data-math-font-preload rel="preload" as="font" type="font/woff2" href="/dispositif/fonts/mjx/mjx-tex-lo.woff2" crossorigin="anonymous"><link data-math-font-preload rel="preload" as="font" type="font/woff2" href="/dispositif/fonts/mjx/mjx-tex-s3.woff2" crossorigin="anonymous"><style>
+mjx-container[overflow="scroll"][display] {
+  overflow: auto clip;
+  min-width: initial !important;
+}
+
+mjx-container[overflow="truncate"][display] {
+  overflow: hidden clip;
+  min-width: initial !important;
+}
+
+mjx-container[display] {
+  display: block;
+  text-align: center;
+  justify-content: center;
+  margin: .7em 0;
+  padding: .3em 2px;
+}
+
+mjx-container[display][width="full"] {
+  display: flex;
+}
+
+mjx-container[justify="left"] {
+  text-align: left;
+  justify-content: left;
+}
+
+mjx-container[justify="right"] {
+  text-align: right;
+  justify-content: right;
+}
+
+mjx-container[jax="CHTML"] {
+  white-space: nowrap;
+}
+
+mjx-mo > mjx-c, mjx-mi > mjx-c, mjx-mn > mjx-c, mjx-ms > mjx-c, mjx-mtext > mjx-c , mjx-c:not(mjx-stretchy-h > * > mjx-c) {
+  clip-path: padding-box polygon(-1em -2px, calc(100% + 1em) -2px, calc(100% + 1em) calc(100% + 2px), -1em calc(100% + 2px));
+}
+
+mjx-stretchy-h {
+  clip-path: padding-box polygon(0 -2px, 100% -2px, 100% calc(100% + 2px), 0 calc(100% + 2px));
+  display: inline-block;
+}
+
+mjx-stretchy-v {
+  clip-path: padding-box polygon(-2px 0, calc(100% + 2px) 0, calc(100% + 2px) 100%, -2px 100%);
+  display: inline-block;
+  text-align: center;
+}
+
+mjx-container [space="1"] {
+  margin-left: .111em;
+}
+
+mjx-container [space="2"] {
+  margin-left: .167em;
+}
+
+mjx-container [space="3"] {
+  margin-left: .222em;
+}
+
+mjx-container [space="4"] {
+  margin-left: .278em;
+}
+
+mjx-container [space="5"] {
+  margin-left: .333em;
+}
+
+mjx-container [rspace="1"] {
+  margin-right: .111em;
+}
+
+mjx-container [rspace="2"] {
+  margin-right: .167em;
+}
+
+mjx-container [rspace="3"] {
+  margin-right: .222em;
+}
+
+mjx-container [rspace="4"] {
+  margin-right: .278em;
+}
+
+mjx-container [rspace="5"] {
+  margin-right: .333em;
+}
+
+mjx-container [size="s"] {
+  font-size: 70.7%;
+}
+
+mjx-container [size="ss"] {
+  font-size: 50%;
+}
+
+mjx-container [size="Tn"] {
+  font-size: 60%;
+}
+
+mjx-container [size="sm"] {
+  font-size: 85%;
+}
+
+mjx-container [size="lg"] {
+  font-size: 120%;
+}
+
+mjx-container [size="Lg"] {
+  font-size: 144%;
+}
+
+mjx-container [size="LG"] {
+  font-size: 173%;
+}
+
+mjx-container [size="hg"] {
+  font-size: 207%;
+}
+
+mjx-container [size="HG"] {
+  font-size: 249%;
+}
+
+mjx-container [width="full"] {
+  width: 100%;
+}
+
+mjx-box {
+  display: inline-block;
+}
+
+mjx-block {
+  display: block;
+}
+
+mjx-itable {
+  display: inline-table;
+}
+
+mjx-row {
+  display: table-row;
+}
+
+mjx-row > mjx-cell, mjx-row > mjx-base, mjx-row > mjx-under, mjx-row > mjx-over, mjx-row > mjx-den {
+  display: table-cell;
+}
+
+mjx-container [inline-breaks] {
+  display: inline;
+}
+
+mjx-container .mjx-selected {
+  outline: 2px solid black;
+}
+
+@media (prefers-color-scheme: dark) {
+  mjx-container .mjx-selected {
+    outline: 2px solid #C8C8C8;
+  }
+}
+
+mjx-mtext {
+  display: inline-block;
+  text-align: left;
+}
+
+mjx-mstyle {
+  display: inline-block;
+}
+
+mjx-merror {
+  display: inline-block;
+  color: red;
+  background-color: yellow;
+}
+
+mjx-mphantom {
+  visibility: hidden;
+}
+
+mjx-math {
+  display: inline-block;
+  text-align: left;
+  line-height: 0;
+  text-indent: 0;
+  font-style: normal;
+  font-weight: normal;
+  font-size: 100%;
+  font-size-adjust: none;
+  letter-spacing: normal;
+  word-wrap: normal;
+  word-spacing: normal;
+  direction: ltr;
+  padding: 1px 0;
+}
+
+mjx-container[jax="CHTML"][display="true"] mjx-math {
+  padding: 0;
+}
+
+mjx-math[breakable] {
+  display: inline;
+}
+
+mjx-container[jax="CHTML"] mjx-break {
+  white-space: normal;
+  line-height: 0;
+  clip-path: rect(0 0 0 0);
+  font-family: MJX-BRK !important;
+}
+
+mjx-break[size="0"] {
+  letter-spacing: -0.999em;
+}
+
+mjx-break[size="1"] {
+  letter-spacing: -0.889em;
+}
+
+mjx-break[size="2"] {
+  letter-spacing: -0.833em;
+}
+
+mjx-break[size="3"] {
+  letter-spacing: -0.778em;
+}
+
+mjx-break[size="4"] {
+  letter-spacing: -0.722em;
+}
+
+mjx-break[size="5"] {
+  letter-spacing: -0.667em;
+}
+
+mjx-msub {
+  display: inline-block;
+  text-align: left;
+}
+
+mjx-msubsup {
+  display: inline-block;
+  text-align: left;
+}
+
+mjx-script {
+  display: inline-block;
+  padding-right: .05em;
+  padding-left: .033em;
+}
+
+mjx-script > mjx-spacer {
+  display: block;
+}
+
+mjx-mi {
+  display: inline-block;
+  text-align: left;
+}
+
+mjx-c {
+  display: inline-block;
+  width: 0;
+  text-align: right;
+}
+
+mjx-utext {
+  display: inline-block;
+  padding: .75em 0 .2em 0;
+}
+
+mjx-TeXAtom {
+  display: inline-block;
+  text-align: left;
+}
+
+mjx-mn {
+  display: inline-block;
+  text-align: left;
+}
+
+mjx-mo {
+  display: inline-block;
+  text-align: left;
+}
+
+mjx-stretchy-h > mjx-beg, mjx-stretchy-h > mjx-ext, mjx-stretchy-h > mjx-end, mjx-stretchy-h > mjx-mid {
+  display: inline-block;
+  width: 0;
+  text-align: right;
+}
+
+mjx-stretchy-h > mjx-ext {
+  clip-path: padding-box polygon(0 -1em, 100% -1em, 100% calc(100% + 1em), 0 calc(100% + 1em));
+  width: 100%;
+  border: 0px solid transparent;
+  box-sizing: border-box;
+  text-align: left;
+}
+
+mjx-stretchy-v > mjx-beg, mjx-stretchy-v > mjx-ext, mjx-stretchy-v > mjx-end, mjx-stretchy-v > mjx-mid {
+  display: block;
+  height: 0;
+  margin: 0 auto;
+}
+
+mjx-stretchy-v > mjx-ext > mjx-spacer {
+  display: block;
+}
+
+mjx-stretchy-v > mjx-ext {
+  clip-path: padding-box polygon(-1em 0, calc(100% + 1em) 0, calc(100% + 1em) 100%, -1em 100%);
+  height: 100%;
+  border: 0.1px solid transparent;
+  box-sizing: border-box;
+  white-space: pre;
+}
+
+mjx-mark {
+  display: inline-block;
+  height: 0;
+}
+
+mjx-mspace {
+  display: inline-block;
+  text-align: left;
+}
+
+mjx-msup {
+  display: inline-block;
+  text-align: left;
+}
+
+mjx-mtable {
+  display: inline-block;
+  text-align: center;
+  vertical-align: .25em;
+  position: relative;
+  box-sizing: border-box;
+  border-spacing: 0;
+  border-collapse: collapse;
+}
+
+mjx-mstyle[size="s"] mjx-mtable {
+  vertical-align: .354em;
+}
+
+mjx-labels {
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+
+mjx-table {
+  display: inline-block;
+  vertical-align: -.5ex;
+  box-sizing: border-box;
+}
+
+mjx-table > mjx-itable {
+  vertical-align: middle;
+  text-align: left;
+  box-sizing: border-box;
+}
+
+mjx-labels > mjx-itable {
+  position: absolute;
+  top: 0;
+}
+
+mjx-mtable[justify="left"] {
+  text-align: left;
+}
+
+mjx-mtable[justify="right"] {
+  text-align: right;
+}
+
+mjx-mtable[justify="left"][side="left"] {
+  padding-right: 0 ! important;
+}
+
+mjx-mtable[justify="left"][side="right"] {
+  padding-left: 0 ! important;
+}
+
+mjx-mtable[justify="right"][side="left"] {
+  padding-right: 0 ! important;
+}
+
+mjx-mtable[justify="right"][side="right"] {
+  padding-left: 0 ! important;
+}
+
+mjx-mtable[align] {
+  vertical-align: baseline;
+}
+
+mjx-mtable[align="top"] > mjx-table {
+  vertical-align: top;
+}
+
+mjx-mtable[align="bottom"] > mjx-table {
+  vertical-align: bottom;
+}
+
+mjx-mtable[side="right"] mjx-labels {
+  min-width: 100%;
+}
+
+mjx-mtr {
+  display: table-row;
+  text-align: left;
+}
+
+mjx-mtr[rowalign="top"] > mjx-mtd {
+  vertical-align: top;
+}
+
+mjx-mtr[rowalign="center"] > mjx-mtd {
+  vertical-align: middle;
+}
+
+mjx-mtr[rowalign="bottom"] > mjx-mtd {
+  vertical-align: bottom;
+}
+
+mjx-mtr[rowalign="baseline"] > mjx-mtd {
+  vertical-align: baseline;
+}
+
+mjx-mtr[rowalign="axis"] > mjx-mtd {
+  vertical-align: .25em;
+}
+
+mjx-mtd {
+  display: table-cell;
+  text-align: center;
+  padding: .215em .4em;
+}
+
+mjx-mtd:first-child {
+  padding-left: 0;
+}
+
+mjx-mtd:last-child {
+  padding-right: 0;
+}
+
+mjx-mtable > * > mjx-itable > *:first-child > mjx-mtd {
+  padding-top: 0;
+}
+
+mjx-mtable > * > mjx-itable > *:last-child > mjx-mtd {
+  padding-bottom: 0;
+}
+
+mjx-tstrut {
+  display: inline-block;
+  height: 1em;
+  vertical-align: -.25em;
+}
+
+mjx-labels[align="left"] > mjx-mtr > mjx-mtd {
+  text-align: left;
+}
+
+mjx-labels[align="right"] > mjx-mtr > mjx-mtd {
+  text-align: right;
+}
+
+mjx-mtd[extra] {
+  padding: 0;
+}
+
+mjx-mtd[rowalign="top"] {
+  vertical-align: top;
+}
+
+mjx-mtd[rowalign="center"] {
+  vertical-align: middle;
+}
+
+mjx-mtd[rowalign="bottom"] {
+  vertical-align: bottom;
+}
+
+mjx-mtd[rowalign="baseline"] {
+  vertical-align: baseline;
+}
+
+mjx-mtd[rowalign="axis"] {
+  vertical-align: .25em;
+}
+
+mjx-mrow {
+  display: inline-block;
+  text-align: left;
+}
+
+mjx-linestack, mjx-mrow[break-top] {
+  display: inline-table;
+  width: 100%;
+}
+
+mjx-linestack[break-align="bottom"], mjx-mrow[break-top][break-align="bottom"] {
+  display: inline-block;
+}
+
+mjx-linestack[break-align="middle"], mjx-mrow[break-top][break-align="middle"] {
+  vertical-align: middle;
+}
+
+mjx-linestack[break-align="center"], mjx-mrow[break-top][break-align="center"] {
+  vertical-align: middle;
+}
+
+mjx-linestack[breakable] {
+  display: inline;
+}
+
+mjx-linestack[breakable] > mjx-linebox {
+  display: inline;
+}
+
+mjx-linestack[breakable] > mjx-linebox::before {
+  white-space: pre;
+  content: "\A";
+}
+
+mjx-linestack[breakable] > mjx-linebox::after {
+  white-space: normal;
+  content: " ";
+  letter-spacing: -.999em;
+  font-family: MJX-BRK;
+}
+
+mjx-linestack[breakable] > mjx-linebox:first-of-type::before {
+  display: none;
+}
+
+mjx-linestack[breakable] > mjx-linebox:last-of-type::after {
+  display: none;
+}
+
+mjx-linebox {
+  display: block;
+}
+
+mjx-linebox[align="left"] {
+  text-align: left;
+}
+
+mjx-linebox[align="center"] {
+  text-align: center;
+}
+
+mjx-linebox[align="right"] {
+  text-align: right;
+}
+
+mjx-linestrut {
+  display: inline-block;
+  height: 1em;
+  vertical-align: -.25em;
+}
+
+mjx-mfrac {
+  display: inline-block;
+  text-align: left;
+}
+
+mjx-frac {
+  display: inline-block;
+  vertical-align: 0.17em;
+  padding: 0 .22em;
+}
+
+mjx-frac[type="d"] {
+  vertical-align: .04em;
+}
+
+mjx-frac[delims] {
+  padding: 0 .1em;
+}
+
+mjx-frac[atop] {
+  padding: 0 .12em;
+}
+
+mjx-frac[atop][delims] {
+  padding: 0;
+}
+
+mjx-dtable {
+  display: inline-table;
+  width: 100%;
+}
+
+mjx-dtable > mjx-line, mjx-dtable > mjx-row {
+  font-size: 2000%;
+}
+
+mjx-dbox {
+  display: block;
+  font-size: 5%;
+}
+
+mjx-num {
+  display: block;
+  text-align: center;
+}
+
+mjx-den {
+  display: block;
+  text-align: center;
+}
+
+mjx-mfrac[bevelled] > mjx-num {
+  display: inline-block;
+}
+
+mjx-mfrac[bevelled] > mjx-den {
+  display: inline-block;
+}
+
+mjx-den[align="right"], mjx-num[align="right"] {
+  text-align: right;
+}
+
+mjx-den[align="left"], mjx-num[align="left"] {
+  text-align: left;
+}
+
+mjx-nstrut {
+  display: inline-block;
+  height: .054em;
+  width: 0;
+  vertical-align: -.054em;
+}
+
+mjx-nstrut[type="d"] {
+  height: .217em;
+  vertical-align: -.217em;
+}
+
+mjx-dstrut {
+  display: inline-block;
+  height: .505em;
+  width: 0;
+}
+
+mjx-dstrut[type="d"] {
+  height: .726em;
+}
+
+mjx-line {
+  display: block;
+  box-sizing: border-box;
+  min-height: 1px;
+  height: .06em;
+  border-top: .075em solid;
+  margin: .06em -.1em;
+  overflow: hidden;
+}
+
+mjx-line[type="d"] {
+  margin: .18em -.1em;
+}
+
+mjx-mover {
+  display: inline-block;
+  text-align: left;
+}
+
+mjx-mover:not([limits="false"]) {
+  padding-top: .1em;
+}
+
+mjx-mover:not([limits="false"]) > mjx-base, mjx-mover:not([limits="false"]) > mjx-over {
+  display: block;
+  text-align: left;
+}
+
+mjx-container[jax="CHTML"] > mjx-math.TEX-N[breakable] > :not(mjx-c) {
+  font-family: MJX-TEX-ZERO, MJX-TEX-N;
+}
+
+.TEX-N {
+  font-family: MJX-TEX-ZERO, MJX-TEX-N;
+}
+
+.TEX-B {
+  font-family: MJX-TEX-ZERO, MJX-TEX-B;
+}
+
+.TEX-I {
+  font-family: MJX-TEX-ZERO, MJX-TEX-I;
+}
+
+.TEX-BI {
+  font-family: MJX-TEX-ZERO, MJX-TEX-BI;
+}
+
+.TEX-F {
+  font-family: MJX-TEX-ZERO, MJX-TEX-F;
+}
+
+.TEX-FB {
+  font-family: MJX-TEX-ZERO, MJX-TEX-FB;
+}
+
+.TEX-SS {
+  font-family: MJX-TEX-ZERO, MJX-TEX-SS;
+}
+
+.TEX-SSB {
+  font-family: MJX-TEX-ZERO, MJX-TEX-SSB;
+}
+
+.TEX-SSI {
+  font-family: MJX-TEX-ZERO, MJX-TEX-SSI;
+}
+
+.TEX-M {
+  font-family: MJX-TEX-ZERO, MJX-TEX-M;
+}
+
+.TEX-SO {
+  font-family: MJX-TEX-ZERO, MJX-TEX-SO;
+}
+
+.TEX-LO {
+  font-family: MJX-TEX-ZERO, MJX-TEX-LO;
+}
+
+.TEX-C {
+  font-family: MJX-TEX-ZERO, MJX-TEX-C;
+}
+
+.TEX-CB {
+  font-family: MJX-TEX-ZERO, MJX-TEX-CB;
+}
+
+.TEX-OS {
+  font-family: MJX-TEX-ZERO, MJX-TEX-OS;
+}
+
+.TEX-OB {
+  font-family: MJX-TEX-ZERO, MJX-TEX-OB;
+}
+
+.TEX-MI {
+  font-family: MJX-TEX-ZERO, MJX-TEX-MI;
+}
+
+.TEX-V {
+  font-family: MJX-TEX-ZERO, MJX-TEX-V;
+}
+
+.TEX-S3 {
+  font-family: MJX-TEX-ZERO, MJX-TEX-S3;
+}
+
+.TEX-S4 {
+  font-family: MJX-TEX-ZERO, MJX-TEX-S4;
+}
+
+@font-face /* MJX-TEX-B */ {
+  font-family: MJX-TEX-B;
+  src: url("/dispositif/fonts/mjx/mjx-tex-b.woff2") format("woff2");
+}
+
+@font-face /* MJX-TEX-I */ {
+  font-family: MJX-TEX-I;
+  src: url("/dispositif/fonts/mjx/mjx-tex-i.woff2") format("woff2");
+}
+
+@font-face /* MJX-TEX-BI */ {
+  font-family: MJX-TEX-BI;
+  src: url("/dispositif/fonts/mjx/mjx-tex-bi.woff2") format("woff2");
+}
+
+@font-face /* MJX-TEX-F */ {
+  font-family: MJX-TEX-F;
+  src: url("/dispositif/fonts/mjx/mjx-tex-f.woff2") format("woff2");
+}
+
+@font-face /* MJX-TEX-FB */ {
+  font-family: MJX-TEX-FB;
+  src: url("/dispositif/fonts/mjx/mjx-tex-fb.woff2") format("woff2");
+}
+
+@font-face /* MJX-TEX-SS */ {
+  font-family: MJX-TEX-SS;
+  src: url("/dispositif/fonts/mjx/mjx-tex-ss.woff2") format("woff2");
+}
+
+@font-face /* MJX-TEX-SSB */ {
+  font-family: MJX-TEX-SSB;
+  src: url("/dispositif/fonts/mjx/mjx-tex-ssb.woff2") format("woff2");
+}
+
+@font-face /* MJX-TEX-SSI */ {
+  font-family: MJX-TEX-SSI;
+  src: url("/dispositif/fonts/mjx/mjx-tex-ssi.woff2") format("woff2");
+}
+
+@font-face /* MJX-TEX-M */ {
+  font-family: MJX-TEX-M;
+  src: url("/dispositif/fonts/mjx/mjx-tex-m.woff2") format("woff2");
+}
+
+@font-face /* MJX-TEX-C */ {
+  font-family: MJX-TEX-C;
+  src: url("/dispositif/fonts/mjx/mjx-tex-c.woff2") format("woff2");
+}
+
+@font-face /* MJX-TEX-CB */ {
+  font-family: MJX-TEX-CB;
+  src: url("/dispositif/fonts/mjx/mjx-tex-cb.woff2") format("woff2");
+}
+
+@font-face /* MJX-TEX-OS */ {
+  font-family: MJX-TEX-OS;
+  src: url("/dispositif/fonts/mjx/mjx-tex-os.woff2") format("woff2");
+}
+
+@font-face /* MJX-TEX-OB */ {
+  font-family: MJX-TEX-OB;
+  src: url("/dispositif/fonts/mjx/mjx-tex-ob.woff2") format("woff2");
+}
+
+@font-face /* MJX-TEX-MI */ {
+  font-family: MJX-TEX-MI;
+  src: url("/dispositif/fonts/mjx/mjx-tex-mi.woff2") format("woff2");
+}
+
+@font-face /* MJX-TEX-V */ {
+  font-family: MJX-TEX-V;
+  src: url("/dispositif/fonts/mjx/mjx-tex-v.woff2") format("woff2");
+}
+
+@font-face /* MJX-TEX-S4 */ {
+  font-family: MJX-TEX-S4;
+  src: url("/dispositif/fonts/mjx/mjx-tex-s4.woff2") format("woff2");
+}
+
+mjx-c.mjx-c1D6FF {
+  padding: 0.717em 0.451em 0.01em 0;
+}
+
+mjx-c.mjx-c1D456 {
+  padding: 0.661em 0.345em 0.011em 0;
+}
+
+mjx-c.mjx-c31 {
+  padding: 0.666em 0.5em 0 0;
+}
+
+mjx-c.mjx-c2026 {
+  padding: 0.12em 1.172em 0 0;
+}
+
+mjx-c.mjx-c1D45B {
+  padding: 0.442em 0.6em 0.011em 0;
+}
+
+mjx-c.mjx-c28 {
+  padding: 0.75em 0.389em 0.25em 0;
+}
+
+mjx-c.mjx-c1D457 {
+  padding: 0.661em 0.412em 0.204em 0;
+}
+
+mjx-c.mjx-c2208 {
+  padding: 0.54em 0.667em 0.04em 0;
+}
+
+mjx-c.mjx-c7B {
+  padding: 0.75em 0.5em 0.25em 0;
+}
+
+mjx-c.mjx-c2C {
+  padding: 0.121em 0.278em 0.194em 0;
+}
+
+mjx-c.mjx-c1D451 {
+  padding: 0.694em 0.523em 0.01em 0;
+}
+
+mjx-c.mjx-c7D {
+  padding: 0.75em 0.5em 0.25em 0;
+}
+
+mjx-c.mjx-c29 {
+  padding: 0.75em 0.389em 0.25em 0;
+}
+
+mjx-c.mjx-c32 {
+  padding: 0.666em 0.5em 0 0;
+}
+
+mjx-c.mjx-c38 {
+  padding: 0.666em 0.5em 0.022em 0;
+}
+
+mjx-c.mjx-c1D45D {
+  padding: 0.442em 0.503em 0.194em 0;
+}
+
+mjx-c.mjx-c3D {
+  padding: 0.367em 0.778em 0 0;
+}
+
+mjx-c.mjx-c33 {
+  padding: 0.665em 0.5em 0.022em 0;
+}
+
+mjx-c.mjx-c30 {
+  padding: 0.666em 0.5em 0.022em 0;
+}
+
+mjx-c.mjx-c1D45E {
+  padding: 0.442em 0.46em 0.194em 0;
+}
+
+mjx-c.mjx-c2B {
+  padding: 0.583em 0.778em 0.082em 0;
+}
+
+mjx-c.mjx-c1D45F {
+  padding: 0.442em 0.451em 0.011em 0;
+}
+
+mjx-c.mjx-c37 {
+  padding: 0.676em 0.5em 0.022em 0;
+}
+
+mjx-c.mjx-c39 {
+  padding: 0.666em 0.5em 0.022em 0;
+}
+
+mjx-c.mjx-c230A {
+  padding: 0.75em 0.444em 0.25em 0;
+}
+
+mjx-c.mjx-c2F {
+  padding: 0.75em 0.5em 0.25em 0;
+}
+
+mjx-c.mjx-c230B {
+  padding: 0.75em 0.444em 0.25em 0;
+}
+
+mjx-c.mjx-c6D {
+  padding: 0.442em 0.833em 0 0;
+}
+
+mjx-c.mjx-c6F {
+  padding: 0.448em 0.5em 0.01em 0;
+}
+
+mjx-c.mjx-c64 {
+  padding: 0.694em 0.556em 0.011em 0;
+}
+
+mjx-c.mjx-c1D458 {
+  padding: 0.694em 0.521em 0.011em 0;
+}
+
+mjx-c.mjx-c2124 {
+  padding: 0.683em 0.667em 0.001em 0;
+}
+
+mjx-c.mjx-cD7 {
+  padding: 0.491em 0.778em 0 0;
+}
+
+mjx-c.mjx-c2032 {
+  padding: 0.56em 0.275em 0 0;
+}
+
+mjx-c.mjx-c2212 {
+  padding: 0.583em 0.778em 0.082em 0;
+}
+
+mjx-c.mjx-c230A.TEX-S3 {
+  padding: 1.45em 0.583em 0.949em 0;
+}
+
+mjx-c.mjx-c230B.TEX-S3 {
+  padding: 1.45em 0.583em 0.949em 0;
+}
+
+mjx-c.mjx-c230A.TEX-LO {
+  padding: 1.15em 0.528em 0.649em 0;
+}
+
+mjx-c.mjx-c230B.TEX-LO {
+  padding: 1.15em 0.528em 0.649em 0;
+}
+
+mjx-c.mjx-c2E {
+  padding: 0.12em 0.278em 0 0;
+}
+
+mjx-c.mjx-c1D454 {
+  padding: 0.442em 0.48em 0.205em 0;
+}
+
+mjx-c.mjx-c393 {
+  padding: 0.68em 0.625em 0 0;
+}
+
+mjx-c.mjx-c1D459 {
+  padding: 0.694em 0.298em 0.011em 0;
+}
+
+mjx-c.mjx-c1D446 {
+  padding: 0.705em 0.645em 0.022em 0;
+}
+
+mjx-c.mjx-c222B.TEX-SO {
+  padding: 0.805em 0.61em 0.306em 0;
+}
+
+mjx-c.mjx-c1D461 {
+  padding: 0.626em 0.361em 0.011em 0;
+}
+
+mjx-c.mjx-c2D9 {
+  padding: 0.669em 0.5em 0 0;
+}
+
+mjx-c.mjx-c1D465 {
+  padding: 0.442em 0.572em 0.011em 0;
+}
+
+mjx-c.mjx-c1D445 {
+  padding: 0.683em 0.759em 0.021em 0;
+}
+
+mjx-c.mjx-c1D715 {
+  padding: 0.715em 0.566em 0.022em 0;
+}
+
+mjx-c.mjx-c1D45A {
+  padding: 0.442em 0.878em 0.011em 0;
+}
+
+mjx-c.mjx-c74 {
+  padding: 0.615em 0.389em 0.01em 0;
+}
+
+mjx-c.mjx-c72 {
+  padding: 0.442em 0.392em 0 0;
+}
+
+mjx-c.mjx-c2061 {
+  padding: 0 0 0 0;
+}
+
+
+</style><style data-math-font="MJX-TEX-ZERO" data-math-font-url="/dispositif/fonts/mjx/mjx-tex-zero.woff2">@font-face /* MJX-TEX-ZERO */ {
+  font-family: MJX-TEX-ZERO;
+  src: url("/dispositif/fonts/mjx/mjx-tex-zero.woff2") format("woff2");
+}</style><style data-math-font="MJX-BRK" data-math-font-url="/dispositif/fonts/mjx/mjx-tex-brk.woff2">@font-face /* MJX-BRK */ {
+  font-family: MJX-BRK;
+  src: url("/dispositif/fonts/mjx/mjx-tex-brk.woff2") format("woff2");
+}</style><style data-math-font="MJX-TEX-N" data-math-font-url="/dispositif/fonts/mjx/mjx-tex-n.woff2">@font-face /* MJX-TEX-N */ {
+  font-family: MJX-TEX-N;
+  src: url("/dispositif/fonts/mjx/mjx-tex-n.woff2") format("woff2");
+}</style><style data-math-font="MJX-TEX-SO" data-math-font-url="/dispositif/fonts/mjx/mjx-tex-so.woff2">@font-face /* MJX-TEX-SO */ {
+  font-family: MJX-TEX-SO;
+  src: url("/dispositif/fonts/mjx/mjx-tex-so.woff2") format("woff2");
+}</style><style data-math-font="MJX-TEX-LO" data-math-font-url="/dispositif/fonts/mjx/mjx-tex-lo.woff2">@font-face /* MJX-TEX-LO */ {
+  font-family: MJX-TEX-LO;
+  src: url("/dispositif/fonts/mjx/mjx-tex-lo.woff2") format("woff2");
+}</style><style data-math-font="MJX-TEX-S3" data-math-font-url="/dispositif/fonts/mjx/mjx-tex-s3.woff2">@font-face /* MJX-TEX-S3 */ {
+  font-family: MJX-TEX-S3;
+  src: url("/dispositif/fonts/mjx/mjx-tex-s3.woff2") format("woff2");
+}</style><link rel="stylesheet" href="/dispositif/_astro/Layout.Cv_ONpI2.css"><script type="module" src="/dispositif/_astro/page.CZpLv-iH.js"></script><style>[data-astro-transition-scope="astro-yztbsuuz-1"] { view-transition-name: astro-yztbsuuz-1; }@layer astro { ::view-transition-old(astro-yztbsuuz-1) { animation: none; opacity: 0; mix-blend-mode: normal; }::view-transition-new(astro-yztbsuuz-1) { animation: none; mix-blend-mode: normal; }::view-transition-group(astro-yztbsuuz-1) { animation: none } }[data-astro-transition-fallback="old"] [data-astro-transition-scope="astro-yztbsuuz-1"],
+			[data-astro-transition-fallback="old"][data-astro-transition-scope="astro-yztbsuuz-1"] { animation: none; mix-blend-mode: normal; }[data-astro-transition-fallback="new"] [data-astro-transition-scope="astro-yztbsuuz-1"],
+			[data-astro-transition-fallback="new"][data-astro-transition-scope="astro-yztbsuuz-1"] { animation: none; mix-blend-mode: normal; }</style></head><body><main class="min-h-svh bg-[#a0bac8] pb-12"><header data-site-header class="fixed inset-x-0 top-0 z-0 w-full bg-[#f8f8f8] pb-2 pt-4 text-center font-system text-lg text-[#112b45] underline decoration-yellow-300 decoration-4 underline-offset-[12px] shadow-[0_1px_1px_1px_rgba(0,0,0,0.3)] md:text-2xl site-header--toc"><a href="/dispositif/" class="site-article-index text-inherit decoration-inherit">記事一覧</a><details data-toc data-toc-variant="header" class="toc-header not-prose"><summary class="toc-toggle"><span>目次</span><svg class="toc-chevron" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5"></path></svg></summary><div class="toc-header-row"><button class="toc-scroll-arrow" data-toc-direction="-1" type="button" aria-label="目次を左へスクロール" aria-controls="toc-header-scroll" disabled><svg aria-hidden="true" viewBox="0 0 0.8660254 1"><polygon points="0,0.5 0.8660254,0 0.8660254,1" fill="currentColor"></polygon></svg></button><nav id="toc-header-scroll" aria-label="目次" class="toc toc-scrollable toc-header-scroll" data-toc-scroll tabindex="0"><ul class="toc-list"><li class="toc-list-item toc-level-2" data-toc-id="構文解析"><a href="#構文解析" class="toc-link">構文解析</a></li><li class="toc-list-item toc-level-2" data-toc-id="dictのブロードキャスト"><a href="#dictのブロードキャスト" class="toc-link">Dictのブロードキャスト</a></li><li class="toc-list-item toc-level-2" data-toc-id="置換群"><a href="#置換群" class="toc-link">置換群</a></li><li class="toc-list-item toc-level-2" data-toc-id="引数の分解"><a href="#引数の分解" class="toc-link">引数の分解</a></li><li class="toc-list-item toc-level-2" data-toc-id="高次元配列の生成"><a href="#高次元配列の生成" class="toc-link">高次元配列の生成</a></li><li class="toc-list-item toc-level-2" data-toc-id="同値類への分割"><a href="#同値類への分割" class="toc-link">同値類への分割</a></li><li class="toc-list-item toc-level-2" data-toc-id="svgの生成"><a href="#svgの生成" class="toc-link">SVGの生成</a></li><li class="toc-list-item toc-level-2" data-toc-id="eratosthenesの篩"><a href="#eratosthenesの篩" class="toc-link">Eratosthenesの篩</a></li><li class="toc-list-item toc-level-2" data-toc-id="継続渡し"><a href="#継続渡し" class="toc-link">継続渡し</a></li><li class="toc-list-item toc-level-2" data-toc-id="フィボナッチ数"><a href="#フィボナッチ数" class="toc-link">フィボナッチ数</a></li><li class="toc-list-item toc-level-2" data-toc-id="ricciスカラーの計算"><a href="#ricciスカラーの計算" class="toc-link">Ricciスカラーの計算</a></li></ul></nav><button class="toc-scroll-arrow" data-toc-direction="1" type="button" aria-label="目次を右へスクロール" aria-controls="toc-header-scroll" disabled><svg aria-hidden="true" viewBox="0 0 0.8660254 1"><polygon points="0.8660254,0.5 0,0 0,1" fill="currentColor"></polygon></svg></button></div></details><script type="module" src="/dispositif/_astro/Toc.astro_astro_type_script_index_0_lang.B_P8bbgD.js"></script></header><div class="article-index-shell" inert aria-hidden="true"><div data-astro-transition-persist="article-index" data-article-index class="mx-auto flex w-full flex-col items-center gap-3 px-2 pb-16 pt-20 md:w-[48rem]"><a href="/dispositif/symmetric-polynomial/" data-astro-prefetch="hover" data-math-fonts="[[&quot;MJX-TEX-ZERO&quot;,&quot;/dispositif/fonts/mjx/mjx-tex-zero.woff2&quot;],[&quot;MJX-BRK&quot;,&quot;/dispositif/fonts/mjx/mjx-tex-brk.woff2&quot;],[&quot;MJX-TEX-N&quot;,&quot;/dispositif/fonts/mjx/mjx-tex-n.woff2&quot;],[&quot;MJX-TEX-SO&quot;,&quot;/dispositif/fonts/mjx/mjx-tex-so.woff2&quot;],[&quot;MJX-TEX-LO&quot;,&quot;/dispositif/fonts/mjx/mjx-tex-lo.woff2&quot;],[&quot;MJX-TEX-S3&quot;,&quot;/dispositif/fonts/mjx/mjx-tex-s3.woff2&quot;],[&quot;MJX-TEX-S4&quot;,&quot;/dispositif/fonts/mjx/mjx-tex-s4.woff2&quot;]]" class="block w-full overflow-hidden rounded-md border-[0.5pt] border-[#dadfe4] bg-[#f8f8f8] px-3 pb-1 pt-2 text-[#324e73] no-underline shadow-[0_1px_1px_1px_rgba(0,0,0,0.2)] sm:pb-2 sm:pt-4 md:px-6"><h2 class="mb-1 font-sans text-base font-semibold md:text-xl">対称多項式環</h2><dl class="date-info not-prose text-xs md:text-sm"><div class="date-info-item"><dt>投稿日</dt><dd><time datetime="2026-04-27">2026-04-27</time></dd></div><div class="date-info-item"><dt>最終更新日</dt><dd><time datetime="2026-04-28">2026-04-28</time></dd></div></dl></a><a href="/dispositif/tips-python/" data-astro-prefetch="hover" class="block w-full overflow-hidden rounded-md border-[0.5pt] border-[#dadfe4] bg-[#f8f8f8] px-3 pb-1 pt-2 text-[#324e73] no-underline shadow-[0_1px_1px_1px_rgba(0,0,0,0.2)] sm:pb-2 sm:pt-4 md:px-6"><h2 class="mb-1 font-sans text-base font-semibold md:text-xl">Tips for Python</h2><dl class="date-info not-prose text-xs md:text-sm"><div class="date-info-item"><dt>投稿日</dt><dd><time datetime="2025-05-09">2025-05-09</time></dd></div><div class="date-info-item"><dt>最終更新日</dt><dd><time datetime="2025-05-09">2025-05-09</time></dd></div></dl></a><a href="/dispositif/how-to-write/" data-astro-prefetch="hover" data-math-fonts="[[&quot;MJX-TEX-ZERO&quot;,&quot;/dispositif/fonts/mjx/mjx-tex-zero.woff2&quot;],[&quot;MJX-BRK&quot;,&quot;/dispositif/fonts/mjx/mjx-tex-brk.woff2&quot;],[&quot;MJX-TEX-N&quot;,&quot;/dispositif/fonts/mjx/mjx-tex-n.woff2&quot;],[&quot;MJX-TEX-SO&quot;,&quot;/dispositif/fonts/mjx/mjx-tex-so.woff2&quot;],[&quot;MJX-TEX-S3&quot;,&quot;/dispositif/fonts/mjx/mjx-tex-s3.woff2&quot;],[&quot;MJX-TEX-S4&quot;,&quot;/dispositif/fonts/mjx/mjx-tex-s4.woff2&quot;]]" class="block w-full overflow-hidden rounded-md border-[0.5pt] border-[#dadfe4] bg-[#f8f8f8] px-3 pb-1 pt-2 text-[#324e73] no-underline shadow-[0_1px_1px_1px_rgba(0,0,0,0.2)] sm:pb-2 sm:pt-4 md:px-6"><h2 class="mb-1 font-sans text-base font-semibold md:text-xl">仕様確認</h2><dl class="date-info not-prose text-xs md:text-sm"><div class="date-info-item"><dt>投稿日</dt><dd><time datetime="2025-05-05">2025-05-05</time></dd></div><div class="date-info-item"><dt>最終更新日</dt><dd><time datetime="2025-05-05">2025-05-05</time></dd></div></dl></a><a href="/dispositif/tips-haskell/" data-astro-prefetch="hover" class="block w-full overflow-hidden rounded-md border-[0.5pt] border-[#dadfe4] bg-[#f8f8f8] px-3 pb-1 pt-2 text-[#324e73] no-underline shadow-[0_1px_1px_1px_rgba(0,0,0,0.2)] sm:pb-2 sm:pt-4 md:px-6"><h2 class="mb-1 font-sans text-base font-semibold md:text-xl">Tips for Haskell</h2><dl class="date-info not-prose text-xs md:text-sm"><div class="date-info-item"><dt>投稿日</dt><dd><time datetime="2025-02-18">2025-02-18</time></dd></div><div class="date-info-item"><dt>最終更新日</dt><dd><time datetime="2025-02-18">2025-02-18</time></dd></div></dl></a><a href="/dispositif/tips-rust/" data-astro-prefetch="hover" class="block w-full overflow-hidden rounded-md border-[0.5pt] border-[#dadfe4] bg-[#f8f8f8] px-3 pb-1 pt-2 text-[#324e73] no-underline shadow-[0_1px_1px_1px_rgba(0,0,0,0.2)] sm:pb-2 sm:pt-4 md:px-6"><h2 class="mb-1 font-sans text-base font-semibold md:text-xl">Tips for Rust</h2><dl class="date-info not-prose text-xs md:text-sm"><div class="date-info-item"><dt>投稿日</dt><dd><time datetime="2025-02-03">2025-02-03</time></dd></div></dl></a><a href="/dispositif/tips-typst/" data-astro-prefetch="hover" class="block w-full overflow-hidden rounded-md border-[0.5pt] border-[#dadfe4] bg-[#f8f8f8] px-3 pb-1 pt-2 text-[#324e73] no-underline shadow-[0_1px_1px_1px_rgba(0,0,0,0.2)] sm:pb-2 sm:pt-4 md:px-6"><h2 class="mb-1 font-sans text-base font-semibold md:text-xl">Tips for Typst</h2><dl class="date-info not-prose text-xs md:text-sm"><div class="date-info-item"><dt>投稿日</dt><dd><time datetime="2025-01-23">2025-01-23</time></dd></div></dl></a><a href="/dispositif/tips-julia/" data-astro-prefetch="hover" data-math-fonts="[[&quot;MJX-TEX-ZERO&quot;,&quot;/dispositif/fonts/mjx/mjx-tex-zero.woff2&quot;],[&quot;MJX-BRK&quot;,&quot;/dispositif/fonts/mjx/mjx-tex-brk.woff2&quot;],[&quot;MJX-TEX-N&quot;,&quot;/dispositif/fonts/mjx/mjx-tex-n.woff2&quot;],[&quot;MJX-TEX-SO&quot;,&quot;/dispositif/fonts/mjx/mjx-tex-so.woff2&quot;],[&quot;MJX-TEX-LO&quot;,&quot;/dispositif/fonts/mjx/mjx-tex-lo.woff2&quot;],[&quot;MJX-TEX-S3&quot;,&quot;/dispositif/fonts/mjx/mjx-tex-s3.woff2&quot;]]" class="block w-full overflow-hidden rounded-md border-[0.5pt] border-[#dadfe4] bg-[#f8f8f8] px-3 pb-1 pt-2 text-[#324e73] no-underline shadow-[0_1px_1px_1px_rgba(0,0,0,0.2)] sm:pb-2 sm:pt-4 md:px-6"><h2 class="mb-1 font-sans text-base font-semibold md:text-xl">Tips for Julia</h2><dl class="date-info not-prose text-xs md:text-sm"><div class="date-info-item"><dt>投稿日</dt><dd><time datetime="2025-01-01">2025-01-01</time></dd></div><div class="date-info-item"><dt>最終更新日</dt><dd><time datetime="2025-05-06">2025-05-06</time></dd></div></dl></a><a href="/dispositif/nextjs-mdx/" data-astro-prefetch="hover" class="block w-full overflow-hidden rounded-md border-[0.5pt] border-[#dadfe4] bg-[#f8f8f8] px-3 pb-1 pt-2 text-[#324e73] no-underline shadow-[0_1px_1px_1px_rgba(0,0,0,0.2)] sm:pb-2 sm:pt-4 md:px-6"><h2 class="mb-1 font-sans text-base font-semibold md:text-xl">Next.js + MDXでブログサイト制作入門</h2><dl class="date-info not-prose text-xs md:text-sm"><div class="date-info-item"><dt>投稿日</dt><dd><time datetime="2024-12-19">2024-12-19</time></dd></div><div class="date-info-item"><dt>最終更新日</dt><dd><time datetime="2025-05-05">2025-05-05</time></dd></div></dl></a><a href="/dispositif/tips-wsl/" data-astro-prefetch="hover" class="block w-full overflow-hidden rounded-md border-[0.5pt] border-[#dadfe4] bg-[#f8f8f8] px-3 pb-1 pt-2 text-[#324e73] no-underline shadow-[0_1px_1px_1px_rgba(0,0,0,0.2)] sm:pb-2 sm:pt-4 md:px-6"><h2 class="mb-1 font-sans text-base font-semibold md:text-xl">Tips for WSL</h2><dl class="date-info not-prose text-xs md:text-sm"><div class="date-info-item"><dt>投稿日</dt><dd><time datetime="2024-12-19">2024-12-19</time></dd></div><div class="date-info-item"><dt>最終更新日</dt><dd><time datetime="2025-04-17">2025-04-17</time></dd></div></dl></a></div><script type="module" src="/dispositif/_astro/ArticleIndex.astro_astro_type_script_index_0_lang.D5qRtCRH.js"></script></div><div aria-hidden="true" class="cl-backdrop fixed inset-0 z-10 block cursor-pointer bg-[#76ddfc]/15 backdrop-blur-[3px]"></div><div class="cl-article-scrollport" tabindex="0" role="region" aria-label="記事本文"><a href="/dispositif/" data-astro-prefetch="hover" tabindex="-1" aria-hidden="true" class="cl-dismiss block cursor-pointer"></a><article class="cl-article prose relative z-20 mx-auto mt-8 flex w-[calc(100%-1rem)] max-w-[68rem] flex-col px-4 pb-16 md:pl-16 md:pr-4"><div class="cl-layout grid min-w-0 grid-cols-1"><aside class="cl-sidebar"><div class="cl-sidebar-stack"><div class="cl-toolbar not-prose"><button class="cl-toggle" type="button" aria-pressed="false" aria-label="n段表示" title="n段表示に切り替える"><svg width="30" height="30" viewBox="0 0 30 30" fill="none" color="#324e73" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="cl-toggle-to-multi" aria-hidden="true">
+  <rect x="3" y="5" width="24" height="20" rx="1" />
+  <path d="M15 5v20M7 10h4M7 15h4M7 20h4M19 10h4M19 15h4M19 20h2" />
+</svg><svg width="30" height="30" viewBox="0 0 30 30" fill="none" color="#324e73" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="cl-toggle-to-single" aria-hidden="true">
+  <rect x="3" y="5" width="24" height="20" rx="1" />
+  <path d="M8 10h14M8 15h14M8 20h10" />
+</svg></button><details data-toc data-toc-variant="mobile" class="cl-mobile-toc not-prose"><summary class="toc-mobile-toggle" aria-label="目次を開閉"><svg aria-hidden="true" viewBox="0 0 30 30" width="30" height="30"><path d="m5 10 10 10 10-10" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg></summary><nav aria-label="目次" class="toc-mobile-panel"><h2 class="toc-sidebar-title">目次</h2><div class="toc toc-scrollable toc-sidebar-scroll" data-toc-scroll tabindex="0" role="group" aria-label="目次の縦スクロール"><ul class="toc-list"><li class="toc-list-item toc-level-2" data-toc-id="構文解析"><a href="#構文解析" class="toc-link">構文解析</a></li><li class="toc-list-item toc-level-2" data-toc-id="dictのブロードキャスト"><a href="#dictのブロードキャスト" class="toc-link">Dictのブロードキャスト</a></li><li class="toc-list-item toc-level-2" data-toc-id="置換群"><a href="#置換群" class="toc-link">置換群</a></li><li class="toc-list-item toc-level-2" data-toc-id="引数の分解"><a href="#引数の分解" class="toc-link">引数の分解</a></li><li class="toc-list-item toc-level-2" data-toc-id="高次元配列の生成"><a href="#高次元配列の生成" class="toc-link">高次元配列の生成</a></li><li class="toc-list-item toc-level-2" data-toc-id="同値類への分割"><a href="#同値類への分割" class="toc-link">同値類への分割</a></li><li class="toc-list-item toc-level-2" data-toc-id="svgの生成"><a href="#svgの生成" class="toc-link">SVGの生成</a></li><li class="toc-list-item toc-level-2" data-toc-id="eratosthenesの篩"><a href="#eratosthenesの篩" class="toc-link">Eratosthenesの篩</a></li><li class="toc-list-item toc-level-2" data-toc-id="継続渡し"><a href="#継続渡し" class="toc-link">継続渡し</a></li><li class="toc-list-item toc-level-2" data-toc-id="フィボナッチ数"><a href="#フィボナッチ数" class="toc-link">フィボナッチ数</a></li><li class="toc-list-item toc-level-2" data-toc-id="ricciスカラーの計算"><a href="#ricciスカラーの計算" class="toc-link">Ricciスカラーの計算</a></li></ul></div></nav></details><a href="/dispositif/" data-astro-prefetch="hover" aria-label="記事を閉じて一覧へ戻る" class="cl-close"><span class="batsu" aria-hidden="true"></span></a></div><div class="cl-toc hidden md:flex"><nav aria-label="目次" data-toc data-toc-variant="sidebar" class="toc-sidebar not-prose"><h2 class="toc-sidebar-title">目次</h2><div class="toc toc-scrollable toc-sidebar-scroll" data-toc-scroll tabindex="0" role="group" aria-label="目次の縦スクロール"><ul class="toc-list"><li class="toc-list-item toc-level-2" data-toc-id="構文解析"><a href="#構文解析" class="toc-link">構文解析</a></li><li class="toc-list-item toc-level-2" data-toc-id="dictのブロードキャスト"><a href="#dictのブロードキャスト" class="toc-link">Dictのブロードキャスト</a></li><li class="toc-list-item toc-level-2" data-toc-id="置換群"><a href="#置換群" class="toc-link">置換群</a></li><li class="toc-list-item toc-level-2" data-toc-id="引数の分解"><a href="#引数の分解" class="toc-link">引数の分解</a></li><li class="toc-list-item toc-level-2" data-toc-id="高次元配列の生成"><a href="#高次元配列の生成" class="toc-link">高次元配列の生成</a></li><li class="toc-list-item toc-level-2" data-toc-id="同値類への分割"><a href="#同値類への分割" class="toc-link">同値類への分割</a></li><li class="toc-list-item toc-level-2" data-toc-id="svgの生成"><a href="#svgの生成" class="toc-link">SVGの生成</a></li><li class="toc-list-item toc-level-2" data-toc-id="eratosthenesの篩"><a href="#eratosthenesの篩" class="toc-link">Eratosthenesの篩</a></li><li class="toc-list-item toc-level-2" data-toc-id="継続渡し"><a href="#継続渡し" class="toc-link">継続渡し</a></li><li class="toc-list-item toc-level-2" data-toc-id="フィボナッチ数"><a href="#フィボナッチ数" class="toc-link">フィボナッチ数</a></li><li class="toc-list-item toc-level-2" data-toc-id="ricciスカラーの計算"><a href="#ricciスカラーの計算" class="toc-link">Ricciスカラーの計算</a></li></ul></div></nav></div></div></aside><div class="cl-reader" hidden><div class="cl-viewport" tabindex="0" role="region" aria-label="n段の本文"><div class="cl-plane"><div class="cl-copies"></div></div></div></div><div class="cl-source min-w-0 w-full font-noto-sans"><h1 class="mb-1 text-lg font-semibold text-[#101828] sm:text-3xl md:mb-3 md:text-4xl">Tips for Julia</h1><dl class="date-info not-prose text-xs sm:text-base"><div class="date-info-item"><dt>投稿日</dt><dd><time datetime="2025-01-01">2025-01-01</time></dd></div><div class="date-info-item"><dt>最終更新日</dt><dd><time datetime="2025-05-06">2025-05-06</time></dd></div></dl><div class="post"><h2 id="構文解析">構文解析</h2>
+<p>正体が分からない記号が使われているとき、<code>Meta.@lower</code>を使えば実際に呼び出される関数や行われる処理が分かる。演算子をオーバーロードしたいときに役に立つ。</p>
+<figure data-rehype-pretty-code-figure=""><pre tabindex="0" data-show-line-numbers="true" data-language="julia" data-theme="github-dark-dimmed"><code data-show-line-numbers="true" data-language="julia" data-theme="github-dark-dimmed" style="display: grid;"><span data-line=""><span style="color:#ADBAC7">julia</span><span style="color:#F47067">></span><span style="color:#ADBAC7"> Meta</span><span style="color:#F47067">.</span><span style="color:#6CB6FF">@lower</span><span style="color:#ADBAC7"> [</span><span style="color:#6CB6FF">1</span><span style="color:#ADBAC7">,</span><span style="color:#6CB6FF">2</span><span style="color:#ADBAC7">][[</span><span style="color:#6CB6FF">1</span><span style="color:#ADBAC7">,</span><span style="color:#6CB6FF">2</span><span style="color:#ADBAC7">]]</span></span>
+<span data-line=""><span style="color:#ADBAC7">:(</span><span style="color:#F47067">$</span><span style="color:#ADBAC7">(</span><span style="color:#6CB6FF">Expr</span><span style="color:#ADBAC7">(</span><span style="color:#6CB6FF">:thunk</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">CodeInfo</span><span style="color:#ADBAC7">(</span></span>
+<span data-line=""><span style="color:#ADBAC7">    @ none within </span><span style="color:#96D0FF">`top-level scope`</span></span>
+<span data-line=""><span style="color:#6CB6FF">1</span><span style="color:#ADBAC7"> ─ </span><span style="color:#F47067">%</span><span style="color:#6CB6FF">1</span><span style="color:#F47067"> =</span><span style="color:#ADBAC7"> Base</span><span style="color:#F47067">.</span><span style="color:#6CB6FF">vect</span><span style="color:#ADBAC7">(</span><span style="color:#6CB6FF">1</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">2</span><span style="color:#ADBAC7">)</span></span>
+<span data-line=""><span style="color:#ADBAC7">│   </span><span style="color:#F47067">%</span><span style="color:#6CB6FF">2</span><span style="color:#F47067"> =</span><span style="color:#ADBAC7"> Base</span><span style="color:#F47067">.</span><span style="color:#6CB6FF">vect</span><span style="color:#ADBAC7">(</span><span style="color:#6CB6FF">1</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">2</span><span style="color:#ADBAC7">)</span></span>
+<span data-line=""><span style="color:#ADBAC7">│   </span><span style="color:#F47067">%</span><span style="color:#6CB6FF">3</span><span style="color:#F47067"> =</span><span style="color:#ADBAC7"> Base</span><span style="color:#F47067">.</span><span style="color:#6CB6FF">getindex</span><span style="color:#ADBAC7">(</span><span style="color:#F47067">%</span><span style="color:#6CB6FF">1</span><span style="color:#ADBAC7">, </span><span style="color:#F47067">%</span><span style="color:#6CB6FF">2</span><span style="color:#ADBAC7">)</span></span>
+<span data-line=""><span style="color:#ADBAC7">└──      </span><span style="color:#F47067">return</span><span style="color:#F47067"> %</span><span style="color:#6CB6FF">3</span></span>
+<span data-line=""><span style="color:#ADBAC7">))))</span></span></code><style>pre[data-show-line-numbers='true'], code[data-show-line-numbers='true'] { counter-increment: step 0; font-variant-numeric: tabular-nums; counter-reset: step 0; } code[data-show-line-numbers='true'] > span[data-line]::before { color: #6a737d; text-align: right; margin-right: 0.75rem; display: inline-block; content: counter(step); counter-increment: step; font-variant-numeric: tabular-nums; } code[data-show-line-numbers='true'] > span[data-line]:empty::before, span[data-rehype-pretty-code-figure] > code > span[data-line]::before { content: none; }</style></pre></figure>
+<figure data-rehype-pretty-code-figure=""><pre tabindex="0" data-show-line-numbers="true" data-language="julia" data-theme="github-dark-dimmed"><code data-show-line-numbers="true" data-language="julia" data-theme="github-dark-dimmed" style="display: grid;"><span data-line=""><span style="color:#ADBAC7">julia</span><span style="color:#F47067">></span><span style="color:#ADBAC7"> Meta</span><span style="color:#F47067">.</span><span style="color:#6CB6FF">@lower</span><span style="color:#ADBAC7"> [</span><span style="color:#6CB6FF">1</span><span style="color:#ADBAC7">,</span><span style="color:#6CB6FF">2</span><span style="color:#ADBAC7">][</span><span style="color:#6CB6FF">1</span><span style="color:#ADBAC7">] </span><span style="color:#F47067">=</span><span style="color:#6CB6FF"> 2</span></span>
+<span data-line=""><span style="color:#ADBAC7">:(</span><span style="color:#F47067">$</span><span style="color:#ADBAC7">(</span><span style="color:#6CB6FF">Expr</span><span style="color:#ADBAC7">(</span><span style="color:#6CB6FF">:thunk</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">CodeInfo</span><span style="color:#ADBAC7">(</span></span>
+<span data-line=""><span style="color:#ADBAC7">    @ none within </span><span style="color:#96D0FF">`top-level scope`</span></span>
+<span data-line=""><span style="color:#6CB6FF">1</span><span style="color:#ADBAC7"> ─ </span><span style="color:#F47067">%</span><span style="color:#6CB6FF">1</span><span style="color:#F47067"> =</span><span style="color:#ADBAC7"> Base</span><span style="color:#F47067">.</span><span style="color:#6CB6FF">vect</span><span style="color:#ADBAC7">(</span><span style="color:#6CB6FF">1</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">2</span><span style="color:#ADBAC7">)</span></span>
+<span data-line=""><span style="color:#ADBAC7">│        Base</span><span style="color:#F47067">.</span><span style="color:#6CB6FF">setindex!</span><span style="color:#ADBAC7">(</span><span style="color:#F47067">%</span><span style="color:#6CB6FF">1</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">2</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">1</span><span style="color:#ADBAC7">)</span></span>
+<span data-line=""><span style="color:#ADBAC7">└──      </span><span style="color:#F47067">return</span><span style="color:#6CB6FF"> 2</span></span>
+<span data-line=""><span style="color:#ADBAC7">))))</span></span></code><style>pre[data-show-line-numbers='true'], code[data-show-line-numbers='true'] { counter-increment: step 0; font-variant-numeric: tabular-nums; counter-reset: step 0; } code[data-show-line-numbers='true'] > span[data-line]::before { color: #6a737d; text-align: right; margin-right: 0.75rem; display: inline-block; content: counter(step); counter-increment: step; font-variant-numeric: tabular-nums; } code[data-show-line-numbers='true'] > span[data-line]:empty::before, span[data-rehype-pretty-code-figure] > code > span[data-line]::before { content: none; }</style></pre></figure>
+<p>配列の要素取得は<code>getindex</code>を、代入は<code>setindex!</code>をオーバーロードすればよいと分かる。</p>
+<p><code>@which</code>でもその記号が呼び出している関数名を教えてくれるが、具体的にどう用いられているかは<code>Meta.@lower</code>を見る方が分かりやすい。</p>
+<h2 id="dictのブロードキャスト">Dictのブロードキャスト</h2>
+<p><code>Vector</code>ならスライスで<code>v[1:3]</code>のように部分列を取り出せる。Dictで同じように書くと<code>1:3</code>がkeyだと思われてしまってうまくいかない。Dictではブロードキャストを利用して同じことができる（<a href="https://discourse.julialang.org/t/how-to-get-values-of-dictionary-by-using-array-of-keys/73650/11" target="_blank" rel="noopener noreferrer">参考</a>）。</p>
+<figure data-rehype-pretty-code-figure=""><pre tabindex="0" data-show-line-numbers="true" data-language="julia" data-theme="github-dark-dimmed"><code data-show-line-numbers="true" data-language="julia" data-theme="github-dark-dimmed" style="display: grid;"><span data-line=""><span style="color:#ADBAC7">d </span><span style="color:#F47067">=</span><span style="color:#6CB6FF"> Dict</span><span style="color:#ADBAC7">(</span><span style="color:#6CB6FF">:a</span><span style="color:#F47067">=></span><span style="color:#6CB6FF">1</span><span style="color:#ADBAC7">,</span><span style="color:#6CB6FF">:b</span><span style="color:#F47067">=></span><span style="color:#6CB6FF">2</span><span style="color:#ADBAC7">)</span></span>
+<span data-line=""><span style="color:#ADBAC7">v </span><span style="color:#F47067">=</span><span style="color:#6CB6FF"> get</span><span style="color:#ADBAC7">.(</span><span style="color:#6CB6FF">Ref</span><span style="color:#ADBAC7">(d), [</span><span style="color:#6CB6FF">:a</span><span style="color:#ADBAC7">,</span><span style="color:#6CB6FF">:b</span><span style="color:#ADBAC7">], </span><span style="color:#6CB6FF">missing</span><span style="color:#ADBAC7">)</span></span>
+<span data-line=""><span style="color:#6CB6FF">@assert</span><span style="color:#ADBAC7"> v </span><span style="color:#F47067">==</span><span style="color:#ADBAC7"> [</span><span style="color:#6CB6FF">1</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">2</span><span style="color:#ADBAC7">]</span></span></code><style>pre[data-show-line-numbers='true'], code[data-show-line-numbers='true'] { counter-increment: step 0; font-variant-numeric: tabular-nums; counter-reset: step 0; } code[data-show-line-numbers='true'] > span[data-line]::before { color: #6a737d; text-align: right; margin-right: 0.75rem; display: inline-block; content: counter(step); counter-increment: step; font-variant-numeric: tabular-nums; } code[data-show-line-numbers='true'] > span[data-line]:empty::before, span[data-rehype-pretty-code-figure] > code > span[data-line]::before { content: none; }</style></pre></figure>
+<h2 id="置換群">置換群</h2>
+<p>配列<code>s=[1,3,2]</code>は作用<code>v -> v[s]</code>によって置換と見なせる。特に<code>v</code>もまた<code>[1,2,3]</code>の並べ替えなら（つまり<code>isperm(v)</code>かつ<code>length(v)==3</code>なら）、<code>v[s]</code>は置換群の積になる。逆元は<code>invperm</code>あるいは<code>sortperm</code>で得られる。積の結合律が成り立つことは、3次の置換群に限れば以下のコードで証明できる。</p>
+<figure data-rehype-pretty-code-figure=""><pre tabindex="0" data-show-line-numbers="true" data-language="julia" data-theme="github-dark-dimmed"><code data-show-line-numbers="true" data-language="julia" data-theme="github-dark-dimmed" style="display: grid;"><span data-line=""><span style="color:#DCBDFB">perms</span><span style="color:#ADBAC7">(l) </span><span style="color:#F47067">=</span><span style="color:#6CB6FF"> isempty</span><span style="color:#ADBAC7">(l) </span><span style="color:#F47067">?</span><span style="color:#ADBAC7"> [l] </span><span style="color:#F47067">:</span><span style="color:#ADBAC7"> [[x; y] </span><span style="color:#F47067">for</span><span style="color:#ADBAC7"> x </span><span style="color:#F47067">in</span><span style="color:#ADBAC7"> l </span><span style="color:#F47067">for</span><span style="color:#ADBAC7"> y </span><span style="color:#F47067">in</span><span style="color:#6CB6FF"> perms</span><span style="color:#ADBAC7">(</span><span style="color:#6CB6FF">setdiff</span><span style="color:#ADBAC7">(l, x))]</span></span>
+<span data-line=""> </span>
+<span data-line=""><span style="color:#F47067">begin</span></span>
+<span data-line=""><span style="color:#ADBAC7">  perm123 </span><span style="color:#F47067">=</span><span style="color:#6CB6FF"> perms</span><span style="color:#ADBAC7">([</span><span style="color:#6CB6FF">1</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">2</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">3</span><span style="color:#ADBAC7">])</span></span>
+<span data-line=""><span style="color:#F47067">  for</span><span style="color:#ADBAC7"> (p, q, r) </span><span style="color:#F47067">in</span><span style="color:#ADBAC7"> Iterators</span><span style="color:#F47067">.</span><span style="color:#6CB6FF">product</span><span style="color:#ADBAC7">(</span><span style="color:#6CB6FF">fill</span><span style="color:#ADBAC7">(perm123, </span><span style="color:#6CB6FF">3</span><span style="color:#ADBAC7">)</span><span style="color:#F47067">...</span><span style="color:#ADBAC7">)</span></span>
+<span data-line=""><span style="color:#6CB6FF">    @assert</span><span style="color:#ADBAC7"> p[q[r]] </span><span style="color:#F47067">==</span><span style="color:#ADBAC7"> p[q][r]</span></span>
+<span data-line=""><span style="color:#F47067">  end</span></span>
+<span data-line=""><span style="color:#F47067">end</span></span></code><style>pre[data-show-line-numbers='true'], code[data-show-line-numbers='true'] { counter-increment: step 0; font-variant-numeric: tabular-nums; counter-reset: step 0; } code[data-show-line-numbers='true'] > span[data-line]::before { color: #6a737d; text-align: right; margin-right: 0.75rem; display: inline-block; content: counter(step); counter-increment: step; font-variant-numeric: tabular-nums; } code[data-show-line-numbers='true'] > span[data-line]:empty::before, span[data-rehype-pretty-code-figure] > code > span[data-line]::before { content: none; }</style></pre></figure>
+<p>順列を生成する関数<code>perms</code>の出典は<a href="https://zenn.dev/ohno/articles/03e65bfa028baa" target="_blank" rel="noopener noreferrer">ここ</a>あるいは<a href="https://rosettacode.org/wiki/Permutations#Julia" target="_blank" rel="noopener noreferrer">ここ</a>。</p>
+<h2 id="引数の分解">引数の分解</h2>
+<p>引数に渡されるTupleやPairやVectorを分解して受け取ることができる。</p>
+<figure data-rehype-pretty-code-figure=""><pre tabindex="0" data-show-line-numbers="true" data-language="julia" data-theme="github-dark-dimmed"><code data-show-line-numbers="true" data-language="julia" data-theme="github-dark-dimmed" style="display: grid;"><span data-line=""><span style="color:#DCBDFB">d</span><span style="color:#ADBAC7">((a, b)</span><span style="color:#F47067">::</span><span style="color:#6CB6FF">Tuple</span><span style="color:#ADBAC7">) </span><span style="color:#F47067">=</span><span style="color:#ADBAC7"> a </span><span style="color:#F47067">/</span><span style="color:#ADBAC7"> b</span></span>
+<span data-line=""><span style="color:#DCBDFB">d</span><span style="color:#ADBAC7">((a, b)</span><span style="color:#F47067">::</span><span style="color:#6CB6FF">Pair</span><span style="color:#ADBAC7">) </span><span style="color:#F47067">=</span><span style="color:#ADBAC7"> b </span><span style="color:#F47067">/</span><span style="color:#ADBAC7"> a</span></span>
+<span data-line=""><span style="color:#DCBDFB">d</span><span style="color:#ADBAC7">((a, b)) </span><span style="color:#F47067">=</span><span style="color:#ADBAC7"> a </span><span style="color:#F47067">//</span><span style="color:#ADBAC7"> b</span></span>
+<span data-line=""><span style="color:#6CB6FF">@assert</span><span style="color:#6CB6FF"> d</span><span style="color:#ADBAC7">((</span><span style="color:#6CB6FF">5</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">2</span><span style="color:#ADBAC7">)) </span><span style="color:#F47067">==</span><span style="color:#6CB6FF"> 2.5</span></span>
+<span data-line=""><span style="color:#6CB6FF">@assert</span><span style="color:#6CB6FF"> d</span><span style="color:#ADBAC7">(</span><span style="color:#6CB6FF">5</span><span style="color:#F47067"> =></span><span style="color:#6CB6FF"> 2</span><span style="color:#ADBAC7">) </span><span style="color:#F47067">==</span><span style="color:#6CB6FF"> 0.4</span></span>
+<span data-line=""><span style="color:#6CB6FF">@assert</span><span style="color:#6CB6FF"> d</span><span style="color:#ADBAC7">([</span><span style="color:#6CB6FF">5</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">2</span><span style="color:#ADBAC7">]) </span><span style="color:#F47067">==</span><span style="color:#6CB6FF"> 5</span><span style="color:#F47067">//</span><span style="color:#6CB6FF">2</span></span></code><style>pre[data-show-line-numbers='true'], code[data-show-line-numbers='true'] { counter-increment: step 0; font-variant-numeric: tabular-nums; counter-reset: step 0; } code[data-show-line-numbers='true'] > span[data-line]::before { color: #6a737d; text-align: right; margin-right: 0.75rem; display: inline-block; content: counter(step); counter-increment: step; font-variant-numeric: tabular-nums; } code[data-show-line-numbers='true'] > span[data-line]:empty::before, span[data-rehype-pretty-code-figure] > code > span[data-line]::before { content: none; }</style></pre></figure>
+<p>無名関数で引数を分解するときは<code>((a, b),) -> a / b</code>のように<code>,</code>を入れる（か引数の組の型を明示する）。</p>
+<h2 id="高次元配列の生成">高次元配列の生成</h2>
+<p>for文でイテレータを複数書けばそれらはより高次の<code>axes</code>を走る。
+またブロードキャストも引数の<code>AbstractArray</code>の<code>axes</code>の方向に準拠する。</p>
+<figure data-rehype-pretty-code-figure=""><pre tabindex="0" data-show-line-numbers="true" data-language="julia" data-theme="github-dark-dimmed"><code data-show-line-numbers="true" data-language="julia" data-theme="github-dark-dimmed" style="display: grid;"><span data-line=""><span style="color:#ADBAC7">v </span><span style="color:#F47067">=</span><span style="color:#ADBAC7"> [i </span><span style="color:#F47067">*</span><span style="color:#ADBAC7"> j </span><span style="color:#F47067">for</span><span style="color:#ADBAC7"> i </span><span style="color:#F47067">in</span><span style="color:#6CB6FF"> 1</span><span style="color:#F47067">:</span><span style="color:#6CB6FF">3</span><span style="color:#ADBAC7">, j </span><span style="color:#F47067">in</span><span style="color:#6CB6FF"> 1</span><span style="color:#F47067">:</span><span style="color:#6CB6FF">3</span><span style="color:#ADBAC7">]</span></span>
+<span data-line=""><span style="color:#6CB6FF">@assert</span><span style="color:#ADBAC7"> v </span><span style="color:#F47067">==</span><span style="color:#ADBAC7"> [</span><span style="color:#6CB6FF">1</span><span style="color:#6CB6FF"> 2</span><span style="color:#6CB6FF"> 3</span><span style="color:#ADBAC7">; </span><span style="color:#6CB6FF">2</span><span style="color:#6CB6FF"> 4</span><span style="color:#6CB6FF"> 6</span><span style="color:#ADBAC7">; </span><span style="color:#6CB6FF">3</span><span style="color:#6CB6FF"> 6</span><span style="color:#6CB6FF"> 9</span><span style="color:#ADBAC7">]</span></span>
+<span data-line=""><span style="color:#ADBAC7">v </span><span style="color:#F47067">=</span><span style="color:#ADBAC7"> (</span><span style="color:#6CB6FF">1</span><span style="color:#F47067">:</span><span style="color:#6CB6FF">3</span><span style="color:#ADBAC7">) </span><span style="color:#F47067">.*</span><span style="color:#ADBAC7"> (</span><span style="color:#6CB6FF">1</span><span style="color:#F47067">:</span><span style="color:#6CB6FF">3</span><span style="color:#ADBAC7">)</span><span style="color:#F47067">'</span></span>
+<span data-line=""><span style="color:#6CB6FF">@assert</span><span style="color:#ADBAC7"> v </span><span style="color:#F47067">==</span><span style="color:#ADBAC7"> [</span><span style="color:#6CB6FF">1</span><span style="color:#6CB6FF"> 2</span><span style="color:#6CB6FF"> 3</span><span style="color:#ADBAC7">; </span><span style="color:#6CB6FF">2</span><span style="color:#6CB6FF"> 4</span><span style="color:#6CB6FF"> 6</span><span style="color:#ADBAC7">; </span><span style="color:#6CB6FF">3</span><span style="color:#6CB6FF"> 6</span><span style="color:#6CB6FF"> 9</span><span style="color:#ADBAC7">]</span></span></code><style>pre[data-show-line-numbers='true'], code[data-show-line-numbers='true'] { counter-increment: step 0; font-variant-numeric: tabular-nums; counter-reset: step 0; } code[data-show-line-numbers='true'] > span[data-line]::before { color: #6a737d; text-align: right; margin-right: 0.75rem; display: inline-block; content: counter(step); counter-increment: step; font-variant-numeric: tabular-nums; } code[data-show-line-numbers='true'] > span[data-line]:empty::before, span[data-rehype-pretty-code-figure] > code > span[data-line]::before { content: none; }</style></pre></figure>
+<p>2つ目の例では<code>.</code>なしでも行列のかけ算と見なされて同じ結果になる。</p>
+<p>高階のKronecker delta <mjx-container class="MathJax" jax="CHTML" overflow="overflow" role="img" aria-label="\delta_{i_1\dots i_n}\ (i_j \in \{1,\dots,d_j\})"><mjx-math breakable="true" class="TEX-N" aria-hidden="true"><mjx-msub><mjx-c class="mjx-c1D6FF">𝛿</mjx-c><mjx-script style="vertical-align: -0.15em; margin-left: -0.007em;"><mjx-TeXAtom size="s" texclass="ORD"><mjx-msub><mjx-c class="mjx-c1D456">𝑖</mjx-c><mjx-script style="vertical-align: -0.15em;"><mjx-c class="mjx-c31" size="s">1</mjx-c></mjx-script></mjx-msub><mjx-c class="mjx-c2026">…</mjx-c><mjx-msub><mjx-c class="mjx-c1D456">𝑖</mjx-c><mjx-script style="vertical-align: -0.15em;"><mjx-c class="mjx-c1D45B" size="s">𝑛</mjx-c></mjx-script></mjx-msub></mjx-TeXAtom></mjx-script></mjx-msub><mjx-mtext style="font-family: MJX-TEX-ZERO, inherit;"><mjx-utext style="width: 0.6em;" variant="-explicitFont"> </mjx-utext></mjx-mtext><mjx-c class="mjx-c28">(</mjx-c><mjx-msub><mjx-c class="mjx-c1D456">𝑖</mjx-c><mjx-script style="vertical-align: -0.15em;"><mjx-c class="mjx-c1D457" size="s">𝑗</mjx-c></mjx-script></mjx-msub><mjx-break size="4"> </mjx-break><mjx-c class="mjx-c2208">∈</mjx-c><mjx-c class="mjx-c7B" space="4">{</mjx-c><mjx-c class="mjx-c31">1</mjx-c><mjx-c class="mjx-c2C">,</mjx-c><mjx-c class="mjx-c2026" space="2">…</mjx-c><mjx-c class="mjx-c2C" space="2">,</mjx-c><mjx-msub space="2"><mjx-c class="mjx-c1D451">𝑑</mjx-c><mjx-script style="vertical-align: -0.15em; margin-left: -0.003em;"><mjx-c class="mjx-c1D457" size="s">𝑗</mjx-c></mjx-script></mjx-msub><mjx-c class="mjx-c7D">}</mjx-c><mjx-c class="mjx-c29">)</mjx-c><mjx-break size="0" style="letter-spacing: -0.800em;"> </mjx-break></mjx-math></mjx-container>は以下のように生成できる。</p>
+<figure data-rehype-pretty-code-figure=""><pre tabindex="0" data-show-line-numbers="true" data-language="julia" data-theme="github-dark-dimmed"><code data-show-line-numbers="true" data-language="julia" data-theme="github-dark-dimmed" style="display: grid;"><span data-line=""><span style="color:#ADBAC7">dims </span><span style="color:#F47067">=</span><span style="color:#ADBAC7"> [</span><span style="color:#6CB6FF">2</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">4</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">2</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">4</span><span style="color:#ADBAC7">]</span></span>
+<span data-line=""><span style="color:#6CB6FF">map</span><span style="color:#ADBAC7">(t </span><span style="color:#F47067">-></span><span style="color:#6CB6FF"> Int</span><span style="color:#ADBAC7">(</span><span style="color:#6CB6FF">all</span><span style="color:#ADBAC7">(</span><span style="color:#F47067">==</span><span style="color:#ADBAC7">(t[</span><span style="color:#6CB6FF">1</span><span style="color:#ADBAC7">]), t)),</span></span>
+<span data-line=""><span style="color:#ADBAC7">    Iterators</span><span style="color:#F47067">.</span><span style="color:#6CB6FF">product</span><span style="color:#ADBAC7">(Base</span><span style="color:#F47067">.</span><span style="color:#6CB6FF">OneTo</span><span style="color:#ADBAC7">.(dims)</span><span style="color:#F47067">...</span><span style="color:#ADBAC7">))</span></span></code><style>pre[data-show-line-numbers='true'], code[data-show-line-numbers='true'] { counter-increment: step 0; font-variant-numeric: tabular-nums; counter-reset: step 0; } code[data-show-line-numbers='true'] > span[data-line]::before { color: #6a737d; text-align: right; margin-right: 0.75rem; display: inline-block; content: counter(step); counter-increment: step; font-variant-numeric: tabular-nums; } code[data-show-line-numbers='true'] > span[data-line]:empty::before, span[data-rehype-pretty-code-figure] > code > span[data-line]::before { content: none; }</style></pre></figure>
+<h2 id="同値類への分割">同値類への分割</h2>
+<p><a href="https://zenn.dev/ohno/articles/b83defa73d7e7c" target="_blank" rel="noopener noreferrer">Juliaで集合を同値類に分割する</a>という記事に触発されて実装してみた。<code>R</code>を呼び出す回数をなるべく減らしてある。</p>
+<figure data-rehype-pretty-code-figure=""><pre tabindex="0" data-show-line-numbers="true" data-language="julia" data-theme="github-dark-dimmed"><code data-show-line-numbers="true" data-language="julia" data-theme="github-dark-dimmed" style="display: grid;"><span data-line=""><span style="color:#F47067">function</span><span style="color:#DCBDFB"> classify</span><span style="color:#ADBAC7">(S, R)</span></span>
+<span data-line=""><span style="color:#6CB6FF">  isempty</span><span style="color:#ADBAC7">(S) </span><span style="color:#F47067">&#x26;&#x26;</span><span style="color:#F47067"> return</span><span style="color:#ADBAC7"> ([], [])</span></span>
+<span data-line=""><span style="color:#ADBAC7">  indices </span><span style="color:#F47067">=</span><span style="color:#6CB6FF"> zeros</span><span style="color:#ADBAC7">(Int, </span><span style="color:#6CB6FF">length</span><span style="color:#ADBAC7">(S))</span></span>
+<span data-line=""><span style="color:#ADBAC7">  j </span><span style="color:#F47067">=</span><span style="color:#6CB6FF"> 1</span></span>
+<span data-line=""><span style="color:#F47067">  while</span><span style="color:#F47067"> !</span><span style="color:#6CB6FF">isnothing</span><span style="color:#ADBAC7">(j)</span></span>
+<span data-line=""><span style="color:#ADBAC7">    indices[j] </span><span style="color:#F47067">=</span><span style="color:#ADBAC7"> j</span></span>
+<span data-line=""><span style="color:#ADBAC7">    Rj </span><span style="color:#F47067">=</span><span style="color:#6CB6FF"> filter</span><span style="color:#ADBAC7">(k </span><span style="color:#F47067">-></span><span style="color:#ADBAC7"> indices[k] </span><span style="color:#F47067">==</span><span style="color:#6CB6FF"> 0</span><span style="color:#F47067"> &#x26;&#x26;</span><span style="color:#6CB6FF"> R</span><span style="color:#ADBAC7">(S[j], S[k]), j</span><span style="color:#F47067">+</span><span style="color:#6CB6FF">1</span><span style="color:#F47067">:</span><span style="color:#6CB6FF">lastindex</span><span style="color:#ADBAC7">(S))</span></span>
+<span data-line=""><span style="color:#ADBAC7">    indices[Rj] .</span><span style="color:#F47067">=</span><span style="color:#ADBAC7"> j</span></span>
+<span data-line=""><span style="color:#ADBAC7">    j </span><span style="color:#F47067">=</span><span style="color:#6CB6FF"> findnext</span><span style="color:#ADBAC7">(iszero, indices, j </span><span style="color:#F47067">+</span><span style="color:#6CB6FF"> 1</span><span style="color:#ADBAC7">)</span></span>
+<span data-line=""><span style="color:#F47067">  end</span></span>
+<span data-line=""><span style="color:#ADBAC7">  reprinds </span><span style="color:#F47067">=</span><span style="color:#6CB6FF"> unique</span><span style="color:#ADBAC7">(indices)</span></span>
+<span data-line=""><span style="color:#ADBAC7">  [S[</span><span style="color:#6CB6FF">filter</span><span style="color:#ADBAC7">(j </span><span style="color:#F47067">-></span><span style="color:#ADBAC7"> indices[j] </span><span style="color:#F47067">==</span><span style="color:#ADBAC7"> r, </span><span style="color:#6CB6FF">eachindex</span><span style="color:#ADBAC7">(S))] </span><span style="color:#F47067">for</span><span style="color:#ADBAC7"> r </span><span style="color:#F47067">in</span><span style="color:#ADBAC7"> reprinds], S[reprinds]</span></span>
+<span data-line=""><span style="color:#F47067">end</span></span>
+<span data-line=""> </span>
+<span data-line=""><span style="color:#F47067">begin</span></span>
+<span data-line=""><span style="color:#ADBAC7">  A </span><span style="color:#F47067">=</span><span style="color:#ADBAC7"> [</span><span style="color:#6CB6FF">1</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">7</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">3</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">6</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">10</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">9</span><span style="color:#ADBAC7">]</span></span>
+<span data-line=""><span style="color:#DCBDFB">  f</span><span style="color:#ADBAC7">(i, j) </span><span style="color:#F47067">=</span><span style="color:#6CB6FF"> iseven</span><span style="color:#ADBAC7">(i) </span><span style="color:#F47067">==</span><span style="color:#6CB6FF"> iseven</span><span style="color:#ADBAC7">(j)</span></span>
+<span data-line=""><span style="color:#6CB6FF">  @assert</span><span style="color:#6CB6FF"> classify</span><span style="color:#ADBAC7">(A, f) </span><span style="color:#F47067">==</span><span style="color:#ADBAC7"> ([[</span><span style="color:#6CB6FF">1</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">7</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">3</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">9</span><span style="color:#ADBAC7">], [</span><span style="color:#6CB6FF">6</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">10</span><span style="color:#ADBAC7">]], [</span><span style="color:#6CB6FF">1</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">6</span><span style="color:#ADBAC7">])</span></span>
+<span data-line=""><span style="color:#F47067">end</span></span></code><style>pre[data-show-line-numbers='true'], code[data-show-line-numbers='true'] { counter-increment: step 0; font-variant-numeric: tabular-nums; counter-reset: step 0; } code[data-show-line-numbers='true'] > span[data-line]::before { color: #6a737d; text-align: right; margin-right: 0.75rem; display: inline-block; content: counter(step); counter-increment: step; font-variant-numeric: tabular-nums; } code[data-show-line-numbers='true'] > span[data-line]:empty::before, span[data-rehype-pretty-code-figure] > code > span[data-line]::before { content: none; }</style></pre></figure>
+<p><code>Set</code>や<code>unique</code>といった重複を取り除く関数も用意されているが、これらを同値類への分割に利用するには、商の型を用意してその上への<code>hash</code>を定義するか、元の型に対して<code>isequal</code>をオーバーロードするかしなければいけない（<code>isequal</code>をオーバーロードしたら<code>hash</code>もオーバーロードする必要がある<a href="https://zenn.dev/kurusugawa/articles/hash_on_julia" target="_blank" rel="noopener noreferrer">らしい</a>）。<code>sort</code>関数が<code>lt</code>や<code>by</code>をで比較関数やハッシュ関数を設定できるのとは大違いである。<code>hash</code>や<code>isequal</code>を引数で受け取って同値類へ分割するには以下のようにする。</p>
+<figure data-rehype-pretty-code-figure=""><pre tabindex="0" data-show-line-numbers="true" data-language="julia" data-theme="github-dark-dimmed"><code data-show-line-numbers="true" data-language="julia" data-theme="github-dark-dimmed" style="display: grid;"><span data-line=""><span style="color:#F47067">function</span><span style="color:#DCBDFB"> classify</span><span style="color:#ADBAC7">(S; hash</span><span style="color:#F47067">=</span><span style="color:#ADBAC7">identity, isequal</span><span style="color:#F47067">=</span><span style="color:#ADBAC7">isequal)</span></span>
+<span data-line=""><span style="color:#6CB6FF">  isempty</span><span style="color:#ADBAC7">(S) </span><span style="color:#F47067">&#x26;&#x26;</span><span style="color:#F47067"> return</span><span style="color:#ADBAC7"> ([], [])</span></span>
+<span data-line=""><span style="color:#ADBAC7">  indices </span><span style="color:#F47067">=</span><span style="color:#6CB6FF"> zeros</span><span style="color:#ADBAC7">(Int, </span><span style="color:#6CB6FF">length</span><span style="color:#ADBAC7">(S))</span></span>
+<span data-line=""><span style="color:#ADBAC7">  reprs </span><span style="color:#F47067">=</span><span style="color:#6CB6FF"> hash</span><span style="color:#ADBAC7">.(S)</span></span>
+<span data-line=""><span style="color:#ADBAC7">  j </span><span style="color:#F47067">=</span><span style="color:#6CB6FF"> 1</span></span>
+<span data-line=""><span style="color:#F47067">  while</span><span style="color:#F47067"> !</span><span style="color:#6CB6FF">isnothing</span><span style="color:#ADBAC7">(j)</span></span>
+<span data-line=""><span style="color:#ADBAC7">    indices[j] </span><span style="color:#F47067">=</span><span style="color:#ADBAC7"> j</span></span>
+<span data-line=""><span style="color:#ADBAC7">    Rj </span><span style="color:#F47067">=</span><span style="color:#6CB6FF"> filter</span><span style="color:#ADBAC7">(k </span><span style="color:#F47067">-></span><span style="color:#6CB6FF"> iszero</span><span style="color:#ADBAC7">(indices[k]) </span><span style="color:#F47067">&#x26;&#x26;</span><span style="color:#6CB6FF"> isequal</span><span style="color:#ADBAC7">(reprs[j], reprs[k]), j</span><span style="color:#F47067">+</span><span style="color:#6CB6FF">1</span><span style="color:#F47067">:</span><span style="color:#6CB6FF">lastindex</span><span style="color:#ADBAC7">(S))</span></span>
+<span data-line=""><span style="color:#ADBAC7">    indices[Rj] .</span><span style="color:#F47067">=</span><span style="color:#ADBAC7"> j</span></span>
+<span data-line=""><span style="color:#ADBAC7">    j </span><span style="color:#F47067">=</span><span style="color:#6CB6FF"> findnext</span><span style="color:#ADBAC7">(iszero, indices, j </span><span style="color:#F47067">+</span><span style="color:#6CB6FF"> 1</span><span style="color:#ADBAC7">)</span></span>
+<span data-line=""><span style="color:#F47067">  end</span></span>
+<span data-line=""><span style="color:#ADBAC7">  reprinds </span><span style="color:#F47067">=</span><span style="color:#6CB6FF"> unique</span><span style="color:#ADBAC7">(indices)</span></span>
+<span data-line=""><span style="color:#ADBAC7">  [S[</span><span style="color:#6CB6FF">filter</span><span style="color:#ADBAC7">(j </span><span style="color:#F47067">-></span><span style="color:#ADBAC7"> indices[j] </span><span style="color:#F47067">==</span><span style="color:#ADBAC7"> r, </span><span style="color:#6CB6FF">eachindex</span><span style="color:#ADBAC7">(S))] </span><span style="color:#F47067">for</span><span style="color:#ADBAC7"> r </span><span style="color:#F47067">in</span><span style="color:#ADBAC7"> reprinds], S[reprinds]</span></span>
+<span data-line=""><span style="color:#F47067">end</span></span>
+<span data-line=""> </span>
+<span data-line=""><span style="color:#F47067">begin</span></span>
+<span data-line=""><span style="color:#ADBAC7">  A </span><span style="color:#F47067">=</span><span style="color:#ADBAC7"> [</span><span style="color:#6CB6FF">1</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">7</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">3</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">6</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">10</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">9</span><span style="color:#ADBAC7">]</span></span>
+<span data-line=""><span style="color:#6CB6FF">  @assert</span><span style="color:#6CB6FF"> classify</span><span style="color:#ADBAC7">(A; hash</span><span style="color:#F47067">=</span><span style="color:#ADBAC7">iseven) </span><span style="color:#F47067">==</span><span style="color:#ADBAC7"> ([[</span><span style="color:#6CB6FF">1</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">7</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">3</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">9</span><span style="color:#ADBAC7">], [</span><span style="color:#6CB6FF">6</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">10</span><span style="color:#ADBAC7">]], [</span><span style="color:#6CB6FF">1</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">6</span><span style="color:#ADBAC7">])</span></span>
+<span data-line=""><span style="color:#F47067">end</span></span></code><style>pre[data-show-line-numbers='true'], code[data-show-line-numbers='true'] { counter-increment: step 0; font-variant-numeric: tabular-nums; counter-reset: step 0; } code[data-show-line-numbers='true'] > span[data-line]::before { color: #6a737d; text-align: right; margin-right: 0.75rem; display: inline-block; content: counter(step); counter-increment: step; font-variant-numeric: tabular-nums; } code[data-show-line-numbers='true'] > span[data-line]:empty::before, span[data-rehype-pretty-code-figure] > code > span[data-line]::before { content: none; }</style></pre></figure>
+<h2 id="svgの生成">SVGの生成</h2>
+<p><a href="https://github.com/JuliaGraphics/Luxor.jl" target="_blank" rel="noopener noreferrer">Luxor.jl</a>が便利。以下にこのサイトのアイコンを生成するコードを載せる。</p>
+<figure data-rehype-pretty-code-figure=""><pre tabindex="0" data-show-line-numbers="true" data-language="julia" data-theme="github-dark-dimmed"><code data-show-line-numbers="true" data-language="julia" data-theme="github-dark-dimmed" style="display: grid;"><span data-line=""><span style="color:#F47067">using</span><span style="color:#ADBAC7"> Luxor, Colors, LinearAlgebra</span></span>
+<span data-line=""><span style="color:#F47067">using</span><span style="color:#ADBAC7"> Curry</span></span>
+<span data-line=""> </span>
+<span data-line=""><span style="color:#F47067">function</span><span style="color:#DCBDFB"> rodrig</span><span style="color:#ADBAC7">(n, θ)</span></span>
+<span data-line=""><span style="color:#ADBAC7">  K </span><span style="color:#F47067">=</span><span style="color:#6CB6FF"> mapslices</span><span style="color:#ADBAC7">(</span><span style="color:#6CB6FF">curry</span><span style="color:#ADBAC7">(cross)(n), </span><span style="color:#6CB6FF">I</span><span style="color:#ADBAC7">(</span><span style="color:#6CB6FF">3</span><span style="color:#ADBAC7">); dims</span><span style="color:#F47067">=</span><span style="color:#6CB6FF">2</span><span style="color:#ADBAC7">)</span></span>
+<span data-line=""><span style="color:#ADBAC7">  I </span><span style="color:#F47067">+</span><span style="color:#6CB6FF"> sin</span><span style="color:#ADBAC7">(θ) </span><span style="color:#F47067">*</span><span style="color:#ADBAC7"> K </span><span style="color:#F47067">+</span><span style="color:#ADBAC7"> (</span><span style="color:#6CB6FF">1</span><span style="color:#F47067"> -</span><span style="color:#6CB6FF"> cos</span><span style="color:#ADBAC7">(θ)) </span><span style="color:#F47067">*</span><span style="color:#ADBAC7"> K</span><span style="color:#F47067">^</span><span style="color:#6CB6FF">2</span></span>
+<span data-line=""><span style="color:#F47067">end</span></span>
+<span data-line=""> </span>
+<span data-line=""><span style="color:#F47067">function</span><span style="color:#DCBDFB"> main</span><span style="color:#ADBAC7">()</span></span>
+<span data-line=""><span style="color:#6CB6FF">  Drawing</span><span style="color:#ADBAC7">(</span><span style="color:#6CB6FF">256</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">256</span><span style="color:#ADBAC7">, </span><span style="color:#96D0FF">"favicon.svg"</span><span style="color:#ADBAC7">)</span></span>
+<span data-line=""> </span>
+<span data-line=""><span style="color:#ADBAC7">  n </span><span style="color:#F47067">=</span><span style="color:#6CB6FF"> 7</span></span>
+<span data-line=""><span style="color:#ADBAC7">  R </span><span style="color:#F47067">=</span><span style="color:#ADBAC7"> (</span><span style="color:#6CB6FF">rodrig</span><span style="color:#ADBAC7">([</span><span style="color:#6CB6FF">1</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">0</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">0</span><span style="color:#ADBAC7">], </span><span style="color:#6CB6FF">π</span><span style="color:#F47067"> /</span><span style="color:#6CB6FF"> 7</span><span style="color:#ADBAC7">)</span><span style="color:#F47067">*</span><span style="color:#6CB6FF">rodrig</span><span style="color:#ADBAC7">([</span><span style="color:#6CB6FF">0</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">1</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">0</span><span style="color:#ADBAC7">], </span><span style="color:#6CB6FF">π</span><span style="color:#F47067"> /</span><span style="color:#6CB6FF"> 7</span><span style="color:#ADBAC7">))[</span><span style="color:#6CB6FF">1</span><span style="color:#F47067">:</span><span style="color:#6CB6FF">2</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">1</span><span style="color:#F47067">:</span><span style="color:#6CB6FF">2</span><span style="color:#ADBAC7">]</span><span style="color:#F47067">'</span></span>
+<span data-line=""><span style="color:#ADBAC7">  p </span><span style="color:#F47067">=</span><span style="color:#6CB6FF"> Point</span><span style="color:#ADBAC7">.(</span><span style="color:#6CB6FF">Tuple</span><span style="color:#ADBAC7">.(</span><span style="color:#6CB6FF">eachcol</span><span style="color:#ADBAC7">(R </span><span style="color:#F47067">*</span><span style="color:#6CB6FF"> hcat</span><span style="color:#ADBAC7">(</span><span style="color:#6CB6FF">collect</span><span style="color:#ADBAC7">.(</span><span style="color:#6CB6FF">sincos</span><span style="color:#ADBAC7">.((</span><span style="color:#6CB6FF">1</span><span style="color:#F47067">:</span><span style="color:#ADBAC7">n) </span><span style="color:#F47067">*</span><span style="color:#6CB6FF"> 2π</span><span style="color:#F47067"> /</span><span style="color:#ADBAC7"> n))</span><span style="color:#F47067">...</span><span style="color:#ADBAC7">))))</span></span>
+<span data-line=""> </span>
+<span data-line=""><span style="color:#6CB6FF">  origin</span><span style="color:#ADBAC7">(</span><span style="color:#6CB6FF">112</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">146</span><span style="color:#ADBAC7">)</span></span>
+<span data-line=""> </span>
+<span data-line=""><span style="color:#6CB6FF">  sethue</span><span style="color:#ADBAC7">(</span><span style="color:#96D0FF">"white"</span><span style="color:#ADBAC7">)</span></span>
+<span data-line=""><span style="color:#6CB6FF">  poly</span><span style="color:#ADBAC7">(p </span><span style="color:#F47067">*</span><span style="color:#6CB6FF"> 120</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">:fillstroke</span><span style="color:#ADBAC7">)</span></span>
+<span data-line=""> </span>
+<span data-line=""><span style="color:#6CB6FF">  setmode</span><span style="color:#ADBAC7">(</span><span style="color:#96D0FF">"clear"</span><span style="color:#ADBAC7">)</span></span>
+<span data-line=""><span style="color:#6CB6FF">  poly</span><span style="color:#ADBAC7">(p </span><span style="color:#F47067">*</span><span style="color:#6CB6FF"> 80</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">:fillstroke</span><span style="color:#ADBAC7">)</span></span>
+<span data-line=""> </span>
+<span data-line=""><span style="color:#ADBAC7">  n </span><span style="color:#F47067">=</span><span style="color:#6CB6FF"> 4</span></span>
+<span data-line=""><span style="color:#DCBDFB">  s</span><span style="color:#ADBAC7">(r) </span><span style="color:#F47067">=</span><span style="color:#ADBAC7"> [</span><span style="color:#6CB6FF">Point</span><span style="color:#ADBAC7">((</span><span style="color:#6CB6FF">iseven</span><span style="color:#ADBAC7">(i) </span><span style="color:#F47067">?</span><span style="color:#6CB6FF"> 1</span><span style="color:#F47067"> :</span><span style="color:#ADBAC7"> r) </span><span style="color:#F47067">.*</span><span style="color:#6CB6FF"> sincos</span><span style="color:#ADBAC7">(i </span><span style="color:#F47067">*</span><span style="color:#6CB6FF"> π</span><span style="color:#F47067"> /</span><span style="color:#ADBAC7"> n)) </span><span style="color:#F47067">for</span><span style="color:#ADBAC7"> i </span><span style="color:#F47067">in</span><span style="color:#6CB6FF"> 1</span><span style="color:#F47067">:</span><span style="color:#6CB6FF">2</span><span style="color:#ADBAC7">n]</span></span>
+<span data-line=""> </span>
+<span data-line=""><span style="color:#6CB6FF">  origin</span><span style="color:#ADBAC7">(</span><span style="color:#6CB6FF">150</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">110</span><span style="color:#ADBAC7">)</span></span>
+<span data-line=""><span style="color:#6CB6FF">  setmode</span><span style="color:#ADBAC7">(</span><span style="color:#96D0FF">"clear"</span><span style="color:#ADBAC7">)</span></span>
+<span data-line=""><span style="color:#6CB6FF">  poly</span><span style="color:#ADBAC7">(</span><span style="color:#6CB6FF">s</span><span style="color:#ADBAC7">(</span><span style="color:#6CB6FF">0.25</span><span style="color:#ADBAC7">) </span><span style="color:#F47067">*</span><span style="color:#6CB6FF"> 140</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">:fillstroke</span><span style="color:#ADBAC7">)</span></span>
+<span data-line=""> </span>
+<span data-line=""><span style="color:#6CB6FF">  origin</span><span style="color:#ADBAC7">(</span><span style="color:#6CB6FF">160</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">100</span><span style="color:#ADBAC7">)</span></span>
+<span data-line=""><span style="color:#6CB6FF">  setmode</span><span style="color:#ADBAC7">(</span><span style="color:#96D0FF">"over"</span><span style="color:#ADBAC7">)</span></span>
+<span data-line=""><span style="color:#6CB6FF">  sethue</span><span style="color:#ADBAC7">(</span><span style="color:#96D0FF">"white"</span><span style="color:#ADBAC7">)</span></span>
+<span data-line=""><span style="color:#6CB6FF">  poly</span><span style="color:#ADBAC7">(</span><span style="color:#6CB6FF">s</span><span style="color:#ADBAC7">(</span><span style="color:#6CB6FF">0.16</span><span style="color:#ADBAC7">) </span><span style="color:#F47067">*</span><span style="color:#6CB6FF"> 100</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">:fillstroke</span><span style="color:#ADBAC7">)</span></span>
+<span data-line=""> </span>
+<span data-line=""><span style="color:#6CB6FF">  finish</span><span style="color:#ADBAC7">()</span></span>
+<span data-line=""><span style="color:#F47067">end</span></span>
+<span data-line=""> </span>
+<span data-line=""><span style="color:#6CB6FF">main</span><span style="color:#ADBAC7">()</span></span></code><style>pre[data-show-line-numbers='true'], code[data-show-line-numbers='true'] { counter-increment: step 0; font-variant-numeric: tabular-nums; counter-reset: step 0; } code[data-show-line-numbers='true'] > span[data-line]::before { color: #6a737d; text-align: right; margin-right: 0.75rem; display: inline-block; content: counter(step); counter-increment: step; font-variant-numeric: tabular-nums; } code[data-show-line-numbers='true'] > span[data-line]:empty::before, span[data-rehype-pretty-code-figure] > code > span[data-line]::before { content: none; }</style></pre></figure>
+<p>上記のコードを実行すると<code>favicon.svg</code>が生成されるのでInkscapeを用いてPNGに変換し、ImageMagickを用いてICOに変換する。</p>
+<figure data-rehype-pretty-code-figure=""><pre tabindex="0" data-show-line-numbers="true" data-language="sh" data-theme="github-dark-dimmed"><code data-show-line-numbers="true" data-language="sh" data-theme="github-dark-dimmed" style="display: grid;"><span data-line=""><span style="color:#F47067">for</span><span style="color:#ADBAC7"> size </span><span style="color:#F47067">in</span><span style="color:#96D0FF"> 16</span><span style="color:#96D0FF"> 32</span><span style="color:#96D0FF"> 48</span><span style="color:#96D0FF"> 64</span><span style="color:#96D0FF"> 128</span><span style="color:#96D0FF"> 256</span><span style="color:#ADBAC7">; </span><span style="color:#F47067">do</span></span>
+<span data-line=""><span style="color:#F69D50">  inkscape</span><span style="color:#96D0FF"> favicon.svg</span><span style="color:#6CB6FF"> -o</span><span style="color:#96D0FF"> icon-</span><span style="color:#ADBAC7">${size}</span><span style="color:#96D0FF">.png</span><span style="color:#6CB6FF"> -w</span><span style="color:#ADBAC7"> ${size} </span><span style="color:#6CB6FF">-h</span><span style="color:#ADBAC7"> ${size}</span></span>
+<span data-line=""><span style="color:#F47067">done</span></span>
+<span data-line=""> </span>
+<span data-line=""><span style="color:#F69D50">magick</span><span style="color:#96D0FF"> icon-16.png</span><span style="color:#96D0FF"> icon-32.png</span><span style="color:#96D0FF"> icon-48.png</span><span style="color:#96D0FF"> icon-64.png</span><span style="color:#96D0FF"> icon-128.png</span><span style="color:#96D0FF"> icon-256.png</span><span style="color:#96D0FF"> favicon.ico</span></span>
+<span data-line=""> </span>
+<span data-line=""><span style="color:#F69D50">rm</span><span style="color:#96D0FF"> icon-</span><span style="color:#6CB6FF">*</span><span style="color:#96D0FF">.png</span></span></code><style>pre[data-show-line-numbers='true'], code[data-show-line-numbers='true'] { counter-increment: step 0; font-variant-numeric: tabular-nums; counter-reset: step 0; } code[data-show-line-numbers='true'] > span[data-line]::before { color: #6a737d; text-align: right; margin-right: 0.75rem; display: inline-block; content: counter(step); counter-increment: step; font-variant-numeric: tabular-nums; } code[data-show-line-numbers='true'] > span[data-line]:empty::before, span[data-rehype-pretty-code-figure] > code > span[data-line]::before { content: none; }</style></pre></figure>
+<h2 id="eratosthenesの篩">Eratosthenesの篩</h2>
+<p>特に工夫をしなければ以下のような実装になるはず。<code>m</code>が<code>p^2</code>から動き始めるのは、<code>p^2</code>より小さい合成数は<code>p</code>より小さい素数ですでに割られているはずだからである。</p>
+<figure data-rehype-pretty-code-figure=""><pre tabindex="0" data-show-line-numbers="true" data-language="julia" data-theme="github-dark-dimmed"><code data-show-line-numbers="true" data-language="julia" data-theme="github-dark-dimmed" style="display: grid;"><span data-line=""><span style="color:#F47067">function</span><span style="color:#DCBDFB"> sieve</span><span style="color:#ADBAC7">(x)</span></span>
+<span data-line=""><span style="color:#ADBAC7">  flags </span><span style="color:#F47067">=</span><span style="color:#6CB6FF"> fill</span><span style="color:#ADBAC7">(</span><span style="color:#6CB6FF">true</span><span style="color:#ADBAC7">, x)</span></span>
+<span data-line=""><span style="color:#ADBAC7">  flags[</span><span style="color:#6CB6FF">1</span><span style="color:#ADBAC7">] </span><span style="color:#F47067">=</span><span style="color:#6CB6FF"> false</span></span>
+<span data-line=""><span style="color:#ADBAC7">  sqrtx </span><span style="color:#F47067">=</span><span style="color:#6CB6FF"> floor</span><span style="color:#ADBAC7">(Int, </span><span style="color:#6CB6FF">sqrt</span><span style="color:#ADBAC7">(x))</span></span>
+<span data-line=""><span style="color:#F47067">  for</span><span style="color:#ADBAC7"> p </span><span style="color:#F47067">in</span><span style="color:#6CB6FF"> 2</span><span style="color:#F47067">:</span><span style="color:#ADBAC7">sqrtx</span></span>
+<span data-line=""><span style="color:#F47067">    !</span><span style="color:#ADBAC7">flags[p] </span><span style="color:#F47067">&#x26;&#x26;</span><span style="color:#F47067"> continue</span></span>
+<span data-line=""><span style="color:#F47067">    for</span><span style="color:#ADBAC7"> m </span><span style="color:#F47067">in</span><span style="color:#ADBAC7"> p</span><span style="color:#F47067">^</span><span style="color:#6CB6FF">2</span><span style="color:#F47067">:</span><span style="color:#ADBAC7">p</span><span style="color:#F47067">:</span><span style="color:#ADBAC7">x</span></span>
+<span data-line=""><span style="color:#ADBAC7">      flags[m] </span><span style="color:#F47067">=</span><span style="color:#6CB6FF"> false</span></span>
+<span data-line=""><span style="color:#F47067">    end</span></span>
+<span data-line=""><span style="color:#F47067">  end</span></span>
+<span data-line=""><span style="color:#6CB6FF">  findall</span><span style="color:#ADBAC7">(flags)</span></span>
+<span data-line=""><span style="color:#F47067">end</span></span>
+<span data-line=""> </span>
+<span data-line=""><span style="color:#F47067">begin</span></span>
+<span data-line=""><span style="color:#6CB6FF">  @assert</span><span style="color:#6CB6FF"> sieve</span><span style="color:#ADBAC7">(</span><span style="color:#6CB6FF">10</span><span style="color:#ADBAC7">) </span><span style="color:#F47067">==</span><span style="color:#ADBAC7"> [</span><span style="color:#6CB6FF">2</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">3</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">5</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">7</span><span style="color:#ADBAC7">]</span></span>
+<span data-line=""><span style="color:#F47067">end</span></span></code><style>pre[data-show-line-numbers='true'], code[data-show-line-numbers='true'] { counter-increment: step 0; font-variant-numeric: tabular-nums; counter-reset: step 0; } code[data-show-line-numbers='true'] > span[data-line]::before { color: #6a737d; text-align: right; margin-right: 0.75rem; display: inline-block; content: counter(step); counter-increment: step; font-variant-numeric: tabular-nums; } code[data-show-line-numbers='true'] > span[data-line]:empty::before, span[data-rehype-pretty-code-figure] > code > span[data-line]::before { content: none; }</style></pre></figure>
+<p>2の倍数判定を省略すると以下のようになる。<code>flags[j]</code>に<code>2j+1</code>が素数かどうかのフラグが格納されている。<code>(2j+1)^2 == 2(2j*(j+1)) + 1</code>なので、<code>m</code>は<code>2j*(j+1)</code>から動き始める。</p>
+<figure data-rehype-pretty-code-figure=""><pre tabindex="0" data-show-line-numbers="true" data-language="julia" data-theme="github-dark-dimmed"><code data-show-line-numbers="true" data-language="julia" data-theme="github-dark-dimmed" style="display: grid;"><span data-line=""><span style="color:#F47067">function</span><span style="color:#DCBDFB"> sieve1</span><span style="color:#ADBAC7">(x)</span></span>
+<span data-line=""><span style="color:#ADBAC7">  flags </span><span style="color:#F47067">=</span><span style="color:#6CB6FF"> fill</span><span style="color:#ADBAC7">(</span><span style="color:#6CB6FF">true</span><span style="color:#ADBAC7">, (x </span><span style="color:#F47067">-</span><span style="color:#6CB6FF"> 1</span><span style="color:#ADBAC7">) </span><span style="color:#F47067">÷</span><span style="color:#6CB6FF"> 2</span><span style="color:#ADBAC7">)</span></span>
+<span data-line=""><span style="color:#ADBAC7">  sqrtx </span><span style="color:#F47067">=</span><span style="color:#6CB6FF"> floor</span><span style="color:#ADBAC7">(Int, </span><span style="color:#6CB6FF">sqrt</span><span style="color:#ADBAC7">(x))</span></span>
+<span data-line=""><span style="color:#F47067">  for</span><span style="color:#ADBAC7"> j </span><span style="color:#F47067">in</span><span style="color:#6CB6FF"> 1</span><span style="color:#F47067">:</span><span style="color:#ADBAC7">sqrtx</span><span style="color:#F47067">÷</span><span style="color:#6CB6FF">2</span></span>
+<span data-line=""><span style="color:#F47067">    !</span><span style="color:#ADBAC7">flags[j] </span><span style="color:#F47067">&#x26;&#x26;</span><span style="color:#F47067"> continue</span></span>
+<span data-line=""><span style="color:#F47067">    for</span><span style="color:#ADBAC7"> m </span><span style="color:#F47067">in</span><span style="color:#ADBAC7"> (</span><span style="color:#6CB6FF">2</span><span style="color:#ADBAC7">j</span><span style="color:#F47067">*</span><span style="color:#ADBAC7">(j</span><span style="color:#F47067">+</span><span style="color:#6CB6FF">1</span><span style="color:#ADBAC7">))</span><span style="color:#F47067">:</span><span style="color:#ADBAC7">(</span><span style="color:#6CB6FF">2</span><span style="color:#ADBAC7">j</span><span style="color:#F47067">+</span><span style="color:#6CB6FF">1</span><span style="color:#ADBAC7">)</span><span style="color:#F47067">:</span><span style="color:#6CB6FF">lastindex</span><span style="color:#ADBAC7">(flags)</span></span>
+<span data-line=""><span style="color:#ADBAC7">      flags[m] </span><span style="color:#F47067">=</span><span style="color:#6CB6FF"> false</span></span>
+<span data-line=""><span style="color:#F47067">    end</span></span>
+<span data-line=""><span style="color:#F47067">  end</span></span>
+<span data-line=""><span style="color:#ADBAC7">  v </span><span style="color:#F47067">=</span><span style="color:#6CB6FF"> 2findall</span><span style="color:#ADBAC7">(flags) </span><span style="color:#F47067">.+</span><span style="color:#6CB6FF"> 1</span></span>
+<span data-line=""><span style="color:#6CB6FF">  pushfirst!</span><span style="color:#ADBAC7">(v, </span><span style="color:#6CB6FF">2</span><span style="color:#ADBAC7">)</span></span>
+<span data-line=""><span style="color:#F47067">end</span></span></code><style>pre[data-show-line-numbers='true'], code[data-show-line-numbers='true'] { counter-increment: step 0; font-variant-numeric: tabular-nums; counter-reset: step 0; } code[data-show-line-numbers='true'] > span[data-line]::before { color: #6a737d; text-align: right; margin-right: 0.75rem; display: inline-block; content: counter(step); counter-increment: step; font-variant-numeric: tabular-nums; } code[data-show-line-numbers='true'] > span[data-line]:empty::before, span[data-rehype-pretty-code-figure] > code > span[data-line]::before { content: none; }</style></pre></figure>
+<p>2,3,5の倍数まであらかじめ除いておくと、30でわった余りが1,7,11,13,17,19,23,29の8通りだけ気にすればよい（<a href="https://qiita.com/peria/items/54499b9ce9d5c1e93e5a" target="_blank" rel="noopener noreferrer">参考</a>）。<mjx-container class="MathJax" jax="CHTML" overflow="overflow" role="img" aria-label="2^8"><mjx-math breakable="true" class="TEX-N" aria-hidden="true"><mjx-msup><mjx-c class="mjx-c32">2</mjx-c><mjx-script style="vertical-align: 0.363em;"><mjx-c class="mjx-c38" size="s">8</mjx-c></mjx-script></mjx-msup><mjx-break size="0" style="letter-spacing: -0.800em;"> </mjx-break></mjx-math></mjx-container>は十分整数型で表せるので、各数が合成数かどうかのフラグをbit列として整数型に格納して処理できる（つまり30でわった商それぞれに<code>UInt8</code>型の値が1つずつ対応する。例えば<code>[0b00001000, 0b01000000]</code>は<code>13</code>と<code>53</code>にフラグが立っている）。</p>
+<ol>
+<li><strong>篩い始めの位置</strong> <br>
+素数<mjx-container class="MathJax" jax="CHTML" overflow="overflow" role="img" aria-label="p"><mjx-math breakable="true" class="TEX-N" aria-hidden="true"><mjx-break size="0" style="letter-spacing: -0.800em;"> </mjx-break><mjx-c class="mjx-c1D45D">𝑝</mjx-c><mjx-break size="0" style="letter-spacing: -0.800em;"> </mjx-break></mjx-math></mjx-container>で篩にかけていく際、</li>
+</ol>
+<p><span class="scrollable"><mjx-container class="MathJax" jax="CHTML" overflow="overflow" display="true" role="img" aria-label="p = 30q + r_j,\quad r_j \in \{1, 7, 11, 13, 17, 19, 23, 29\}"><mjx-math display="true" class="TEX-N" aria-hidden="true"><mjx-c class="mjx-c1D45D">𝑝</mjx-c><mjx-c class="mjx-c3D" space="4">=</mjx-c><mjx-mn space="4"><mjx-c class="mjx-c33" noic="true" style="padding-top: 0.666em;">3</mjx-c><mjx-c class="mjx-c30" style="padding-top: 0.666em;">0</mjx-c></mjx-mn><mjx-c class="mjx-c1D45E">𝑞</mjx-c><mjx-c class="mjx-c2B" space="3">+</mjx-c><mjx-msub space="3"><mjx-c class="mjx-c1D45F">𝑟</mjx-c><mjx-script style="vertical-align: -0.15em;"><mjx-c class="mjx-c1D457" size="s">𝑗</mjx-c></mjx-script></mjx-msub><mjx-c class="mjx-c2C">,</mjx-c><mjx-mspace style="width: 1em;"></mjx-mspace><mjx-msub space="2"><mjx-c class="mjx-c1D45F">𝑟</mjx-c><mjx-script style="vertical-align: -0.15em;"><mjx-c class="mjx-c1D457" size="s">𝑗</mjx-c></mjx-script></mjx-msub><mjx-c class="mjx-c2208" space="4">∈</mjx-c><mjx-c class="mjx-c7B" space="4">{</mjx-c><mjx-c class="mjx-c31">1</mjx-c><mjx-c class="mjx-c2C">,</mjx-c><mjx-c class="mjx-c37" space="2">7</mjx-c><mjx-c class="mjx-c2C">,</mjx-c><mjx-mn space="2"><mjx-c class="mjx-c31" noic="true" style="padding-top: 0.666em;">1</mjx-c><mjx-c class="mjx-c31" style="padding-top: 0.666em;">1</mjx-c></mjx-mn><mjx-c class="mjx-c2C">,</mjx-c><mjx-mn space="2"><mjx-c class="mjx-c31" noic="true" style="padding-top: 0.666em;">1</mjx-c><mjx-c class="mjx-c33" style="padding-top: 0.666em;">3</mjx-c></mjx-mn><mjx-c class="mjx-c2C">,</mjx-c><mjx-mn space="2"><mjx-c class="mjx-c31" noic="true" style="padding-top: 0.676em;">1</mjx-c><mjx-c class="mjx-c37" style="padding-top: 0.676em;">7</mjx-c></mjx-mn><mjx-c class="mjx-c2C">,</mjx-c><mjx-mn space="2"><mjx-c class="mjx-c31" noic="true" style="padding-top: 0.666em;">1</mjx-c><mjx-c class="mjx-c39" style="padding-top: 0.666em;">9</mjx-c></mjx-mn><mjx-c class="mjx-c2C">,</mjx-c><mjx-mn space="2"><mjx-c class="mjx-c32" noic="true" style="padding-top: 0.666em;">2</mjx-c><mjx-c class="mjx-c33" style="padding-top: 0.666em;">3</mjx-c></mjx-mn><mjx-c class="mjx-c2C">,</mjx-c><mjx-mn space="2"><mjx-c class="mjx-c32" noic="true" style="padding-top: 0.666em;">2</mjx-c><mjx-c class="mjx-c39" style="padding-top: 0.666em;">9</mjx-c></mjx-mn><mjx-c class="mjx-c7D">}</mjx-c></mjx-math></mjx-container></span>
+に対して篩い始めの<mjx-container class="MathJax" jax="CHTML" overflow="overflow" role="img" aria-label="p^2"><mjx-math breakable="true" class="TEX-N" aria-hidden="true"><mjx-break size="0" style="letter-spacing: -0.800em;"> </mjx-break><mjx-msup><mjx-c class="mjx-c1D45D">𝑝</mjx-c><mjx-script style="vertical-align: 0.363em;"><mjx-c class="mjx-c32" size="s">2</mjx-c></mjx-script></mjx-msup><mjx-break size="0" style="letter-spacing: -0.800em;"> </mjx-break></mjx-math></mjx-container>が格納されている場所は
+<mjx-container class="MathJax" jax="CHTML" overflow="overflow" role="img" aria-label="p^2 = 30(30q^2 + 2q r_j + \lfloor r_j^2 / 30 \rfloor) + (r_j^2 \mod 30)"><mjx-math breakable="true" class="TEX-N" aria-hidden="true"><mjx-break size="0" style="letter-spacing: -0.800em;"> </mjx-break><mjx-msup><mjx-c class="mjx-c1D45D">𝑝</mjx-c><mjx-script style="vertical-align: 0.363em;"><mjx-c class="mjx-c32" size="s">2</mjx-c></mjx-script></mjx-msup><mjx-break size="4"> </mjx-break><mjx-c class="mjx-c3D">=</mjx-c><mjx-mn space="4"><mjx-c class="mjx-c33" noic="true" style="padding-top: 0.666em;">3</mjx-c><mjx-c class="mjx-c30" style="padding-top: 0.666em;">0</mjx-c></mjx-mn><mjx-c class="mjx-c28">(</mjx-c><mjx-mn><mjx-c class="mjx-c33" noic="true" style="padding-top: 0.666em;">3</mjx-c><mjx-c class="mjx-c30" style="padding-top: 0.666em;">0</mjx-c></mjx-mn><mjx-msup><mjx-c class="mjx-c1D45E">𝑞</mjx-c><mjx-script style="vertical-align: 0.363em; margin-left: 0.051em;"><mjx-c class="mjx-c32" size="s">2</mjx-c></mjx-script></mjx-msup><mjx-break size="3"> </mjx-break><mjx-c class="mjx-c2B">+</mjx-c><mjx-c class="mjx-c32" space="3">2</mjx-c><mjx-c class="mjx-c1D45E">𝑞</mjx-c><mjx-msub><mjx-c class="mjx-c1D45F">𝑟</mjx-c><mjx-script style="vertical-align: -0.15em;"><mjx-c class="mjx-c1D457" size="s">𝑗</mjx-c></mjx-script></mjx-msub><mjx-break size="3"> </mjx-break><mjx-c class="mjx-c2B">+</mjx-c><mjx-c class="mjx-c230A" space="3">⌊</mjx-c><mjx-msubsup><mjx-c class="mjx-c1D45F">𝑟</mjx-c><mjx-script style="vertical-align: -0.284em; margin-left: 0;"><mjx-c class="mjx-c32" size="s">2</mjx-c><mjx-spacer style="margin-top: 0.18em;"></mjx-spacer><mjx-c class="mjx-c1D457" size="s">𝑗</mjx-c></mjx-script></mjx-msubsup><mjx-c class="mjx-c2F">/</mjx-c><mjx-mn><mjx-c class="mjx-c33" noic="true" style="padding-top: 0.666em;">3</mjx-c><mjx-c class="mjx-c30" style="padding-top: 0.666em;">0</mjx-c></mjx-mn><mjx-c class="mjx-c230B">⌋</mjx-c><mjx-c class="mjx-c29">)</mjx-c><mjx-break size="3"> </mjx-break><mjx-c class="mjx-c2B">+</mjx-c><mjx-c class="mjx-c28" space="3">(</mjx-c><mjx-msubsup><mjx-c class="mjx-c1D45F">𝑟</mjx-c><mjx-script style="vertical-align: -0.284em; margin-left: 0;"><mjx-c class="mjx-c32" size="s">2</mjx-c><mjx-spacer style="margin-top: 0.18em;"></mjx-spacer><mjx-c class="mjx-c1D457" size="s">𝑗</mjx-c></mjx-script></mjx-msubsup><mjx-mspace style="width: 0.667em;"></mjx-mspace><mjx-mi space="2"><mjx-c class="mjx-c6D" noic="true" style="padding-top: 0.694em;">m</mjx-c><mjx-c class="mjx-c6F" noic="true" style="padding-top: 0.694em;">o</mjx-c><mjx-c class="mjx-c64" style="padding-top: 0.694em;">d</mjx-c></mjx-mi><mjx-break size="0" style="letter-spacing: -0.833em;"> </mjx-break><mjx-break size="0" style="letter-spacing: -0.833em;"> </mjx-break><mjx-mn space="2"><mjx-c class="mjx-c33" noic="true" style="padding-top: 0.666em;">3</mjx-c><mjx-c class="mjx-c30" style="padding-top: 0.666em;">0</mjx-c></mjx-mn><mjx-c class="mjx-c29">)</mjx-c><mjx-break size="0" style="letter-spacing: -0.800em;"> </mjx-break></mjx-math></mjx-container>から<code>30q^2 + 2q * r[j] + r[j]^2 ÷ 30</code>番目の<code>UInt8</code>の<code>r[j]^2 % 30</code>ビット目と分かる。</p>
+<ol start="2">
+<li>
+<p><strong>篩う処理</strong> <br>
+素数<mjx-container class="MathJax" jax="CHTML" overflow="overflow" role="img" aria-label="p = 30q + r_j"><mjx-math breakable="true" class="TEX-N" aria-hidden="true"><mjx-break size="0" style="letter-spacing: -0.800em;"> </mjx-break><mjx-c class="mjx-c1D45D">𝑝</mjx-c><mjx-break size="4"> </mjx-break><mjx-c class="mjx-c3D">=</mjx-c><mjx-mn space="4"><mjx-c class="mjx-c33" noic="true" style="padding-top: 0.666em;">3</mjx-c><mjx-c class="mjx-c30" style="padding-top: 0.666em;">0</mjx-c></mjx-mn><mjx-c class="mjx-c1D45E">𝑞</mjx-c><mjx-break size="3"> </mjx-break><mjx-c class="mjx-c2B">+</mjx-c><mjx-msub space="3"><mjx-c class="mjx-c1D45F">𝑟</mjx-c><mjx-script style="vertical-align: -0.15em;"><mjx-c class="mjx-c1D457" size="s">𝑗</mjx-c></mjx-script></mjx-msub><mjx-break size="0" style="letter-spacing: -0.800em;"> </mjx-break></mjx-math></mjx-container>に<mjx-container class="MathJax" jax="CHTML" overflow="overflow" role="img" aria-label="n = 30q_n + r_k"><mjx-math breakable="true" class="TEX-N" aria-hidden="true"><mjx-break size="0" style="letter-spacing: -0.800em;"> </mjx-break><mjx-c class="mjx-c1D45B">𝑛</mjx-c><mjx-break size="4"> </mjx-break><mjx-c class="mjx-c3D">=</mjx-c><mjx-mn space="4"><mjx-c class="mjx-c33" noic="true" style="padding-top: 0.666em;">3</mjx-c><mjx-c class="mjx-c30" style="padding-top: 0.666em;">0</mjx-c></mjx-mn><mjx-msub><mjx-c class="mjx-c1D45E">𝑞</mjx-c><mjx-script style="vertical-align: -0.15em; margin-left: -0.014em;"><mjx-c class="mjx-c1D45B" size="s">𝑛</mjx-c></mjx-script></mjx-msub><mjx-break size="3"> </mjx-break><mjx-c class="mjx-c2B">+</mjx-c><mjx-msub space="3"><mjx-c class="mjx-c1D45F">𝑟</mjx-c><mjx-script style="vertical-align: -0.15em;"><mjx-c class="mjx-c1D458" size="s">𝑘</mjx-c></mjx-script></mjx-msub><mjx-break size="0" style="letter-spacing: -0.800em;"> </mjx-break></mjx-math></mjx-container>をかけた合成数<mjx-container class="MathJax" jax="CHTML" overflow="overflow" role="img" aria-label="pn"><mjx-math breakable="true" class="TEX-N" aria-hidden="true"><mjx-break size="0" style="letter-spacing: -0.800em;"> </mjx-break><mjx-c class="mjx-c1D45D">𝑝</mjx-c><mjx-c class="mjx-c1D45B">𝑛</mjx-c><mjx-break size="0" style="letter-spacing: -0.800em;"> </mjx-break></mjx-math></mjx-container>を篩うことを考える。<mjx-container class="MathJax" jax="CHTML" overflow="overflow" role="img" aria-label="pn = 30q_{pn} + (r_j r_k \mod 30)"><mjx-math breakable="true" class="TEX-N" aria-hidden="true"><mjx-c class="mjx-c1D45D">𝑝</mjx-c><mjx-c class="mjx-c1D45B">𝑛</mjx-c><mjx-break size="4"> </mjx-break><mjx-c class="mjx-c3D">=</mjx-c><mjx-mn space="4"><mjx-c class="mjx-c33" noic="true" style="padding-top: 0.666em;">3</mjx-c><mjx-c class="mjx-c30" style="padding-top: 0.666em;">0</mjx-c></mjx-mn><mjx-msub><mjx-c class="mjx-c1D45E">𝑞</mjx-c><mjx-script style="vertical-align: -0.15em; margin-left: -0.014em;"><mjx-TeXAtom size="s" texclass="ORD"><mjx-c class="mjx-c1D45D">𝑝</mjx-c><mjx-c class="mjx-c1D45B">𝑛</mjx-c></mjx-TeXAtom></mjx-script></mjx-msub><mjx-break size="3"> </mjx-break><mjx-c class="mjx-c2B">+</mjx-c><mjx-c class="mjx-c28" space="3">(</mjx-c><mjx-msub><mjx-c class="mjx-c1D45F">𝑟</mjx-c><mjx-script style="vertical-align: -0.15em;"><mjx-c class="mjx-c1D457" size="s">𝑗</mjx-c></mjx-script></mjx-msub><mjx-msub><mjx-c class="mjx-c1D45F">𝑟</mjx-c><mjx-script style="vertical-align: -0.15em;"><mjx-c class="mjx-c1D458" size="s">𝑘</mjx-c></mjx-script></mjx-msub><mjx-mspace style="width: 0.667em;"></mjx-mspace><mjx-mi space="2"><mjx-c class="mjx-c6D" noic="true" style="padding-top: 0.694em;">m</mjx-c><mjx-c class="mjx-c6F" noic="true" style="padding-top: 0.694em;">o</mjx-c><mjx-c class="mjx-c64" style="padding-top: 0.694em;">d</mjx-c></mjx-mi><mjx-break size="0" style="letter-spacing: -0.833em;"> </mjx-break><mjx-break size="0" style="letter-spacing: -0.833em;"> </mjx-break><mjx-mn space="2"><mjx-c class="mjx-c33" noic="true" style="padding-top: 0.666em;">3</mjx-c><mjx-c class="mjx-c30" style="padding-top: 0.666em;">0</mjx-c></mjx-mn><mjx-c class="mjx-c29">)</mjx-c><mjx-break size="0" style="letter-spacing: -0.800em;"> </mjx-break></mjx-math></mjx-container>となる（ただし<mjx-container class="MathJax" jax="CHTML" overflow="overflow" role="img" aria-label="q_{pn} = \lfloor pn / 30 \rfloor"><mjx-math breakable="true" class="TEX-N" aria-hidden="true"><mjx-break size="0" style="letter-spacing: -0.800em;"> </mjx-break><mjx-msub><mjx-c class="mjx-c1D45E">𝑞</mjx-c><mjx-script style="vertical-align: -0.15em; margin-left: -0.014em;"><mjx-TeXAtom size="s" texclass="ORD"><mjx-c class="mjx-c1D45D">𝑝</mjx-c><mjx-c class="mjx-c1D45B">𝑛</mjx-c></mjx-TeXAtom></mjx-script></mjx-msub><mjx-break size="4"> </mjx-break><mjx-c class="mjx-c3D">=</mjx-c><mjx-c class="mjx-c230A" space="4">⌊</mjx-c><mjx-c class="mjx-c1D45D">𝑝</mjx-c><mjx-c class="mjx-c1D45B">𝑛</mjx-c><mjx-c class="mjx-c2F">/</mjx-c><mjx-mn><mjx-c class="mjx-c33" noic="true" style="padding-top: 0.666em;">3</mjx-c><mjx-c class="mjx-c30" style="padding-top: 0.666em;">0</mjx-c></mjx-mn><mjx-c class="mjx-c230B">⌋</mjx-c></mjx-math></mjx-container>）ので、<code>flags[q_pn]</code>の<code>r[j] * r[k] % 30</code>に対応するビットを<code>0</code>にすればよい（<code>r[j] * r[k] % 30</code>が再び<code>r</code>に含まれることは<mjx-container class="MathJax" jax="CHTML" overflow="overflow" role="img" aria-label="\mathbb{Z}_{30}"><mjx-math breakable="true" class="TEX-N" aria-hidden="true"><mjx-break size="0" style="letter-spacing: -0.800em;"> </mjx-break><mjx-msub><mjx-TeXAtom texclass="ORD"><mjx-c class="mjx-c2124">ℤ</mjx-c></mjx-TeXAtom><mjx-script style="vertical-align: -0.15em;"><mjx-TeXAtom size="s" texclass="ORD"><mjx-mn><mjx-c class="mjx-c33" noic="true" style="padding-top: 0.666em;">3</mjx-c><mjx-c class="mjx-c30" style="padding-top: 0.666em;">0</mjx-c></mjx-mn></mjx-TeXAtom></mjx-script></mjx-msub><mjx-break size="0" style="letter-spacing: -0.800em;"> </mjx-break></mjx-math></mjx-container>の乗法群の構造が保証してくれる）。<code>r[j] * r[k] % 30</code>を<mjx-container class="MathJax" jax="CHTML" overflow="overflow" role="img" aria-label="8\times 8"><mjx-math breakable="true" class="TEX-N" aria-hidden="true"><mjx-break size="0" style="letter-spacing: -0.800em;"> </mjx-break><mjx-c class="mjx-c38">8</mjx-c><mjx-break size="3"> </mjx-break><mjx-c class="mjx-cD7">×</mjx-c><mjx-c class="mjx-c38" space="3">8</mjx-c><mjx-break size="0" style="letter-spacing: -0.800em;"> </mjx-break></mjx-math></mjx-container>行列<code>r_rr[j,k]</code>で取り出せるようにしておくと同じ計算を何度もせずに済む。</p>
+</li>
+<li>
+<p><strong>次に篩う位置</strong> <br>
+<mjx-container class="MathJax" jax="CHTML" overflow="overflow" role="img" aria-label="pn"><mjx-math breakable="true" class="TEX-N" aria-hidden="true"><mjx-break size="0" style="letter-spacing: -0.800em;"> </mjx-break><mjx-c class="mjx-c1D45D">𝑝</mjx-c><mjx-c class="mjx-c1D45B">𝑛</mjx-c><mjx-break size="0" style="letter-spacing: -0.800em;"> </mjx-break></mjx-math></mjx-container>を篩ったら次は<mjx-container class="MathJax" jax="CHTML" overflow="overflow" role="img" aria-label="pn'"><mjx-math breakable="true" class="TEX-N" aria-hidden="true"><mjx-break size="0" style="letter-spacing: -0.800em;"> </mjx-break><mjx-c class="mjx-c1D45D">𝑝</mjx-c><mjx-msup><mjx-c class="mjx-c1D45B">𝑛</mjx-c><mjx-script style="vertical-align: 0.363em;"><mjx-c class="mjx-c2032" size="s">′</mjx-c></mjx-script></mjx-msup><mjx-break size="0" style="letter-spacing: -0.800em;"> </mjx-break></mjx-math></mjx-container>を篩いたい。ここで<mjx-container class="MathJax" jax="CHTML" overflow="overflow" role="img" aria-label="n' = 30q_n + r_{k+1}"><mjx-math breakable="true" class="TEX-N" aria-hidden="true"><mjx-break size="0" style="letter-spacing: -0.800em;"> </mjx-break><mjx-msup><mjx-c class="mjx-c1D45B">𝑛</mjx-c><mjx-script style="vertical-align: 0.363em;"><mjx-c class="mjx-c2032" size="s">′</mjx-c></mjx-script></mjx-msup><mjx-break size="4"> </mjx-break><mjx-c class="mjx-c3D">=</mjx-c><mjx-mn space="4"><mjx-c class="mjx-c33" noic="true" style="padding-top: 0.666em;">3</mjx-c><mjx-c class="mjx-c30" style="padding-top: 0.666em;">0</mjx-c></mjx-mn><mjx-msub><mjx-c class="mjx-c1D45E">𝑞</mjx-c><mjx-script style="vertical-align: -0.15em; margin-left: -0.014em;"><mjx-c class="mjx-c1D45B" size="s">𝑛</mjx-c></mjx-script></mjx-msub><mjx-break size="3"> </mjx-break><mjx-c class="mjx-c2B">+</mjx-c><mjx-msub space="3"><mjx-c class="mjx-c1D45F">𝑟</mjx-c><mjx-script style="vertical-align: -0.15em;"><mjx-TeXAtom size="s" texclass="ORD"><mjx-c class="mjx-c1D458">𝑘</mjx-c><mjx-c class="mjx-c2B">+</mjx-c><mjx-c class="mjx-c31">1</mjx-c></mjx-TeXAtom></mjx-script></mjx-msub><mjx-break size="0" style="letter-spacing: -0.800em;"> </mjx-break></mjx-math></mjx-container>は<mjx-container class="MathJax" jax="CHTML" overflow="overflow" role="img" aria-label="30q + \{1,7,11,13,17,19,23,29\}"><mjx-math breakable="true" class="TEX-N" aria-hidden="true"><mjx-break size="0" style="letter-spacing: -0.800em;"> </mjx-break><mjx-mn><mjx-c class="mjx-c33" noic="true" style="padding-top: 0.666em;">3</mjx-c><mjx-c class="mjx-c30" style="padding-top: 0.666em;">0</mjx-c></mjx-mn><mjx-c class="mjx-c1D45E">𝑞</mjx-c><mjx-break size="3"> </mjx-break><mjx-c class="mjx-c2B">+</mjx-c><mjx-c class="mjx-c7B" space="3">{</mjx-c><mjx-c class="mjx-c31">1</mjx-c><mjx-c class="mjx-c2C">,</mjx-c><mjx-c class="mjx-c37" space="2">7</mjx-c><mjx-c class="mjx-c2C">,</mjx-c><mjx-mn space="2"><mjx-c class="mjx-c31" noic="true" style="padding-top: 0.666em;">1</mjx-c><mjx-c class="mjx-c31" style="padding-top: 0.666em;">1</mjx-c></mjx-mn><mjx-c class="mjx-c2C">,</mjx-c><mjx-mn space="2"><mjx-c class="mjx-c31" noic="true" style="padding-top: 0.666em;">1</mjx-c><mjx-c class="mjx-c33" style="padding-top: 0.666em;">3</mjx-c></mjx-mn><mjx-c class="mjx-c2C">,</mjx-c><mjx-mn space="2"><mjx-c class="mjx-c31" noic="true" style="padding-top: 0.676em;">1</mjx-c><mjx-c class="mjx-c37" style="padding-top: 0.676em;">7</mjx-c></mjx-mn><mjx-c class="mjx-c2C">,</mjx-c><mjx-mn space="2"><mjx-c class="mjx-c31" noic="true" style="padding-top: 0.666em;">1</mjx-c><mjx-c class="mjx-c39" style="padding-top: 0.666em;">9</mjx-c></mjx-mn><mjx-c class="mjx-c2C">,</mjx-c><mjx-mn space="2"><mjx-c class="mjx-c32" noic="true" style="padding-top: 0.666em;">2</mjx-c><mjx-c class="mjx-c33" style="padding-top: 0.666em;">3</mjx-c></mjx-mn><mjx-c class="mjx-c2C">,</mjx-c><mjx-mn space="2"><mjx-c class="mjx-c32" noic="true" style="padding-top: 0.666em;">2</mjx-c><mjx-c class="mjx-c39" style="padding-top: 0.666em;">9</mjx-c></mjx-mn><mjx-c class="mjx-c7D">}</mjx-c><mjx-break size="0" style="letter-spacing: -0.800em;"> </mjx-break></mjx-math></mjx-container>で表される整数で<mjx-container class="MathJax" jax="CHTML" overflow="overflow" role="img" aria-label="n"><mjx-math breakable="true" class="TEX-N" aria-hidden="true"><mjx-break size="0" style="letter-spacing: -0.800em;"> </mjx-break><mjx-c class="mjx-c1D45B">𝑛</mjx-c><mjx-break size="0" style="letter-spacing: -0.800em;"> </mjx-break></mjx-math></mjx-container>の次に小さいものである（ただし<mjx-container class="MathJax" jax="CHTML" overflow="overflow" role="img" aria-label="r_{k+1} \in \{7,11,13,17,19,23,29,31\}"><mjx-math breakable="true" class="TEX-N" aria-hidden="true"><mjx-break size="0" style="letter-spacing: -0.800em;"> </mjx-break><mjx-msub><mjx-c class="mjx-c1D45F">𝑟</mjx-c><mjx-script style="vertical-align: -0.15em;"><mjx-TeXAtom size="s" texclass="ORD"><mjx-c class="mjx-c1D458">𝑘</mjx-c><mjx-c class="mjx-c2B">+</mjx-c><mjx-c class="mjx-c31">1</mjx-c></mjx-TeXAtom></mjx-script></mjx-msub><mjx-break size="4"> </mjx-break><mjx-c class="mjx-c2208">∈</mjx-c><mjx-c class="mjx-c7B" space="4">{</mjx-c><mjx-c class="mjx-c37">7</mjx-c><mjx-c class="mjx-c2C">,</mjx-c><mjx-mn space="2"><mjx-c class="mjx-c31" noic="true" style="padding-top: 0.666em;">1</mjx-c><mjx-c class="mjx-c31" style="padding-top: 0.666em;">1</mjx-c></mjx-mn><mjx-c class="mjx-c2C">,</mjx-c><mjx-mn space="2"><mjx-c class="mjx-c31" noic="true" style="padding-top: 0.666em;">1</mjx-c><mjx-c class="mjx-c33" style="padding-top: 0.666em;">3</mjx-c></mjx-mn><mjx-c class="mjx-c2C">,</mjx-c><mjx-mn space="2"><mjx-c class="mjx-c31" noic="true" style="padding-top: 0.676em;">1</mjx-c><mjx-c class="mjx-c37" style="padding-top: 0.676em;">7</mjx-c></mjx-mn><mjx-c class="mjx-c2C">,</mjx-c><mjx-mn space="2"><mjx-c class="mjx-c31" noic="true" style="padding-top: 0.666em;">1</mjx-c><mjx-c class="mjx-c39" style="padding-top: 0.666em;">9</mjx-c></mjx-mn><mjx-c class="mjx-c2C">,</mjx-c><mjx-mn space="2"><mjx-c class="mjx-c32" noic="true" style="padding-top: 0.666em;">2</mjx-c><mjx-c class="mjx-c33" style="padding-top: 0.666em;">3</mjx-c></mjx-mn><mjx-c class="mjx-c2C">,</mjx-c><mjx-mn space="2"><mjx-c class="mjx-c32" noic="true" style="padding-top: 0.666em;">2</mjx-c><mjx-c class="mjx-c39" style="padding-top: 0.666em;">9</mjx-c></mjx-mn><mjx-c class="mjx-c2C">,</mjx-c><mjx-mn space="2"><mjx-c class="mjx-c33" noic="true" style="padding-top: 0.666em;">3</mjx-c><mjx-c class="mjx-c31" style="padding-top: 0.666em;">1</mjx-c></mjx-mn><mjx-c class="mjx-c7D">}</mjx-c></mjx-math></mjx-container>）。そのためには<mjx-container class="MathJax" jax="CHTML" overflow="overflow" role="img" aria-label="q_{pn'} = \lfloor pn' / 30 \rfloor"><mjx-math breakable="true" class="TEX-N" aria-hidden="true"><mjx-break size="0" style="letter-spacing: -0.800em;"> </mjx-break><mjx-msub><mjx-c class="mjx-c1D45E">𝑞</mjx-c><mjx-script style="vertical-align: -0.15em; margin-left: -0.014em;"><mjx-TeXAtom size="s" texclass="ORD"><mjx-c class="mjx-c1D45D">𝑝</mjx-c><mjx-msup><mjx-c class="mjx-c1D45B">𝑛</mjx-c><mjx-script style="vertical-align: 0.289em;"><mjx-c class="mjx-c2032" size="s">′</mjx-c></mjx-script></mjx-msup></mjx-TeXAtom></mjx-script></mjx-msub><mjx-break size="4"> </mjx-break><mjx-c class="mjx-c3D">=</mjx-c><mjx-c class="mjx-c230A" space="4">⌊</mjx-c><mjx-c class="mjx-c1D45D">𝑝</mjx-c><mjx-msup><mjx-c class="mjx-c1D45B">𝑛</mjx-c><mjx-script style="vertical-align: 0.363em;"><mjx-c class="mjx-c2032" size="s">′</mjx-c></mjx-script></mjx-msup><mjx-c class="mjx-c2F">/</mjx-c><mjx-mn><mjx-c class="mjx-c33" noic="true" style="padding-top: 0.666em;">3</mjx-c><mjx-c class="mjx-c30" style="padding-top: 0.666em;">0</mjx-c></mjx-mn><mjx-c class="mjx-c230B">⌋</mjx-c><mjx-break size="0" style="letter-spacing: -0.800em;"> </mjx-break></mjx-math></mjx-container>を得る必要があるが、これは差分を計算するとよい：</p>
+</li>
+</ol>
+<p><span class="scrollable"><mjx-container class="MathJax" jax="CHTML" overflow="overflow" display="true" role="img" aria-label="\begin{aligned} \lfloor pn'/30 \rfloor - \lfloor pn/30 \rfloor &amp;= \left\lfloor \dfrac{(30q + r_j)(30q_n + r_{k+1})}{30} \right\rfloor - \left\lfloor \dfrac{(30q + r_j)(30q_n + r_{k})}{30} \right\rfloor \\[5pt] &amp; = q(r_{k+1} - r_k) + \left\lfloor \dfrac{r_j r_{k+1}}{30} \right\rfloor - \left\lfloor \dfrac{r_j r_k}{30} \right\rfloor. \end{aligned}"><mjx-math display="true" class="TEX-N" aria-hidden="true"><mjx-mtable style="min-width: 33.437em;"><mjx-table><mjx-itable><mjx-mtr style="height: 2.454em;"><mjx-mtd style="text-align: right; padding-right: 0; padding-bottom: 0.4em;"><mjx-c class="mjx-c230A">⌊</mjx-c><mjx-c class="mjx-c1D45D">𝑝</mjx-c><mjx-msup><mjx-c class="mjx-c1D45B">𝑛</mjx-c><mjx-script style="vertical-align: 0.413em;"><mjx-c class="mjx-c2032" size="s">′</mjx-c></mjx-script></mjx-msup><mjx-c class="mjx-c2F">/</mjx-c><mjx-mn><mjx-c class="mjx-c33" noic="true" style="padding-top: 0.666em;">3</mjx-c><mjx-c class="mjx-c30" style="padding-top: 0.666em;">0</mjx-c></mjx-mn><mjx-c class="mjx-c230B">⌋</mjx-c><mjx-c class="mjx-c2212" space="3">−</mjx-c><mjx-c class="mjx-c230A" space="3">⌊</mjx-c><mjx-c class="mjx-c1D45D">𝑝</mjx-c><mjx-c class="mjx-c1D45B">𝑛</mjx-c><mjx-c class="mjx-c2F">/</mjx-c><mjx-mn><mjx-c class="mjx-c33" noic="true" style="padding-top: 0.666em;">3</mjx-c><mjx-c class="mjx-c30" style="padding-top: 0.666em;">0</mjx-c></mjx-mn><mjx-c class="mjx-c230B">⌋</mjx-c><mjx-tstrut></mjx-tstrut></mjx-mtd><mjx-mtd style="text-align: left; padding-left: 0; padding-bottom: 0.4em;"><mjx-mstyle><mjx-mi></mjx-mi><mjx-c class="mjx-c3D" space="4">=</mjx-c><mjx-mrow space="4"><mjx-c class="mjx-c230A TEX-S3">⌊</mjx-c><mjx-mfrac><mjx-frac type="d"><mjx-num><mjx-nstrut type="d"></mjx-nstrut><mjx-mrow><mjx-c class="mjx-c28">(</mjx-c><mjx-mn><mjx-c class="mjx-c33" noic="true" style="padding-top: 0.666em;">3</mjx-c><mjx-c class="mjx-c30" style="padding-top: 0.666em;">0</mjx-c></mjx-mn><mjx-c class="mjx-c1D45E">𝑞</mjx-c><mjx-c class="mjx-c2B" space="3">+</mjx-c><mjx-msub space="3"><mjx-c class="mjx-c1D45F">𝑟</mjx-c><mjx-script style="vertical-align: -0.15em;"><mjx-c class="mjx-c1D457" size="s">𝑗</mjx-c></mjx-script></mjx-msub><mjx-c class="mjx-c29">)</mjx-c><mjx-c class="mjx-c28">(</mjx-c><mjx-mn><mjx-c class="mjx-c33" noic="true" style="padding-top: 0.666em;">3</mjx-c><mjx-c class="mjx-c30" style="padding-top: 0.666em;">0</mjx-c></mjx-mn><mjx-msub><mjx-c class="mjx-c1D45E">𝑞</mjx-c><mjx-script style="vertical-align: -0.15em; margin-left: -0.014em;"><mjx-c class="mjx-c1D45B" size="s">𝑛</mjx-c></mjx-script></mjx-msub><mjx-c class="mjx-c2B" space="3">+</mjx-c><mjx-msub space="3"><mjx-c class="mjx-c1D45F">𝑟</mjx-c><mjx-script style="vertical-align: -0.15em;"><mjx-TeXAtom size="s" texclass="ORD"><mjx-c class="mjx-c1D458">𝑘</mjx-c><mjx-c class="mjx-c2B">+</mjx-c><mjx-c class="mjx-c31">1</mjx-c></mjx-TeXAtom></mjx-script></mjx-msub><mjx-c class="mjx-c29">)</mjx-c></mjx-mrow></mjx-num><mjx-dbox><mjx-dtable><mjx-line type="d"></mjx-line><mjx-row><mjx-den><mjx-dstrut type="d"></mjx-dstrut><mjx-mn><mjx-c class="mjx-c33" noic="true" style="padding-top: 0.666em;">3</mjx-c><mjx-c class="mjx-c30" style="padding-top: 0.666em;">0</mjx-c></mjx-mn></mjx-den></mjx-row></mjx-dtable></mjx-dbox></mjx-frac></mjx-mfrac><mjx-c class="mjx-c230B TEX-S3">⌋</mjx-c></mjx-mrow><mjx-c class="mjx-c2212" space="3">−</mjx-c><mjx-mrow space="3"><mjx-c class="mjx-c230A TEX-S3">⌊</mjx-c><mjx-mfrac><mjx-frac type="d"><mjx-num><mjx-nstrut type="d"></mjx-nstrut><mjx-mrow><mjx-c class="mjx-c28">(</mjx-c><mjx-mn><mjx-c class="mjx-c33" noic="true" style="padding-top: 0.666em;">3</mjx-c><mjx-c class="mjx-c30" style="padding-top: 0.666em;">0</mjx-c></mjx-mn><mjx-c class="mjx-c1D45E">𝑞</mjx-c><mjx-c class="mjx-c2B" space="3">+</mjx-c><mjx-msub space="3"><mjx-c class="mjx-c1D45F">𝑟</mjx-c><mjx-script style="vertical-align: -0.15em;"><mjx-c class="mjx-c1D457" size="s">𝑗</mjx-c></mjx-script></mjx-msub><mjx-c class="mjx-c29">)</mjx-c><mjx-c class="mjx-c28">(</mjx-c><mjx-mn><mjx-c class="mjx-c33" noic="true" style="padding-top: 0.666em;">3</mjx-c><mjx-c class="mjx-c30" style="padding-top: 0.666em;">0</mjx-c></mjx-mn><mjx-msub><mjx-c class="mjx-c1D45E">𝑞</mjx-c><mjx-script style="vertical-align: -0.15em; margin-left: -0.014em;"><mjx-c class="mjx-c1D45B" size="s">𝑛</mjx-c></mjx-script></mjx-msub><mjx-c class="mjx-c2B" space="3">+</mjx-c><mjx-msub space="3"><mjx-c class="mjx-c1D45F">𝑟</mjx-c><mjx-script style="vertical-align: -0.15em;"><mjx-TeXAtom size="s" texclass="ORD"><mjx-c class="mjx-c1D458">𝑘</mjx-c></mjx-TeXAtom></mjx-script></mjx-msub><mjx-c class="mjx-c29">)</mjx-c></mjx-mrow></mjx-num><mjx-dbox><mjx-dtable><mjx-line type="d"></mjx-line><mjx-row><mjx-den><mjx-dstrut type="d"></mjx-dstrut><mjx-mn><mjx-c class="mjx-c33" noic="true" style="padding-top: 0.666em;">3</mjx-c><mjx-c class="mjx-c30" style="padding-top: 0.666em;">0</mjx-c></mjx-mn></mjx-den></mjx-row></mjx-dtable></mjx-dbox></mjx-frac></mjx-mfrac><mjx-c class="mjx-c230B TEX-S3">⌋</mjx-c></mjx-mrow></mjx-mstyle><mjx-tstrut></mjx-tstrut></mjx-mtd></mjx-mtr><mjx-mtr style="height: 1.904em;"><mjx-mtd style="text-align: right; padding-right: 0; padding-top: 0.4em;"><mjx-tstrut></mjx-tstrut></mjx-mtd><mjx-mtd style="text-align: left; padding-left: 0; padding-top: 0.4em;"><mjx-mstyle><mjx-mi></mjx-mi><mjx-c class="mjx-c3D" space="4">=</mjx-c><mjx-c class="mjx-c1D45E" space="4">𝑞</mjx-c><mjx-c class="mjx-c28">(</mjx-c><mjx-msub><mjx-c class="mjx-c1D45F">𝑟</mjx-c><mjx-script style="vertical-align: -0.15em;"><mjx-TeXAtom size="s" texclass="ORD"><mjx-c class="mjx-c1D458">𝑘</mjx-c><mjx-c class="mjx-c2B">+</mjx-c><mjx-c class="mjx-c31">1</mjx-c></mjx-TeXAtom></mjx-script></mjx-msub><mjx-c class="mjx-c2212" space="3">−</mjx-c><mjx-msub space="3"><mjx-c class="mjx-c1D45F">𝑟</mjx-c><mjx-script style="vertical-align: -0.15em;"><mjx-c class="mjx-c1D458" size="s">𝑘</mjx-c></mjx-script></mjx-msub><mjx-c class="mjx-c29">)</mjx-c><mjx-c class="mjx-c2B" space="3">+</mjx-c><mjx-mrow space="3"><mjx-c class="mjx-c230A TEX-LO">⌊</mjx-c><mjx-mfrac><mjx-frac type="d"><mjx-num><mjx-nstrut type="d"></mjx-nstrut><mjx-mrow><mjx-msub><mjx-c class="mjx-c1D45F">𝑟</mjx-c><mjx-script style="vertical-align: -0.15em;"><mjx-c class="mjx-c1D457" size="s">𝑗</mjx-c></mjx-script></mjx-msub><mjx-msub><mjx-c class="mjx-c1D45F">𝑟</mjx-c><mjx-script style="vertical-align: -0.15em;"><mjx-TeXAtom size="s" texclass="ORD"><mjx-c class="mjx-c1D458">𝑘</mjx-c><mjx-c class="mjx-c2B">+</mjx-c><mjx-c class="mjx-c31">1</mjx-c></mjx-TeXAtom></mjx-script></mjx-msub></mjx-mrow></mjx-num><mjx-dbox><mjx-dtable><mjx-line type="d"></mjx-line><mjx-row><mjx-den><mjx-dstrut type="d"></mjx-dstrut><mjx-mn><mjx-c class="mjx-c33" noic="true" style="padding-top: 0.666em;">3</mjx-c><mjx-c class="mjx-c30" style="padding-top: 0.666em;">0</mjx-c></mjx-mn></mjx-den></mjx-row></mjx-dtable></mjx-dbox></mjx-frac></mjx-mfrac><mjx-c class="mjx-c230B TEX-LO">⌋</mjx-c></mjx-mrow><mjx-c class="mjx-c2212" space="3">−</mjx-c><mjx-mrow space="3"><mjx-c class="mjx-c230A TEX-LO">⌊</mjx-c><mjx-mfrac><mjx-frac type="d"><mjx-num><mjx-nstrut type="d"></mjx-nstrut><mjx-mrow><mjx-msub><mjx-c class="mjx-c1D45F">𝑟</mjx-c><mjx-script style="vertical-align: -0.15em;"><mjx-c class="mjx-c1D457" size="s">𝑗</mjx-c></mjx-script></mjx-msub><mjx-msub><mjx-c class="mjx-c1D45F">𝑟</mjx-c><mjx-script style="vertical-align: -0.15em;"><mjx-c class="mjx-c1D458" size="s">𝑘</mjx-c></mjx-script></mjx-msub></mjx-mrow></mjx-num><mjx-dbox><mjx-dtable><mjx-line type="d"></mjx-line><mjx-row><mjx-den><mjx-dstrut type="d"></mjx-dstrut><mjx-mn><mjx-c class="mjx-c33" noic="true" style="padding-top: 0.666em;">3</mjx-c><mjx-c class="mjx-c30" style="padding-top: 0.666em;">0</mjx-c></mjx-mn></mjx-den></mjx-row></mjx-dtable></mjx-dbox></mjx-frac></mjx-mfrac><mjx-c class="mjx-c230B TEX-LO">⌋</mjx-c></mjx-mrow><mjx-c class="mjx-c2E" space="2">.</mjx-c></mjx-mstyle><mjx-tstrut></mjx-tstrut></mjx-mtd></mjx-mtr></mjx-itable></mjx-table></mjx-mtable></mjx-math></mjx-container></span>
+<mjx-container class="MathJax" jax="CHTML" overflow="overflow" role="img" aria-label="r_{k+1} - r_k"><mjx-math breakable="true" class="TEX-N" aria-hidden="true"><mjx-break size="0" style="letter-spacing: -0.800em;"> </mjx-break><mjx-msub><mjx-c class="mjx-c1D45F">𝑟</mjx-c><mjx-script style="vertical-align: -0.15em;"><mjx-TeXAtom size="s" texclass="ORD"><mjx-c class="mjx-c1D458">𝑘</mjx-c><mjx-c class="mjx-c2B">+</mjx-c><mjx-c class="mjx-c31">1</mjx-c></mjx-TeXAtom></mjx-script></mjx-msub><mjx-break size="3"> </mjx-break><mjx-c class="mjx-c2212">−</mjx-c><mjx-msub space="3"><mjx-c class="mjx-c1D45F">𝑟</mjx-c><mjx-script style="vertical-align: -0.15em;"><mjx-c class="mjx-c1D458" size="s">𝑘</mjx-c></mjx-script></mjx-msub><mjx-break size="0" style="letter-spacing: -0.800em;"> </mjx-break></mjx-math></mjx-container>を<code>dr[k]</code>に、<mjx-container class="MathJax" jax="CHTML" overflow="overflow" role="img" aria-label="\left\lfloor \dfrac{r_j r_{k+1}}{30} \right\rfloor - \left\lfloor \dfrac{r_j r_k}{30} \right\rfloor"><mjx-math breakable="true" class="TEX-N" aria-hidden="true"><mjx-mrow><mjx-c class="mjx-c230A TEX-LO">⌊</mjx-c><mjx-mstyle><mjx-mfrac><mjx-frac type="d"><mjx-num><mjx-nstrut type="d"></mjx-nstrut><mjx-mrow><mjx-msub><mjx-c class="mjx-c1D45F">𝑟</mjx-c><mjx-script style="vertical-align: -0.15em;"><mjx-c class="mjx-c1D457" size="s">𝑗</mjx-c></mjx-script></mjx-msub><mjx-msub><mjx-c class="mjx-c1D45F">𝑟</mjx-c><mjx-script style="vertical-align: -0.15em;"><mjx-TeXAtom size="s" texclass="ORD"><mjx-c class="mjx-c1D458">𝑘</mjx-c><mjx-c class="mjx-c2B">+</mjx-c><mjx-c class="mjx-c31">1</mjx-c></mjx-TeXAtom></mjx-script></mjx-msub></mjx-mrow></mjx-num><mjx-dbox><mjx-dtable><mjx-line type="d"></mjx-line><mjx-row><mjx-den><mjx-dstrut type="d"></mjx-dstrut><mjx-mn><mjx-c class="mjx-c33" noic="true" style="padding-top: 0.666em;">3</mjx-c><mjx-c class="mjx-c30" style="padding-top: 0.666em;">0</mjx-c></mjx-mn></mjx-den></mjx-row></mjx-dtable></mjx-dbox></mjx-frac></mjx-mfrac></mjx-mstyle><mjx-c class="mjx-c230B TEX-LO">⌋</mjx-c></mjx-mrow><mjx-break size="3"> </mjx-break><mjx-c class="mjx-c2212">−</mjx-c><mjx-mrow space="3"><mjx-c class="mjx-c230A TEX-LO">⌊</mjx-c><mjx-mstyle><mjx-mfrac><mjx-frac type="d"><mjx-num><mjx-nstrut type="d"></mjx-nstrut><mjx-mrow><mjx-msub><mjx-c class="mjx-c1D45F">𝑟</mjx-c><mjx-script style="vertical-align: -0.15em;"><mjx-c class="mjx-c1D457" size="s">𝑗</mjx-c></mjx-script></mjx-msub><mjx-msub><mjx-c class="mjx-c1D45F">𝑟</mjx-c><mjx-script style="vertical-align: -0.15em;"><mjx-c class="mjx-c1D458" size="s">𝑘</mjx-c></mjx-script></mjx-msub></mjx-mrow></mjx-num><mjx-dbox><mjx-dtable><mjx-line type="d"></mjx-line><mjx-row><mjx-den><mjx-dstrut type="d"></mjx-dstrut><mjx-mn><mjx-c class="mjx-c33" noic="true" style="padding-top: 0.666em;">3</mjx-c><mjx-c class="mjx-c30" style="padding-top: 0.666em;">0</mjx-c></mjx-mn></mjx-den></mjx-row></mjx-dtable></mjx-dbox></mjx-frac></mjx-mfrac></mjx-mstyle><mjx-c class="mjx-c230B TEX-LO">⌋</mjx-c></mjx-mrow><mjx-break size="0" style="letter-spacing: -0.800em;"> </mjx-break></mjx-math></mjx-container>を<code>dqrr[j,k]</code>にそれぞれ格納しておくとやはり計算を節約できる。ビット位置については<code>k = (k+1) % 8</code>でよい。</p>
+<p>以上の内容をコードに落とすと以下のようになる（Juliaが1-indexedであるため上の疑似コードからインデックスが若干ずれる）。また<code>r,dr,dqrr,r_rr</code>は長さが決まっていて頻繁にアクセスするので<code>StaticArrays.SArray</code>として定義することで大幅に高速化できる。</p>
+<figure data-rehype-pretty-code-figure=""><pre tabindex="0" data-show-line-numbers="true" data-language="julia" data-theme="github-dark-dimmed"><code data-show-line-numbers="true" data-language="julia" data-theme="github-dark-dimmed" style="display: grid;"><span data-line=""><span style="color:#F47067">using</span><span style="color:#ADBAC7"> StaticArrays</span></span>
+<span data-line=""> </span>
+<span data-line=""><span style="color:#F47067">function</span><span style="color:#DCBDFB"> pow2_ind</span><span style="color:#ADBAC7">(x)</span></span>
+<span data-line=""><span style="color:#F47067">  for</span><span style="color:#ADBAC7"> j </span><span style="color:#F47067">in</span><span style="color:#6CB6FF"> 0</span><span style="color:#F47067">:</span><span style="color:#6CB6FF">7</span></span>
+<span data-line=""><span style="color:#F47067">    if</span><span style="color:#ADBAC7"> x </span><span style="color:#F47067">==</span><span style="color:#6CB6FF"> 1</span><span style="color:#F47067"> &#x3C;&#x3C;</span><span style="color:#ADBAC7"> j</span></span>
+<span data-line=""><span style="color:#F47067">      return</span><span style="color:#ADBAC7"> j</span></span>
+<span data-line=""><span style="color:#F47067">    end</span></span>
+<span data-line=""><span style="color:#F47067">  end</span></span>
+<span data-line=""><span style="color:#F47067">end</span></span>
+<span data-line=""> </span>
+<span data-line=""><span style="color:#F47067">function</span><span style="color:#DCBDFB"> sieve2</span><span style="color:#ADBAC7">(x)</span></span>
+<span data-line=""><span style="color:#ADBAC7">  r </span><span style="color:#F47067">=</span><span style="color:#6CB6FF"> @SVector</span><span style="color:#ADBAC7"> [</span><span style="color:#6CB6FF">1</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">7</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">11</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">13</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">17</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">19</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">23</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">29</span><span style="color:#ADBAC7">]</span></span>
+<span data-line=""><span style="color:#ADBAC7">  all1</span><span style="color:#F47067">::</span><span style="color:#6CB6FF">UInt8</span><span style="color:#F47067"> =</span><span style="color:#ADBAC7"> (</span><span style="color:#6CB6FF">1</span><span style="color:#F47067"> &#x3C;&#x3C;</span><span style="color:#6CB6FF"> length</span><span style="color:#ADBAC7">(r)) </span><span style="color:#F47067">-</span><span style="color:#6CB6FF"> 1</span><span style="color:#768390"> # 0b11111111</span></span>
+<span data-line=""><span style="color:#ADBAC7">  dr </span><span style="color:#F47067">=</span><span style="color:#6CB6FF"> @SVector</span><span style="color:#ADBAC7"> [</span><span style="color:#6CB6FF">mod</span><span style="color:#ADBAC7">(r[</span><span style="color:#6CB6FF">mod1</span><span style="color:#ADBAC7">(j </span><span style="color:#F47067">+</span><span style="color:#6CB6FF"> 1</span><span style="color:#ADBAC7">, </span><span style="color:#F47067">end</span><span style="color:#ADBAC7">)] </span><span style="color:#F47067">-</span><span style="color:#ADBAC7"> r[j], </span><span style="color:#6CB6FF">30</span><span style="color:#ADBAC7">) </span><span style="color:#F47067">for</span><span style="color:#ADBAC7"> j </span><span style="color:#F47067">in</span><span style="color:#6CB6FF"> 1</span><span style="color:#F47067">:</span><span style="color:#6CB6FF">8</span><span style="color:#ADBAC7">] </span><span style="color:#768390"># if we replace `1:8` with `eachindex(r)`, the code somehow fails</span></span>
+<span data-line=""><span style="color:#ADBAC7">  r1 </span><span style="color:#F47067">=</span><span style="color:#ADBAC7"> r </span><span style="color:#F47067">.+</span><span style="color:#ADBAC7"> dr</span></span>
+<span data-line=""><span style="color:#ADBAC7">  dqrr </span><span style="color:#F47067">=</span><span style="color:#6CB6FF"> @SMatrix</span><span style="color:#ADBAC7"> [</span></span>
+<span data-line=""><span style="color:#6CB6FF">    fld</span><span style="color:#ADBAC7">(r[j] </span><span style="color:#F47067">*</span><span style="color:#ADBAC7"> r1[k], </span><span style="color:#6CB6FF">30</span><span style="color:#ADBAC7">) </span><span style="color:#F47067">-</span><span style="color:#6CB6FF"> fld</span><span style="color:#ADBAC7">(r[j] </span><span style="color:#F47067">*</span><span style="color:#ADBAC7"> r[k], </span><span style="color:#6CB6FF">30</span><span style="color:#ADBAC7">)</span></span>
+<span data-line=""><span style="color:#F47067">    for</span><span style="color:#ADBAC7"> j </span><span style="color:#F47067">in</span><span style="color:#6CB6FF"> 1</span><span style="color:#F47067">:</span><span style="color:#6CB6FF">8</span><span style="color:#ADBAC7">, k </span><span style="color:#F47067">in</span><span style="color:#6CB6FF"> 1</span><span style="color:#F47067">:</span><span style="color:#6CB6FF">8</span></span>
+<span data-line=""><span style="color:#ADBAC7">  ]</span></span>
+<span data-line=""> </span>
+<span data-line=""><span style="color:#ADBAC7">  r_ind </span><span style="color:#F47067">=</span><span style="color:#6CB6FF"> Dict</span><span style="color:#ADBAC7">([r[j] </span><span style="color:#F47067">=></span><span style="color:#ADBAC7"> (j </span><span style="color:#F47067">-</span><span style="color:#6CB6FF"> 1</span><span style="color:#ADBAC7">) </span><span style="color:#F47067">for</span><span style="color:#ADBAC7"> j </span><span style="color:#F47067">in</span><span style="color:#6CB6FF"> eachindex</span><span style="color:#ADBAC7">(r)]</span><span style="color:#F47067">...</span><span style="color:#ADBAC7">)</span></span>
+<span data-line=""><span style="color:#ADBAC7">  r_rr </span><span style="color:#F47067">=</span><span style="color:#6CB6FF"> @SMatrix</span><span style="color:#ADBAC7"> [</span></span>
+<span data-line=""><span style="color:#6CB6FF">    UInt8</span><span style="color:#ADBAC7">(all1 </span><span style="color:#F47067">⊻</span><span style="color:#ADBAC7"> (</span><span style="color:#6CB6FF">1</span><span style="color:#F47067"> &#x3C;&#x3C;</span><span style="color:#ADBAC7"> r_ind[r[j]</span><span style="color:#F47067">*</span><span style="color:#ADBAC7">r[k]</span><span style="color:#F47067">%</span><span style="color:#6CB6FF">30</span><span style="color:#ADBAC7">]))</span></span>
+<span data-line=""><span style="color:#F47067">    for</span><span style="color:#ADBAC7"> j </span><span style="color:#F47067">in</span><span style="color:#6CB6FF"> 1</span><span style="color:#F47067">:</span><span style="color:#6CB6FF">8</span><span style="color:#ADBAC7">, k </span><span style="color:#F47067">in</span><span style="color:#6CB6FF"> 1</span><span style="color:#F47067">:</span><span style="color:#6CB6FF">8</span></span>
+<span data-line=""><span style="color:#ADBAC7">  ]</span></span>
+<span data-line=""> </span>
+<span data-line=""><span style="color:#ADBAC7">  flags </span><span style="color:#F47067">=</span><span style="color:#6CB6FF"> fill</span><span style="color:#ADBAC7">(all1, </span><span style="color:#6CB6FF">cld</span><span style="color:#ADBAC7">(x, </span><span style="color:#6CB6FF">30</span><span style="color:#ADBAC7">))</span></span>
+<span data-line=""><span style="color:#ADBAC7">  rx </span><span style="color:#F47067">=</span><span style="color:#ADBAC7"> x </span><span style="color:#F47067">%</span><span style="color:#6CB6FF"> 30</span></span>
+<span data-line=""><span style="color:#F47067">  if</span><span style="color:#ADBAC7"> rx </span><span style="color:#F47067">!=</span><span style="color:#6CB6FF"> 0</span></span>
+<span data-line=""><span style="color:#F47067">    for</span><span style="color:#ADBAC7"> j </span><span style="color:#F47067">in</span><span style="color:#6CB6FF"> eachindex</span><span style="color:#ADBAC7">(r)</span></span>
+<span data-line=""><span style="color:#ADBAC7">      rx </span><span style="color:#F47067">>=</span><span style="color:#ADBAC7"> r[j] </span><span style="color:#F47067">&#x26;&#x26;</span><span style="color:#F47067"> continue</span></span>
+<span data-line=""><span style="color:#ADBAC7">      flags[</span><span style="color:#6CB6FF">end</span><span style="color:#ADBAC7">] </span><span style="color:#F47067">=</span><span style="color:#6CB6FF"> UInt8</span><span style="color:#ADBAC7">((</span><span style="color:#6CB6FF">1</span><span style="color:#F47067"> &#x3C;&#x3C;</span><span style="color:#ADBAC7"> (j </span><span style="color:#F47067">-</span><span style="color:#6CB6FF"> 1</span><span style="color:#ADBAC7">)) </span><span style="color:#F47067">-</span><span style="color:#6CB6FF"> 1</span><span style="color:#ADBAC7">)</span></span>
+<span data-line=""><span style="color:#F47067">      break</span></span>
+<span data-line=""><span style="color:#F47067">    end</span></span>
+<span data-line=""><span style="color:#F47067">  end</span></span>
+<span data-line=""><span style="color:#ADBAC7">  flags[</span><span style="color:#6CB6FF">1</span><span style="color:#ADBAC7">] </span><span style="color:#F47067">⊻=</span><span style="color:#6CB6FF"> 0b00000001</span><span style="color:#768390"> # 1 is not a prime</span></span>
+<span data-line=""> </span>
+<span data-line=""><span style="color:#ADBAC7">  q_sqrtx </span><span style="color:#F47067">=</span><span style="color:#6CB6FF"> floor</span><span style="color:#ADBAC7">(Int, </span><span style="color:#6CB6FF">sqrt</span><span style="color:#ADBAC7">(x)) </span><span style="color:#F47067">÷</span><span style="color:#6CB6FF"> 30</span></span>
+<span data-line=""><span style="color:#ADBAC7">  l_flags </span><span style="color:#F47067">=</span><span style="color:#6CB6FF"> length</span><span style="color:#ADBAC7">(flags)</span></span>
+<span data-line=""><span style="color:#F47067">  for</span><span style="color:#ADBAC7"> q </span><span style="color:#F47067">in</span><span style="color:#6CB6FF"> 0</span><span style="color:#F47067">:</span><span style="color:#ADBAC7">q_sqrtx</span></span>
+<span data-line=""><span style="color:#ADBAC7">    flag </span><span style="color:#F47067">=</span><span style="color:#ADBAC7"> flags[q</span><span style="color:#F47067">+</span><span style="color:#6CB6FF">1</span><span style="color:#ADBAC7">]</span></span>
+<span data-line=""> </span>
+<span data-line=""><span style="color:#F47067">    while</span><span style="color:#ADBAC7"> flag </span><span style="color:#F47067">!=</span><span style="color:#6CB6FF"> 0</span></span>
+<span data-line=""><span style="color:#ADBAC7">      j </span><span style="color:#F47067">=</span><span style="color:#6CB6FF"> pow2_ind</span><span style="color:#ADBAC7">(flag </span><span style="color:#F47067">&#x26;</span><span style="color:#ADBAC7"> (</span><span style="color:#F47067">-</span><span style="color:#ADBAC7">flag)) </span><span style="color:#768390"># p == 30q + r[j+1]</span></span>
+<span data-line=""><span style="color:#ADBAC7">      m </span><span style="color:#F47067">=</span><span style="color:#ADBAC7"> r[j</span><span style="color:#F47067">+</span><span style="color:#6CB6FF">1</span><span style="color:#ADBAC7">]</span></span>
+<span data-line=""><span style="color:#ADBAC7">      q_pn </span><span style="color:#F47067">=</span><span style="color:#ADBAC7"> q </span><span style="color:#F47067">*</span><span style="color:#ADBAC7"> (</span><span style="color:#6CB6FF">30</span><span style="color:#ADBAC7">q </span><span style="color:#F47067">+</span><span style="color:#6CB6FF"> 2</span><span style="color:#ADBAC7">m) </span><span style="color:#F47067">+</span><span style="color:#ADBAC7"> m</span><span style="color:#F47067">^</span><span style="color:#6CB6FF">2</span><span style="color:#F47067"> ÷</span><span style="color:#6CB6FF"> 30</span><span style="color:#768390"> # initially q_pn == p^2 ÷ 30</span></span>
+<span data-line=""><span style="color:#ADBAC7">      k </span><span style="color:#F47067">=</span><span style="color:#ADBAC7"> j</span></span>
+<span data-line=""> </span>
+<span data-line=""><span style="color:#F47067">      while</span><span style="color:#ADBAC7"> q_pn </span><span style="color:#F47067">&#x3C;</span><span style="color:#ADBAC7"> l_flags</span></span>
+<span data-line=""><span style="color:#ADBAC7">        flags[q_pn</span><span style="color:#F47067">+</span><span style="color:#6CB6FF">1</span><span style="color:#ADBAC7">] </span><span style="color:#F47067">&#x26;=</span><span style="color:#ADBAC7"> r_rr[j</span><span style="color:#F47067">+</span><span style="color:#6CB6FF">1</span><span style="color:#ADBAC7">, k</span><span style="color:#F47067">+</span><span style="color:#6CB6FF">1</span><span style="color:#ADBAC7">]</span></span>
+<span data-line=""><span style="color:#ADBAC7">        q_pn </span><span style="color:#F47067">+=</span><span style="color:#ADBAC7"> q </span><span style="color:#F47067">*</span><span style="color:#ADBAC7"> dr[k</span><span style="color:#F47067">+</span><span style="color:#6CB6FF">1</span><span style="color:#ADBAC7">] </span><span style="color:#F47067">+</span><span style="color:#ADBAC7"> dqrr[j</span><span style="color:#F47067">+</span><span style="color:#6CB6FF">1</span><span style="color:#ADBAC7">, k</span><span style="color:#F47067">+</span><span style="color:#6CB6FF">1</span><span style="color:#ADBAC7">]</span></span>
+<span data-line=""><span style="color:#ADBAC7">        k </span><span style="color:#F47067">=</span><span style="color:#ADBAC7"> (k </span><span style="color:#F47067">+</span><span style="color:#6CB6FF"> 1</span><span style="color:#ADBAC7">) </span><span style="color:#F47067">&#x26;</span><span style="color:#6CB6FF"> 7</span><span style="color:#768390"> # coincidentally(?), the order of the multiplicative group of Z30 is 2^3-1</span></span>
+<span data-line=""><span style="color:#F47067">      end</span></span>
+<span data-line=""> </span>
+<span data-line=""><span style="color:#ADBAC7">      flag </span><span style="color:#F47067">&#x26;=</span><span style="color:#ADBAC7"> flag </span><span style="color:#F47067">-</span><span style="color:#6CB6FF"> 1</span><span style="color:#768390"> # eliminate the right-most 1 in flag</span></span>
+<span data-line=""><span style="color:#F47067">    end</span></span>
+<span data-line=""><span style="color:#F47067">  end</span></span>
+<span data-line=""> </span>
+<span data-line=""><span style="color:#ADBAC7">  primes </span><span style="color:#F47067">=</span><span style="color:#ADBAC7"> [</span><span style="color:#6CB6FF">2</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">3</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">5</span><span style="color:#ADBAC7">]</span></span>
+<span data-line=""><span style="color:#F47067">  for</span><span style="color:#ADBAC7"> q </span><span style="color:#F47067">in</span><span style="color:#6CB6FF"> eachindex</span><span style="color:#ADBAC7">(flags), j </span><span style="color:#F47067">in</span><span style="color:#6CB6FF"> eachindex</span><span style="color:#ADBAC7">(r)</span></span>
+<span data-line=""><span style="color:#F47067">    if</span><span style="color:#ADBAC7"> flags[q] </span><span style="color:#F47067">&#x26;</span><span style="color:#ADBAC7"> (</span><span style="color:#6CB6FF">1</span><span style="color:#F47067"> &#x3C;&#x3C;</span><span style="color:#ADBAC7"> (j </span><span style="color:#F47067">-</span><span style="color:#6CB6FF"> 1</span><span style="color:#ADBAC7">)) </span><span style="color:#F47067">!=</span><span style="color:#6CB6FF"> 0</span></span>
+<span data-line=""><span style="color:#6CB6FF">      push!</span><span style="color:#ADBAC7">(primes, </span><span style="color:#6CB6FF">30</span><span style="color:#ADBAC7">(q </span><span style="color:#F47067">-</span><span style="color:#6CB6FF"> 1</span><span style="color:#ADBAC7">) </span><span style="color:#F47067">+</span><span style="color:#ADBAC7"> r[j])</span></span>
+<span data-line=""><span style="color:#F47067">    end</span></span>
+<span data-line=""><span style="color:#F47067">  end</span></span>
+<span data-line=""><span style="color:#ADBAC7">  primes</span></span>
+<span data-line=""><span style="color:#F47067">end</span></span></code><style>pre[data-show-line-numbers='true'], code[data-show-line-numbers='true'] { counter-increment: step 0; font-variant-numeric: tabular-nums; counter-reset: step 0; } code[data-show-line-numbers='true'] > span[data-line]::before { color: #6a737d; text-align: right; margin-right: 0.75rem; display: inline-block; content: counter(step); counter-increment: step; font-variant-numeric: tabular-nums; } code[data-show-line-numbers='true'] > span[data-line]:empty::before, span[data-rehype-pretty-code-figure] > code > span[data-line]::before { content: none; }</style></pre></figure>
+<h2 id="継続渡し">継続渡し</h2>
+<p>Juliaで継続渡しをするときはdo文を使うとシナジーを感じられる（けど<code>k</code>を第一引数に置かないといけないのでラッパー関数をdefault引数で済ませるというのがちょっとやりづらい）。以下は階乗を継続渡しで計算するコード。</p>
+<figure data-rehype-pretty-code-figure=""><pre tabindex="0" data-show-line-numbers="true" data-language="julia" data-theme="github-dark-dimmed"><code data-show-line-numbers="true" data-language="julia" data-theme="github-dark-dimmed" style="display: grid;"><span data-line=""><span style="color:#DCBDFB">factorial</span><span style="color:#ADBAC7">(k</span><span style="color:#F47067">=</span><span style="color:#ADBAC7">identity; n) </span><span style="color:#F47067">=</span></span>
+<span data-line=""><span style="color:#F47067">  if</span><span style="color:#ADBAC7"> n </span><span style="color:#F47067">==</span><span style="color:#6CB6FF"> 0</span></span>
+<span data-line=""><span style="color:#6CB6FF">    k</span><span style="color:#ADBAC7">(</span><span style="color:#6CB6FF">1</span><span style="color:#ADBAC7">)</span></span>
+<span data-line=""><span style="color:#F47067">  else</span></span>
+<span data-line=""><span style="color:#6CB6FF">    factorial</span><span style="color:#ADBAC7">(; n</span><span style="color:#F47067">=</span><span style="color:#ADBAC7">n </span><span style="color:#F47067">-</span><span style="color:#6CB6FF"> 1</span><span style="color:#ADBAC7">) </span><span style="color:#F47067">do</span><span style="color:#ADBAC7"> x</span></span>
+<span data-line=""><span style="color:#6CB6FF">      k</span><span style="color:#ADBAC7">(n </span><span style="color:#F47067">*</span><span style="color:#ADBAC7"> x)</span></span>
+<span data-line=""><span style="color:#F47067">    end</span></span>
+<span data-line=""><span style="color:#F47067">  end</span></span>
+<span data-line=""> </span>
+<span data-line=""><span style="color:#F47067">begin</span></span>
+<span data-line=""><span style="color:#6CB6FF">  @assert</span><span style="color:#6CB6FF"> factorial</span><span style="color:#ADBAC7">(n</span><span style="color:#F47067">=</span><span style="color:#6CB6FF">6</span><span style="color:#ADBAC7">) </span><span style="color:#F47067">==</span><span style="color:#6CB6FF"> 720</span></span>
+<span data-line=""><span style="color:#F47067">end</span></span></code><style>pre[data-show-line-numbers='true'], code[data-show-line-numbers='true'] { counter-increment: step 0; font-variant-numeric: tabular-nums; counter-reset: step 0; } code[data-show-line-numbers='true'] > span[data-line]::before { color: #6a737d; text-align: right; margin-right: 0.75rem; display: inline-block; content: counter(step); counter-increment: step; font-variant-numeric: tabular-nums; } code[data-show-line-numbers='true'] > span[data-line]:empty::before, span[data-rehype-pretty-code-figure] > code > span[data-line]::before { content: none; }</style></pre></figure>
+<h2 id="フィボナッチ数">フィボナッチ数</h2>
+<p>関数型言語的に書くと引数でやりくりすることになる。</p>
+<figure data-rehype-pretty-code-figure=""><pre tabindex="0" data-show-line-numbers="true" data-language="julia" data-theme="github-dark-dimmed"><code data-show-line-numbers="true" data-language="julia" data-theme="github-dark-dimmed" style="display: grid;"><span data-line=""><span style="color:#DCBDFB">fib</span><span style="color:#ADBAC7">(n, a</span><span style="color:#F47067">=</span><span style="color:#6CB6FF">0</span><span style="color:#ADBAC7">, b</span><span style="color:#F47067">=</span><span style="color:#6CB6FF">1</span><span style="color:#ADBAC7">) </span><span style="color:#F47067">=</span><span style="color:#ADBAC7"> n </span><span style="color:#F47067">==</span><span style="color:#6CB6FF"> 0</span><span style="color:#F47067"> ?</span><span style="color:#ADBAC7"> a </span><span style="color:#F47067">:</span><span style="color:#6CB6FF"> fib</span><span style="color:#ADBAC7">(n </span><span style="color:#F47067">-</span><span style="color:#6CB6FF"> 1</span><span style="color:#ADBAC7">, b, a </span><span style="color:#F47067">+</span><span style="color:#ADBAC7"> b)</span></span>
+<span data-line=""> </span>
+<span data-line=""><span style="color:#F47067">begin</span></span>
+<span data-line=""><span style="color:#6CB6FF">  @assert</span><span style="color:#6CB6FF"> fib</span><span style="color:#ADBAC7">.(</span><span style="color:#6CB6FF">1</span><span style="color:#F47067">:</span><span style="color:#6CB6FF">5</span><span style="color:#ADBAC7">) </span><span style="color:#F47067">==</span><span style="color:#ADBAC7"> [</span><span style="color:#6CB6FF">1</span><span style="color:#ADBAC7">,</span><span style="color:#6CB6FF">1</span><span style="color:#ADBAC7">,</span><span style="color:#6CB6FF">2</span><span style="color:#ADBAC7">,</span><span style="color:#6CB6FF">3</span><span style="color:#ADBAC7">,</span><span style="color:#6CB6FF">5</span><span style="color:#ADBAC7">]</span></span>
+<span data-line=""><span style="color:#F47067">end</span></span></code><style>pre[data-show-line-numbers='true'], code[data-show-line-numbers='true'] { counter-increment: step 0; font-variant-numeric: tabular-nums; counter-reset: step 0; } code[data-show-line-numbers='true'] > span[data-line]::before { color: #6a737d; text-align: right; margin-right: 0.75rem; display: inline-block; content: counter(step); counter-increment: step; font-variant-numeric: tabular-nums; } code[data-show-line-numbers='true'] > span[data-line]:empty::before, span[data-rehype-pretty-code-figure] > code > span[data-line]::before { content: none; }</style></pre></figure>
+<h2 id="ricciスカラーの計算">Ricciスカラーの計算</h2>
+<p>計量<mjx-container class="MathJax" jax="CHTML" overflow="overflow" role="img" aria-label="g_{ij}"><mjx-math breakable="true" class="TEX-N" aria-hidden="true"><mjx-break size="0" style="letter-spacing: -0.800em;"> </mjx-break><mjx-msub><mjx-c class="mjx-c1D454">𝑔</mjx-c><mjx-script style="vertical-align: -0.15em; margin-left: -0.003em;"><mjx-TeXAtom size="s" texclass="ORD"><mjx-c class="mjx-c1D456">𝑖</mjx-c><mjx-c class="mjx-c1D457">𝑗</mjx-c></mjx-TeXAtom></mjx-script></mjx-msub><mjx-break size="0" style="letter-spacing: -0.800em;"> </mjx-break></mjx-math></mjx-container>が与えられれば定義に従ってChristoffel記号</p>
+<p><span class="scrollable"><mjx-container class="MathJax" jax="CHTML" overflow="overflow" display="true" role="img" aria-label="\Gamma^i_{\;jk} = \frac{1}{2}g^{il}(g_{lj,k}+g_{kl,j}-g_{jk,l})"><mjx-math display="true" class="TEX-N" aria-hidden="true"><mjx-msubsup><mjx-c class="mjx-c393">Γ</mjx-c><mjx-script style="vertical-align: -0.266em; margin-left: 0;"><mjx-c class="mjx-c1D456" size="s">𝑖</mjx-c><mjx-spacer style="margin-top: 0.18em;"></mjx-spacer><mjx-TeXAtom size="s" texclass="ORD"><mjx-mstyle style="font-size: 141.4%;"><mjx-mspace style="width: 0.278em;"></mjx-mspace></mjx-mstyle><mjx-c class="mjx-c1D457">𝑗</mjx-c><mjx-c class="mjx-c1D458">𝑘</mjx-c></mjx-TeXAtom></mjx-script></mjx-msubsup><mjx-c class="mjx-c3D" space="4">=</mjx-c><mjx-mfrac space="4"><mjx-frac type="d"><mjx-num><mjx-nstrut type="d"></mjx-nstrut><mjx-c class="mjx-c31">1</mjx-c></mjx-num><mjx-dbox><mjx-dtable><mjx-line type="d"></mjx-line><mjx-row><mjx-den><mjx-dstrut type="d"></mjx-dstrut><mjx-c class="mjx-c32">2</mjx-c></mjx-den></mjx-row></mjx-dtable></mjx-dbox></mjx-frac></mjx-mfrac><mjx-msup><mjx-c class="mjx-c1D454">𝑔</mjx-c><mjx-script style="vertical-align: 0.413em; margin-left: 0.05em;"><mjx-TeXAtom size="s" texclass="ORD"><mjx-c class="mjx-c1D456">𝑖</mjx-c><mjx-c class="mjx-c1D459">𝑙</mjx-c></mjx-TeXAtom></mjx-script></mjx-msup><mjx-c class="mjx-c28">(</mjx-c><mjx-msub><mjx-c class="mjx-c1D454">𝑔</mjx-c><mjx-script style="vertical-align: -0.15em; margin-left: -0.003em;"><mjx-TeXAtom size="s" texclass="ORD"><mjx-c class="mjx-c1D459">𝑙</mjx-c><mjx-c class="mjx-c1D457">𝑗</mjx-c><mjx-c class="mjx-c2C">,</mjx-c><mjx-c class="mjx-c1D458">𝑘</mjx-c></mjx-TeXAtom></mjx-script></mjx-msub><mjx-c class="mjx-c2B" space="3">+</mjx-c><mjx-msub space="3"><mjx-c class="mjx-c1D454">𝑔</mjx-c><mjx-script style="vertical-align: -0.15em; margin-left: -0.003em;"><mjx-TeXAtom size="s" texclass="ORD"><mjx-c class="mjx-c1D458">𝑘</mjx-c><mjx-c class="mjx-c1D459">𝑙</mjx-c><mjx-c class="mjx-c2C">,</mjx-c><mjx-c class="mjx-c1D457">𝑗</mjx-c></mjx-TeXAtom></mjx-script></mjx-msub><mjx-c class="mjx-c2212" space="3">−</mjx-c><mjx-msub space="3"><mjx-c class="mjx-c1D454">𝑔</mjx-c><mjx-script style="vertical-align: -0.15em; margin-left: -0.003em;"><mjx-TeXAtom size="s" texclass="ORD"><mjx-c class="mjx-c1D457">𝑗</mjx-c><mjx-c class="mjx-c1D458">𝑘</mjx-c><mjx-c class="mjx-c2C">,</mjx-c><mjx-c class="mjx-c1D459">𝑙</mjx-c></mjx-TeXAtom></mjx-script></mjx-msub><mjx-c class="mjx-c29">)</mjx-c></mjx-math></mjx-container></span>
+が得られる（手計算の場合は作用<mjx-container class="MathJax" jax="CHTML" overflow="overflow" role="img" aria-label="S = \int \dd{t} g_{ij} \dot{x}^i \dot{x}^j"><mjx-math breakable="true" class="TEX-N" aria-hidden="true"><mjx-break size="0" style="letter-spacing: -0.800em;"> </mjx-break><mjx-c class="mjx-c1D446">𝑆</mjx-c><mjx-break size="4"> </mjx-break><mjx-c class="mjx-c3D">=</mjx-c><mjx-c class="mjx-c222B TEX-SO" space="4">∫</mjx-c><mjx-TeXAtom space="2" texclass="OP"><mjx-TeXAtom texclass="ORD"><mjx-c class="mjx-c64">d</mjx-c></mjx-TeXAtom><mjx-c class="mjx-c1D461">𝑡</mjx-c></mjx-TeXAtom><mjx-msub space="2"><mjx-c class="mjx-c1D454">𝑔</mjx-c><mjx-script style="vertical-align: -0.15em; margin-left: -0.003em;"><mjx-TeXAtom size="s" texclass="ORD"><mjx-c class="mjx-c1D456">𝑖</mjx-c><mjx-c class="mjx-c1D457">𝑗</mjx-c></mjx-TeXAtom></mjx-script></mjx-msub><mjx-msup><mjx-TeXAtom texclass="ORD"><mjx-mover><mjx-over style="padding-bottom: 0.105em; padding-left: 0.329em; margin-bottom: -0.549em;"><mjx-mo style="width: 0; margin-left: -0.25em;"><mjx-c class="mjx-c2D9">˙</mjx-c></mjx-mo></mjx-over><mjx-base><mjx-c class="mjx-c1D465">𝑥</mjx-c></mjx-base></mjx-mover></mjx-TeXAtom><mjx-script style="vertical-align: 0.363em;"><mjx-c class="mjx-c1D456" size="s">𝑖</mjx-c></mjx-script></mjx-msup><mjx-msup><mjx-TeXAtom texclass="ORD"><mjx-mover><mjx-over style="padding-bottom: 0.105em; padding-left: 0.329em; margin-bottom: -0.549em;"><mjx-mo style="width: 0; margin-left: -0.25em;"><mjx-c class="mjx-c2D9">˙</mjx-c></mjx-mo></mjx-over><mjx-base><mjx-c class="mjx-c1D465">𝑥</mjx-c></mjx-base></mjx-mover></mjx-TeXAtom><mjx-script style="vertical-align: 0.363em;"><mjx-c class="mjx-c1D457" size="s">𝑗</mjx-c></mjx-script></mjx-msup><mjx-break size="0" style="letter-spacing: -0.800em;"> </mjx-break></mjx-math></mjx-container>から測地線方程式を導き、その係数からChristoffel記号を読み取る方が幾分か楽 <a href="https://mathlog.info/articles/S3DLwaHTMpkp3lf1qtZu" target="_blank" rel="noopener noreferrer">参考</a>）。以下定義を列挙する。</p>
+<ul>
+<li>Riemann曲率テンソル : <mjx-container class="MathJax" jax="CHTML" overflow="overflow" role="img" aria-label="R^i{}_{jkl} = \partial_k {\Gamma^i}_{jl} - \partial_l {\Gamma^i}_{jk} + {\Gamma^i}_{mk} {\Gamma^m}_{jl} - {\Gamma^i}_{ml} {\Gamma^m}_{jk}"><mjx-math breakable="true" class="TEX-N" aria-hidden="true"><mjx-msup><mjx-c class="mjx-c1D445">𝑅</mjx-c><mjx-script style="vertical-align: 0.363em;"><mjx-c class="mjx-c1D456" size="s">𝑖</mjx-c></mjx-script></mjx-msup><mjx-msub><mjx-TeXAtom texclass="ORD"></mjx-TeXAtom><mjx-script style="vertical-align: -0.15em;"><mjx-TeXAtom size="s" texclass="ORD"><mjx-c class="mjx-c1D457">𝑗</mjx-c><mjx-c class="mjx-c1D458">𝑘</mjx-c><mjx-c class="mjx-c1D459">𝑙</mjx-c></mjx-TeXAtom></mjx-script></mjx-msub><mjx-break size="4"> </mjx-break><mjx-c class="mjx-c3D">=</mjx-c><mjx-msub space="4"><mjx-c class="mjx-c1D715">𝜕</mjx-c><mjx-script style="vertical-align: -0.15em; margin-left: -0.035em;"><mjx-c class="mjx-c1D458" size="s">𝑘</mjx-c></mjx-script></mjx-msub><mjx-msub><mjx-TeXAtom texclass="ORD"><mjx-msup><mjx-c class="mjx-c393">Γ</mjx-c><mjx-script style="vertical-align: 0.363em;"><mjx-c class="mjx-c1D456" size="s">𝑖</mjx-c></mjx-script></mjx-msup></mjx-TeXAtom><mjx-script style="vertical-align: -0.15em;"><mjx-TeXAtom size="s" texclass="ORD"><mjx-c class="mjx-c1D457">𝑗</mjx-c><mjx-c class="mjx-c1D459">𝑙</mjx-c></mjx-TeXAtom></mjx-script></mjx-msub><mjx-break size="3"> </mjx-break><mjx-c class="mjx-c2212">−</mjx-c><mjx-msub space="3"><mjx-c class="mjx-c1D715">𝜕</mjx-c><mjx-script style="vertical-align: -0.15em; margin-left: -0.035em;"><mjx-c class="mjx-c1D459" size="s">𝑙</mjx-c></mjx-script></mjx-msub><mjx-msub><mjx-TeXAtom texclass="ORD"><mjx-msup><mjx-c class="mjx-c393">Γ</mjx-c><mjx-script style="vertical-align: 0.363em;"><mjx-c class="mjx-c1D456" size="s">𝑖</mjx-c></mjx-script></mjx-msup></mjx-TeXAtom><mjx-script style="vertical-align: -0.15em;"><mjx-TeXAtom size="s" texclass="ORD"><mjx-c class="mjx-c1D457">𝑗</mjx-c><mjx-c class="mjx-c1D458">𝑘</mjx-c></mjx-TeXAtom></mjx-script></mjx-msub><mjx-break size="3"> </mjx-break><mjx-c class="mjx-c2B">+</mjx-c><mjx-msub space="3"><mjx-TeXAtom texclass="ORD"><mjx-msup><mjx-c class="mjx-c393">Γ</mjx-c><mjx-script style="vertical-align: 0.363em;"><mjx-c class="mjx-c1D456" size="s">𝑖</mjx-c></mjx-script></mjx-msup></mjx-TeXAtom><mjx-script style="vertical-align: -0.15em;"><mjx-TeXAtom size="s" texclass="ORD"><mjx-c class="mjx-c1D45A">𝑚</mjx-c><mjx-c class="mjx-c1D458">𝑘</mjx-c></mjx-TeXAtom></mjx-script></mjx-msub><mjx-msub><mjx-TeXAtom texclass="ORD"><mjx-msup><mjx-c class="mjx-c393">Γ</mjx-c><mjx-script style="vertical-align: 0.363em;"><mjx-c class="mjx-c1D45A" size="s">𝑚</mjx-c></mjx-script></mjx-msup></mjx-TeXAtom><mjx-script style="vertical-align: -0.15em;"><mjx-TeXAtom size="s" texclass="ORD"><mjx-c class="mjx-c1D457">𝑗</mjx-c><mjx-c class="mjx-c1D459">𝑙</mjx-c></mjx-TeXAtom></mjx-script></mjx-msub><mjx-break size="3"> </mjx-break><mjx-c class="mjx-c2212">−</mjx-c><mjx-msub space="3"><mjx-TeXAtom texclass="ORD"><mjx-msup><mjx-c class="mjx-c393">Γ</mjx-c><mjx-script style="vertical-align: 0.363em;"><mjx-c class="mjx-c1D456" size="s">𝑖</mjx-c></mjx-script></mjx-msup></mjx-TeXAtom><mjx-script style="vertical-align: -0.15em;"><mjx-TeXAtom size="s" texclass="ORD"><mjx-c class="mjx-c1D45A">𝑚</mjx-c><mjx-c class="mjx-c1D459">𝑙</mjx-c></mjx-TeXAtom></mjx-script></mjx-msub><mjx-msub><mjx-TeXAtom texclass="ORD"><mjx-msup><mjx-c class="mjx-c393">Γ</mjx-c><mjx-script style="vertical-align: 0.363em;"><mjx-c class="mjx-c1D45A" size="s">𝑚</mjx-c></mjx-script></mjx-msup></mjx-TeXAtom><mjx-script style="vertical-align: -0.15em;"><mjx-TeXAtom size="s" texclass="ORD"><mjx-c class="mjx-c1D457">𝑗</mjx-c><mjx-c class="mjx-c1D458">𝑘</mjx-c></mjx-TeXAtom></mjx-script></mjx-msub><mjx-break size="0" style="letter-spacing: -0.800em;"> </mjx-break></mjx-math></mjx-container></li>
+<li>Ricciテンソル : <mjx-container class="MathJax" jax="CHTML" overflow="overflow" role="img" aria-label="R_{ij} = {R^k}_{ikj}"><mjx-math breakable="true" class="TEX-N" aria-hidden="true"><mjx-msub><mjx-c class="mjx-c1D445">𝑅</mjx-c><mjx-script style="vertical-align: -0.15em;"><mjx-TeXAtom size="s" texclass="ORD"><mjx-c class="mjx-c1D456">𝑖</mjx-c><mjx-c class="mjx-c1D457">𝑗</mjx-c></mjx-TeXAtom></mjx-script></mjx-msub><mjx-break size="4"> </mjx-break><mjx-c class="mjx-c3D">=</mjx-c><mjx-msub space="4"><mjx-TeXAtom texclass="ORD"><mjx-msup><mjx-c class="mjx-c1D445">𝑅</mjx-c><mjx-script style="vertical-align: 0.363em;"><mjx-c class="mjx-c1D458" size="s">𝑘</mjx-c></mjx-script></mjx-msup></mjx-TeXAtom><mjx-script style="vertical-align: -0.15em;"><mjx-TeXAtom size="s" texclass="ORD"><mjx-c class="mjx-c1D456">𝑖</mjx-c><mjx-c class="mjx-c1D458">𝑘</mjx-c><mjx-c class="mjx-c1D457">𝑗</mjx-c></mjx-TeXAtom></mjx-script></mjx-msub><mjx-break size="0" style="letter-spacing: -0.800em;"> </mjx-break></mjx-math></mjx-container></li>
+<li>Ricciスカラー : <mjx-container class="MathJax" jax="CHTML" overflow="overflow" role="img" aria-label="S = \tr R"><mjx-math breakable="true" class="TEX-N" aria-hidden="true"><mjx-c class="mjx-c1D446">𝑆</mjx-c><mjx-break size="4"> </mjx-break><mjx-c class="mjx-c3D">=</mjx-c><mjx-mi space="4"><mjx-c class="mjx-c74" noic="true" style="padding-top: 0.615em;">t</mjx-c><mjx-c class="mjx-c72" style="padding-top: 0.615em;">r</mjx-c></mjx-mi><mjx-c class="mjx-c2061">⁡</mjx-c><mjx-c class="mjx-c1D445" space="2">𝑅</mjx-c><mjx-break size="0" style="letter-spacing: -0.800em;"> </mjx-break></mjx-math></mjx-container></li>
+</ul>
+<p>Symbolics.jlを使えば形式的な計算が可能になる。</p>
+<figure data-rehype-pretty-code-figure=""><pre tabindex="0" data-show-line-numbers="true" data-language="julia" data-theme="github-dark-dimmed"><code data-show-line-numbers="true" data-language="julia" data-theme="github-dark-dimmed" style="display: grid;"><span data-line=""><span style="color:#F47067">using</span><span style="color:#ADBAC7"> Symbolics</span></span>
+<span data-line=""><span style="color:#F47067">using</span><span style="color:#ADBAC7"> LinearAlgebra</span></span>
+<span data-line=""> </span>
+<span data-line=""><span style="color:#ADBAC7">D </span><span style="color:#F47067">=</span><span style="color:#ADBAC7"> Symbolics</span><span style="color:#F47067">.</span><span style="color:#ADBAC7">derivative</span></span>
+<span data-line=""> </span>
+<span data-line=""><span style="color:#F47067">function</span><span style="color:#DCBDFB"> curvature</span><span style="color:#ADBAC7">(xi, g)</span></span>
+<span data-line=""><span style="color:#ADBAC7">  ginv </span><span style="color:#F47067">=</span><span style="color:#6CB6FF"> inv</span><span style="color:#ADBAC7">(g)</span></span>
+<span data-line=""> </span>
+<span data-line=""><span style="color:#DCBDFB">  Gamma</span><span style="color:#ADBAC7">(k, i, j) </span><span style="color:#F47067">=</span></span>
+<span data-line=""><span style="color:#ADBAC7">    (</span><span style="color:#6CB6FF">1</span><span style="color:#F47067"> //</span><span style="color:#6CB6FF"> 2</span><span style="color:#ADBAC7">) </span><span style="color:#F47067">*</span><span style="color:#6CB6FF"> sum</span><span style="color:#ADBAC7">([ginv[k, n] </span><span style="color:#F47067">*</span><span style="color:#ADBAC7"> (</span></span>
+<span data-line=""><span style="color:#6CB6FF">      D</span><span style="color:#ADBAC7">(g[n, i], xi[j]) </span><span style="color:#F47067">+</span></span>
+<span data-line=""><span style="color:#6CB6FF">      D</span><span style="color:#ADBAC7">(g[n, j], xi[i]) </span><span style="color:#F47067">-</span></span>
+<span data-line=""><span style="color:#6CB6FF">      D</span><span style="color:#ADBAC7">(g[i, j], xi[n])</span></span>
+<span data-line=""><span style="color:#ADBAC7">    ) </span><span style="color:#F47067">for</span><span style="color:#ADBAC7"> n </span><span style="color:#F47067">in</span><span style="color:#6CB6FF"> 1</span><span style="color:#F47067">:</span><span style="color:#6CB6FF">2</span><span style="color:#ADBAC7">])</span></span>
+<span data-line=""> </span>
+<span data-line=""><span style="color:#DCBDFB">  R</span><span style="color:#ADBAC7">(i, j, k, l) </span><span style="color:#F47067">=</span></span>
+<span data-line=""><span style="color:#6CB6FF">    D</span><span style="color:#ADBAC7">(</span><span style="color:#6CB6FF">Gamma</span><span style="color:#ADBAC7">(i, j, l), xi[k]) </span><span style="color:#F47067">-</span></span>
+<span data-line=""><span style="color:#6CB6FF">    D</span><span style="color:#ADBAC7">(</span><span style="color:#6CB6FF">Gamma</span><span style="color:#ADBAC7">(i, j, k), xi[l]) </span><span style="color:#F47067">+</span></span>
+<span data-line=""><span style="color:#6CB6FF">    sum</span><span style="color:#ADBAC7">([</span><span style="color:#6CB6FF">Gamma</span><span style="color:#ADBAC7">(n, j, l) </span><span style="color:#F47067">*</span><span style="color:#6CB6FF"> Gamma</span><span style="color:#ADBAC7">(i, n, k) </span><span style="color:#F47067">-</span></span>
+<span data-line=""><span style="color:#6CB6FF">         Gamma</span><span style="color:#ADBAC7">(n, j, k) </span><span style="color:#F47067">*</span><span style="color:#6CB6FF"> Gamma</span><span style="color:#ADBAC7">(i, n, l)</span></span>
+<span data-line=""><span style="color:#F47067">         for</span><span style="color:#ADBAC7"> n </span><span style="color:#F47067">in</span><span style="color:#6CB6FF"> 1</span><span style="color:#F47067">:</span><span style="color:#6CB6FF">2</span><span style="color:#ADBAC7">])</span></span>
+<span data-line=""> </span>
+<span data-line=""><span style="color:#DCBDFB">  Ricc</span><span style="color:#ADBAC7">(j, k) </span><span style="color:#F47067">=</span><span style="color:#6CB6FF"> sum</span><span style="color:#ADBAC7">([</span><span style="color:#6CB6FF">R</span><span style="color:#ADBAC7">(n, j, n, k) </span><span style="color:#F47067">for</span><span style="color:#ADBAC7"> n </span><span style="color:#F47067">in</span><span style="color:#6CB6FF"> 1</span><span style="color:#F47067">:</span><span style="color:#6CB6FF">2</span><span style="color:#ADBAC7">])</span></span>
+<span data-line=""><span style="color:#ADBAC7">  RiccM </span><span style="color:#F47067">=</span><span style="color:#ADBAC7"> [</span><span style="color:#6CB6FF">Ricc</span><span style="color:#ADBAC7">(i, j) </span><span style="color:#F47067">for</span><span style="color:#ADBAC7"> i </span><span style="color:#F47067">in</span><span style="color:#6CB6FF"> 1</span><span style="color:#F47067">:</span><span style="color:#6CB6FF">2</span><span style="color:#ADBAC7">, j </span><span style="color:#F47067">in</span><span style="color:#6CB6FF"> 1</span><span style="color:#F47067">:</span><span style="color:#6CB6FF">2</span><span style="color:#ADBAC7">] </span><span style="color:#F47067">|></span><span style="color:#ADBAC7"> simplify</span></span>
+<span data-line=""> </span>
+<span data-line=""><span style="color:#6CB6FF">  simplify</span><span style="color:#ADBAC7">(</span><span style="color:#6CB6FF">tr</span><span style="color:#ADBAC7">(ginv </span><span style="color:#F47067">*</span><span style="color:#ADBAC7"> RiccM))</span></span>
+<span data-line=""><span style="color:#F47067">end</span></span>
+<span data-line=""> </span>
+<span data-line=""><span style="color:#6CB6FF">@variables</span><span style="color:#ADBAC7"> L θ ϕ ρ τ r u t</span></span>
+<span data-line=""> </span>
+<span data-line=""><span style="color:#6CB6FF">println</span><span style="color:#ADBAC7">(</span><span style="color:#96D0FF">"curvature of S^2: "</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">curvature</span><span style="color:#ADBAC7">([θ, ϕ], </span><span style="color:#6CB6FF">Diagonal</span><span style="color:#ADBAC7">([L</span><span style="color:#F47067">^</span><span style="color:#6CB6FF">2</span><span style="color:#ADBAC7">, L</span><span style="color:#F47067">^</span><span style="color:#6CB6FF">2</span><span style="color:#F47067"> *</span><span style="color:#6CB6FF"> sin</span><span style="color:#ADBAC7">(θ)</span><span style="color:#F47067">^</span><span style="color:#6CB6FF">2</span><span style="color:#ADBAC7">])))</span></span>
+<span data-line=""><span style="color:#6CB6FF">println</span><span style="color:#ADBAC7">(</span><span style="color:#96D0FF">"curvature of H^2: "</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">curvature</span><span style="color:#ADBAC7">([ρ, ϕ], </span><span style="color:#6CB6FF">Diagonal</span><span style="color:#ADBAC7">([L</span><span style="color:#F47067">^</span><span style="color:#6CB6FF">2</span><span style="color:#ADBAC7">, L</span><span style="color:#F47067">^</span><span style="color:#6CB6FF">2</span><span style="color:#F47067"> *</span><span style="color:#6CB6FF"> sinh</span><span style="color:#ADBAC7">(ρ)</span><span style="color:#F47067">^</span><span style="color:#6CB6FF">2</span><span style="color:#ADBAC7">])))</span></span>
+<span data-line=""><span style="color:#6CB6FF">println</span><span style="color:#ADBAC7">(</span><span style="color:#96D0FF">"curvature of AdS_2: "</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">curvature</span><span style="color:#ADBAC7">([ρ, τ], </span><span style="color:#6CB6FF">Diagonal</span><span style="color:#ADBAC7">([</span><span style="color:#F47067">-</span><span style="color:#ADBAC7">L</span><span style="color:#F47067">^</span><span style="color:#6CB6FF">2</span><span style="color:#F47067"> *</span><span style="color:#6CB6FF"> cosh</span><span style="color:#ADBAC7">(ρ)</span><span style="color:#F47067">^</span><span style="color:#6CB6FF">2</span><span style="color:#ADBAC7">, L</span><span style="color:#F47067">^</span><span style="color:#6CB6FF">2</span><span style="color:#ADBAC7">])))</span></span>
+<span data-line=""><span style="color:#6CB6FF">println</span><span style="color:#ADBAC7">(</span><span style="color:#96D0FF">"curvature of dS_2: "</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">curvature</span><span style="color:#ADBAC7">([ρ, τ], </span><span style="color:#6CB6FF">Diagonal</span><span style="color:#ADBAC7">([</span><span style="color:#F47067">-</span><span style="color:#ADBAC7">L</span><span style="color:#F47067">^</span><span style="color:#6CB6FF">2</span><span style="color:#ADBAC7">, L</span><span style="color:#F47067">^</span><span style="color:#6CB6FF">2</span><span style="color:#F47067"> *</span><span style="color:#6CB6FF"> cosh</span><span style="color:#ADBAC7">(τ)</span><span style="color:#F47067">^</span><span style="color:#6CB6FF">2</span><span style="color:#ADBAC7">])))</span></span>
+<span data-line=""><span style="color:#6CB6FF">println</span><span style="color:#ADBAC7">(</span><span style="color:#96D0FF">"curvature of AdS_2 (static coord.): "</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">curvature</span><span style="color:#ADBAC7">([τ, r], </span><span style="color:#6CB6FF">Diagonal</span><span style="color:#ADBAC7">([</span><span style="color:#F47067">-</span><span style="color:#ADBAC7">L</span><span style="color:#F47067">^</span><span style="color:#6CB6FF">2</span><span style="color:#F47067"> *</span><span style="color:#ADBAC7"> (r</span><span style="color:#F47067">^</span><span style="color:#6CB6FF">2</span><span style="color:#F47067"> +</span><span style="color:#6CB6FF"> 1</span><span style="color:#ADBAC7">), L</span><span style="color:#F47067">^</span><span style="color:#6CB6FF">2</span><span style="color:#F47067"> /</span><span style="color:#ADBAC7"> (r</span><span style="color:#F47067">^</span><span style="color:#6CB6FF">2</span><span style="color:#F47067"> +</span><span style="color:#6CB6FF"> 1</span><span style="color:#ADBAC7">)])))</span></span>
+<span data-line=""><span style="color:#6CB6FF">println</span><span style="color:#ADBAC7">(</span><span style="color:#96D0FF">"curvature of AdS_2 (conformal coord.): "</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">curvature</span><span style="color:#ADBAC7">([τ, θ], </span><span style="color:#6CB6FF">Diagonal</span><span style="color:#ADBAC7">([</span><span style="color:#F47067">-</span><span style="color:#ADBAC7">L</span><span style="color:#F47067">^</span><span style="color:#6CB6FF">2</span><span style="color:#F47067"> /</span><span style="color:#6CB6FF"> cos</span><span style="color:#ADBAC7">(θ)</span><span style="color:#F47067">^</span><span style="color:#6CB6FF">2</span><span style="color:#ADBAC7">, L</span><span style="color:#F47067">^</span><span style="color:#6CB6FF">2</span><span style="color:#F47067"> /</span><span style="color:#6CB6FF"> cos</span><span style="color:#ADBAC7">(θ)</span><span style="color:#F47067">^</span><span style="color:#6CB6FF">2</span><span style="color:#ADBAC7">])))</span></span>
+<span data-line=""><span style="color:#6CB6FF">println</span><span style="color:#ADBAC7">(</span><span style="color:#96D0FF">"curvature of AdS_2 (poincare coord.): "</span><span style="color:#ADBAC7">, </span><span style="color:#6CB6FF">curvature</span><span style="color:#ADBAC7">([t, u], </span><span style="color:#6CB6FF">Diagonal</span><span style="color:#ADBAC7">([</span><span style="color:#F47067">-</span><span style="color:#ADBAC7">L</span><span style="color:#F47067">^</span><span style="color:#6CB6FF">2</span><span style="color:#F47067"> *</span><span style="color:#ADBAC7"> u</span><span style="color:#F47067">^</span><span style="color:#6CB6FF">2</span><span style="color:#ADBAC7">, L</span><span style="color:#F47067">^</span><span style="color:#6CB6FF">2</span><span style="color:#F47067"> /</span><span style="color:#ADBAC7"> u</span><span style="color:#F47067">^</span><span style="color:#6CB6FF">2</span><span style="color:#ADBAC7">])))</span></span></code><style>pre[data-show-line-numbers='true'], code[data-show-line-numbers='true'] { counter-increment: step 0; font-variant-numeric: tabular-nums; counter-reset: step 0; } code[data-show-line-numbers='true'] > span[data-line]::before { color: #6a737d; text-align: right; margin-right: 0.75rem; display: inline-block; content: counter(step); counter-increment: step; font-variant-numeric: tabular-nums; } code[data-show-line-numbers='true'] > span[data-line]:empty::before, span[data-rehype-pretty-code-figure] > code > span[data-line]::before { content: none; }</style></pre></figure></div></div><div class="cl-ruler" aria-hidden="true"><div></div></div><script type="module" src="/dispositif/_astro/ColumnLayout.astro_astro_type_script_index_0_lang.B6OPVn9h.js"></script></div></article></div><script type="module">var e=[`left`,`right`,`bottom`],t=new WeakMap,n=()=>window.matchMedia(`(prefers-reduced-motion: reduce)`).matches,r=e=>{let t=e.querySelectorAll(`pre code [data-line]`);return t.length>0?Array.from(t,e=>e.textContent??``).join(`
+`):e.querySelector(`pre`)?.innerText??``},i=e=>{let n=e.querySelector(`.code-copy-tooltip`);e.dataset.copied=`true`,n&&(n.textContent=`Copied!`);let r=t.get(e);r&&window.clearTimeout(r),t.set(e,window.setTimeout(()=>{delete e.dataset.copied,n&&(n.textContent=``)},2e3))},a=async e=>{if(navigator.clipboard?.writeText)try{return await navigator.clipboard.writeText(e),!0}catch{return!1}let t=document.createElement(`textarea`);t.value=e,t.style.cssText=`position:fixed;opacity:0`,document.body.appendChild(t),t.select();try{return document.execCommand.bind(document)(`copy`)}catch{return!1}finally{t.remove()}};document.addEventListener(`astro:page-load`,()=>{document.querySelectorAll(`.post details`).forEach(t=>{t.querySelector(`:scope > .details-close-button`)||e.forEach(e=>{let n=document.createElement(`button`);n.type=`button`,n.className=`details-close-button details-close-button--${e}`,n.dataset.detailsClose=``,n.setAttribute(`aria-label`,`詳細を閉じる`),n.title=`詳細を閉じる`,e!==`bottom`&&(n.tabIndex=-1),t.appendChild(n)})}),document.querySelectorAll(`.post figure[data-rehype-pretty-code-figure]`).forEach(e=>{if(e.querySelector(`.code-copy-button`))return;let t=document.createElement(`button`);t.type=`button`,t.className=`code-copy-button`,t.setAttribute(`aria-label`,`コードをコピー`),t.innerHTML=`<svg class="copy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg><span class="code-copy-tooltip" role="status"></span>`,e.appendChild(t)}),document.querySelectorAll(`.post a[href^="#mjx-eqn"]`).forEach(e=>{e.dataset.mathrefBound||(e.dataset.mathrefBound=`true`,e.addEventListener(`click`,t=>{if(t.button!==0||t.metaKey||t.ctrlKey||t.shiftKey||t.altKey)return;let r=decodeURIComponent(e.hash.slice(1)),i=document.getElementById(r);i&&(t.preventDefault(),i.scrollIntoView({behavior:n()?`auto`:`smooth`,block:`start`}),history.replaceState(history.state,``,e.hash),t.detail>0&&e.blur())}))})}),document.addEventListener(`click`,async e=>{let t=e.target,n=t?.closest(`[data-details-close]`);if(n){let e=n.closest(`details`),t=e?.querySelector(`:scope > summary`);if(!e||!t)return;let r=t.getBoundingClientRect(),i=r.bottom>0&&r.top<window.innerHeight;e.open=!1,t.focus({preventScroll:!0}),i||t.scrollIntoView({behavior:`instant`,block:`start`});return}let o=t?.closest(`.code-copy-button`);if(o){let t=o.closest(`figure`);if(!t)return;e.detail!==0&&o.blur(),await a(r(t))&&i(o)}}),document.addEventListener(`pointerup`,e=>{let t=e.target?.closest(`.post pre`);t&&document.activeElement===t&&t.blur()});
+//# sourceMappingURL=ArticleInteractions.astro_astro_type_script_index_0_lang.D8pIyk8e.js.map</script></main></body></html>

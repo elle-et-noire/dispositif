@@ -1,0 +1,15 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="30"
+  height="30"
+  viewBox="0 0 30 30"
+  fill="none"
+  color="#324e73"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <rect x="3" y="5" width="24" height="20" rx="1" />
+  <path d="M15 5v20M7 10h4M7 15h4M7 20h4M19 10h4M19 15h4M19 20h2" />
+</svg>
