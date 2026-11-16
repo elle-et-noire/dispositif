@@ -17,6 +17,16 @@ document.addEventListener("keydown", (event) => {
     focused.classList.add("index-restored-keyboard-focus");
   }
 }, { capture: true });
+// In WebKit, Home or End pressed while a scroll animation runs (a scrollbar
+// arrow, PageDown, the wheel) stops short of the edge by the distance that
+// animation had left. Writing the position stops the animation, so the key
+// scrolls the list or the 1段 article from rest. In n段 the article
+// scrollport does not scroll, and column-layout.ts moves the text instead.
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Home" && event.key !== "End") return;
+  const scroller = isArticle() ? document.querySelector<HTMLElement>(".cl-article-scrollport") : indexScrollport();
+  if (scroller) scroller.scrollTop = scroller.scrollTop;
+});
 document.addEventListener("focusout", (event) => {
   if (event.target instanceof HTMLElement) {
     event.target.classList.remove("index-restored-pointer-focus", "index-restored-keyboard-focus");
