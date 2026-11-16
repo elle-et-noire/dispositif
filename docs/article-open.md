@@ -4,7 +4,7 @@
 
 ## 処理
 
-- 数式フォントの先読み（PR #2・#5、`src/scripts/math-font-prefetch.ts`、`lib/math-fonts.ts`）: ビルド時に記事ごとの数式フォントを `data-math-fonts` に書き出し、一覧のカードにホバーまたはフォーカスすると `FontFace.load()` で読み込みます。条件はAstroのHTML先読みに合わせ、タッチ、オフライン、データ節約、低速回線では行いません。`astro:before-swap` で読み込み済みのフォントを `document.fonts` に記事の `@font-face` と同じ名前で加え、遷移先の文書から同じフォントの `@font-face` とpreloadを取り除きます。
+- 数式フォントの先読み（PR #2・#5、`src/scripts/math-font-prefetch.ts`、`lib/math-fonts.ts`）: ビルド時に記事ごとの数式フォントを `data-math-fonts` に書き出し、一覧のカードにホバーまたはフォーカスすると `FontFace.load()` で読み込みます。条件はAstroのHTML先読みに合わせ、タッチ、オフライン、データ節約、低速回線では行いません。`astro:before-swap` で読み込み済みのフォントを `document.fonts` に記事の `@font-face` と同じ名前で加え、遷移先の文書から同じフォントの `@font-face` とpreloadを取り除きます。記事を離れるときも、その記事が自分の `@font-face` で読み込んだ数式フォントを同じように `FontFace.load()` で読み込んで残し、履歴などでその記事へ戻ったときに使います。WebKitは戻った記事の `@font-face` を読み込み直し、最初のレイアウトに間に合わないことがあるためです。間に合わないと、そのレイアウトで復元したn段の読書位置から、フォントが届いた後に本文がずれます（PR #NN）。
 - 数式フォントのpreload（PR #24、`src/pages/[slug].astro`）: 記事が使う数式フォントをすべて `<link rel="preload">` で読み込みます。最初のレイアウトの途中で見つかったフォントはそのレイアウトの後に届き、届くたびに記事全体をレイアウトし直すためです。Nunitoはpreloadしません。FCPが遅れるだけで、レイアウトの回数は減らなかったためです。
 - 目次の位置合わせ（PR #24、`src/components/Toc.astro`）: n段で本文を段へ入れている間（`cl-premount`）は、目次が見出しの位置を読みません。n段では `column-layout.ts` が `cl:heading` で現在の見出しを伝えるので、ここで位置を読むと、記事全体のレイアウトを強制するだけになります。1段で始めるときは、段組みが `cl:single` を送り、目次がそこで位置を合わせます。
 - n段の本文を先に段へ入れる（PR #4・#6、`src/layouts/Layout.astro` のheadのスクリプト）: 遷移先URLの `?columns=`、指定がなければ保存された選択でn段になるときだけ、遷移では `astro:before-swap`、直接の読み込みではMutationObserverで `.cl-source` を段の幅の枠へ移し、本文を1段の幅でレイアウトしないようにします。本文の途中にインラインスクリプトは置きません。Firefoxでパース中にスタイル計算が入ったためです。
