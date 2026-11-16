@@ -155,10 +155,11 @@ const convert = async (text: string): Promise<Converted> => {
     .use(rehypeStringify, { allowDangerousHtml: true })
     .process(processible);
 
-  // 組版済み CHTML をプレースホルダへ流し込む。Imath は素の span、Dmath は
-  // 横スクロール可能な span.scrollable で包む。
+  // 組版済み CHTML をプレースホルダへ流し込む。Dmath は横スクロール可能な
+  // span.scrollable で包む。Imath は包まない。包む要素は表示を変えず、数式記事では
+  // スタイル計算とレイアウトをする要素と、n段で複製する要素を増やすだけだったため。
   const html = String(file)
-    .replace(/<span data-im="(\d+)"><\/span>/g, (_, i: string) => `<span>${mathHtml[Number(i)] ?? ""}</span>`)
+    .replace(/<span data-im="(\d+)"><\/span>/g, (_, i: string) => mathHtml[Number(i)] ?? "")
     .replace(/<span data-dm="(\d+)"><\/span>/g, (_, i: string) => `<span class="scrollable">${mathHtml[Number(i)] ?? ""}</span>`);
 
   return { html, css, headings };
