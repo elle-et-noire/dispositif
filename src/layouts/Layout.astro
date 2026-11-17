@@ -91,6 +91,20 @@ const {
         // Firefox rebuilds the text's boxes when its ancestors change position.
         doc.documentElement.classList.add("cl-premount");
       };
+      // WebKit keeps in each element's style which kinds of event listeners
+      // the element and its ancestors have. When the reader adds its wheel,
+      // pointerdown and touchstart listeners to .cl-viewport
+      // (column-layout.ts), WebKit restyles the whole article if the viewport
+      // had no listener of that kind. Add passive listeners of the same kinds
+      // before the article is styled, so that the reader's listeners change
+      // nothing. They do nothing themselves. Returns whether they were added.
+      const listenOnViewport = (doc) => {
+        const viewport = doc.querySelector(".cl-viewport");
+        for (const type of ["wheel", "pointerdown", "touchstart"]) {
+          viewport?.addEventListener(type, () => {}, { passive: true });
+        }
+        return Boolean(viewport);
+      };
       // Leave all but the first blocks of the article text out of its first
       // layout (column-layout.css), which is then a fraction of the whole
       // article; the reader shows the rest once its first frame is painted
@@ -106,29 +120,31 @@ const {
         return Boolean(block);
       };
       // On a full page load, the head script runs before the body is parsed.
-      // Mark the scrollport aria-hidden as soon as the parser attaches it, and
-      // in n段 make the column around .cl-source a column as soon as the text
-      // is attached, so the frames rendered during the parse lay the text out
-      // there. Mutation callbacks run at the microtask checkpoint after the
-      // parser task that inserted the element, before the next rendering
-      // opportunity. Both elements come before the article
-      // text; the observer stops once the twelfth block of the text is marked
+      // Mark the scrollport aria-hidden and add the viewport's listeners as
+      // soon as the parser attaches them, and in n段 make the column around
+      // .cl-source a column as soon as the text is attached, so the frames
+      // rendered during the parse lay the text out there. Mutation callbacks
+      // run at the microtask checkpoint after the parser task that inserted
+      // the element, before the next rendering opportunity. These elements
+      // come before the article text; the observer stops once the twelfth block of the text is marked
       // (deferText), or at DOMContentLoaded for a shorter article. (An inline
       // script in the body would block the parser and cost Firefox a style
       // pass.) A reload keeps the history entry's state, from which the reader
       // restores the position.
       if (document.documentElement.classList.contains("cl-pending")) {
         let hidden = false;
+        let listened = false;
         let column = wantsColumn(document, location);
         let defer = !location.hash && typeof history.state?.dispositifReadingKey !== "string";
         const observer = new MutationObserver(() => {
           if (!hidden) hidden = hideArticle(document);
+          if (!listened) listened = listenOnViewport(document);
           if (defer && deferText(document, location, false)) defer = false;
           if (column && document.querySelector(".cl-source")) {
             column = false;
             premountColumn(document, location);
           }
-          if (hidden && !column && !defer) observer.disconnect();
+          if (hidden && listened && !column && !defer) observer.disconnect();
         });
         observer.observe(document, { childList: true, subtree: true });
         document.addEventListener("DOMContentLoaded", () => observer.disconnect(), { once: true });
@@ -144,7 +160,10 @@ const {
       };
       document.addEventListener("astro:before-swap", (event) => {
         markPending(event.newDocument.documentElement);
-        if (event.newDocument.documentElement.classList.contains("cl-pending")) hideArticle(event.newDocument);
+        if (event.newDocument.documentElement.classList.contains("cl-pending")) {
+          hideArticle(event.newDocument);
+          listenOnViewport(event.newDocument);
+        }
         // The address bar still shows the old page here.
         premountColumn(event.newDocument, event.to);
         deferText(event.newDocument, event.to, event.navigationType === "traverse");
