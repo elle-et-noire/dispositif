@@ -309,8 +309,18 @@ export function initializeColumnLayout() {
   // Columns entirely outside the viewport are filled a frame later, so their
   // copies are not styled and laid out before the visible ones are painted.
   let offscreenFrame = 0;
-  const updateSlots = (includeOffscreen = false) => {
+  // During a vertical scroll, columns whose text is outside the viewport keep
+  // their copies until the scroll ends (settleWindow). Firefox paints the
+  // copies of columns beside the viewport on every frame of a scroll, and
+  // renewing them there as well made it drop many frames in n段
+  // (docs/column-layout.md, "操作への応答").
+  let offscreenStale = false;
+  // How far the text starts inside a column: its side padding, less the 4 px
+  // that the rail's clip also leaves outside the column.
+  let textInset = 0;
+  const updateSlots = (includeOffscreen = false, deferOffscreen = false) => {
     if (!geometry || !reading) return;
+    if (includeOffscreen) offscreenStale = false;
     const { start, count } = slotColumns(reading.point, reading.layout);
     // Read native geometry before any DOM edits. Reading it inside the slot
     // loop used to force layout after inserting each new math fragment.
@@ -403,8 +413,10 @@ export function initializeColumnLayout() {
       // fragments until they become visible instead of cloning/removing blocks
       // that would immediately be clipped away.
       if (content === source || paperHeight === 0) continue;
-      if (includeOffscreen || (left < nativeX + viewportWidth && left + geometry.w > nativeX)) {
+      if (includeOffscreen || (left + textInset < nativeX + viewportWidth && left + geometry.w - textInset > nativeX)) {
         fragments.render(content, from, geometry.h, geometry.l);
+      } else if (deferOffscreen) {
+        offscreenStale = true;
       } else if (!offscreenFrame) {
         // Fill it once the frame showing the visible columns is produced. A
         // frame request made in an input handler runs before that frame, so
@@ -422,7 +434,7 @@ export function initializeColumnLayout() {
     if (!multi || !reading || printing.matches) return;
     geometry = native.place(reading.point, reading.layout, force, moved);
     position = toCss(reading.anchor);
-    updateSlots();
+    updateSlots(false, moved !== undefined && moved.x === undefined);
     announceHeading();
   };
 
@@ -460,6 +472,7 @@ export function initializeColumnLayout() {
     if (measuring) return;
     syncPosition();
     if (native.deferred) present();
+    if (offscreenStale && !offscreenFrame) updateSlots(true);
   };
 
   function saveHistoryPosition() {
@@ -512,6 +525,7 @@ export function initializeColumnLayout() {
     ruler.scrollLeft = 0;
     native.setUnit(scrollStep);
     const w = toCss(fromCss(Math.min(parseFloat(getComputedStyle(ruler).width), Math.max(1, viewport.clientWidth - 2 * edge))));
+    textInset = Math.max(0, (parseFloat(getComputedStyle(source).paddingLeft) || 0) - 4);
     source.style.width = `${w}px`;
     const h = Math.max(1, viewport.clientHeight);
     plane.style.setProperty("--cl-w", `${w}px`);
