@@ -160,7 +160,11 @@ export class ColumnFragments {
       node.removeAttribute("autofocus");
       node.removeAttribute("contenteditable");
     });
-    copy.querySelectorAll("script").forEach((script) => script.remove());
+    // The original's <style> elements apply to the copies as well. A copy of
+    // one would add a style sheet each time the copy is inserted or removed,
+    // which made the browser restyle the copies (docs/column-layout.md,
+    // "操作への応答"). Code blocks with line numbers have one each.
+    copy.querySelectorAll("script, style").forEach((node) => node.remove());
     return copy;
   }
 
