@@ -54,11 +54,12 @@ const { css, faces: mathFaces } = separateMathFontFaces(mathCss, mathFontFaces(h
     )
   }
 
-  {/* Only a tint over the list behind: why, and how its colour is chosen, is
-      in docs/column-layout.md ("操作への応答"). */}
+  {/* A light tint over the list behind, which globals.css blurs with a
+      filter on the list itself. Why not with backdrop-filter here is in
+      docs/column-layout.md ("操作への応答"). */}
   <div
     aria-hidden="true"
-    class="cl-backdrop fixed inset-0 z-10 block cursor-pointer bg-[#96c2d4]/65"
+    class="cl-backdrop fixed inset-0 z-10 block cursor-pointer bg-[#76ddfc]/15"
   ></div>
 
   <div class="cl-article-scrollport" tabindex="0" role="region" aria-label="記事本文">
