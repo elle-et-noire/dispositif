@@ -28,6 +28,8 @@ npx astro preview stop
 
 `ENGINES`・`ARTICLES`・`MODES`・`CACHES` で条件を絞り、`NAV=direct` で直接の読み込みを測ります。各変数の意味は `scripts/measure-article-open.mjs` の冒頭にあります。トレースは時間を延ばすので、壁時計の比較は `TRACE=0` で行います。計測中に他の重い処理があると回ごとの値が揺れるので、小さな差は12回以上交互に測って確かめます。
 
+WebKitの時間は、Playwrightの `waitForFunction`・locator・`click` を使わずに測ります。これらはPlaywrightのスクリプトを読み込み、そのスクリプトが `window` に非passiveな `pointerdown`・`touchstart` などのリスナーを付けるので、WebKitが文書全体のスタイルを計算し直します（「残っている課題」）。待つときは `page.evaluate` で状態を読み、操作は `page.mouse` で行います。
+
 Lighthouseや回線を遅くした計測では、GitHub Pagesと同じくgzipで配信します。`python -m http.server` は圧縮せずにHTMLを送るので、FCPと帯域の条件が変わり、比較に使えません。
 
 ## 採らなかった方式
@@ -52,4 +54,7 @@ git show 7812f3e:docs/article-open-history.md
 - 最初のフレームより前には、表示するブロックのスタイル計算とレイアウトが残る。Chromiumで一覧から開くと、最初に表示する数ブロックの分が `after-swap→page-load` に現れる。カーソルの下にある要素をChromiumが判定し直すタイマーが、スクリプトより先にスタイル計算とレイアウトを行うためである。最初に表示するブロックの数は記事と画面の幅によらず同じなので、1段では画面に要る分より多く、n段では足りないことがある。足りない分は段組みが最初のフレームで足す。
 - n段では、画面内の段の複製のスタイル計算・レイアウト・描画が残る（内訳はPR #3）。Chromiumで一覧から開くと、そのスタイル計算とレイアウトは `page-load→visible` に現れる（計測はPR #7）。段組みの最初のフレームより前に、目次が `cl:heading` を受けて位置を読んだ時点で行われる。そのフレームではスタイル計算とレイアウトをやり直さないので、二重の作業にはなっていない。
 - Firefoxでは、数式記事をn段で開くときの `page-load→visible` が、Chromiumより1段との差が大きい。PR #48で原本全体のスタイルの計算し直しをなくした後に残るのは、主に画面内の段の複製のスタイル計算とレイアウトである（計測はPR #48とコミット `e581cb3`）。
-- WebKitでは、段組みのJS（`initializeColumnLayout`）が `.cl-viewport` に `wheel`・`pointerdown`・`touchstart` のリスナーを付けると、次のスタイル計算とレイアウトに、記事全体を計算し直すのと同じくらいの時間がかかる。ハッシュ付きのURLをn段で開いたとき、付けた直後に強制したレイアウトでそうなり、初期化の他の箇所では時間がかからなかった（計測はコミット `97f6469` とPR #63）。何を計算し直しているかは確かめていない。読み込み済みのページで `document` に `wheel` のリスナーを付けたときも同じで、ChromiumとFirefoxでは時間がかからなかった。3つのうちどのリスナーによるかと、ハッシュのないURLでの量は確かめていない。
+- WebKitは、要素とその祖先に付いているリスナーの種類（`wheel`・`touchstart`・`pointerdown`・`pointerup`・`pointerover` など、passiveかどうかも区別する）を、各要素のスタイルに持つ。リスナーを付けてこの種類が増えると、付けた要素と子孫のスタイルを計算し直す。`document` か `window` に付けて種類が増えると、文書全体のスタイルを計算し直す。どちらもレイアウトはやり直さない。種類が増えなければ、付けても時間はかからない。`click`・`keydown`・`scroll`・`mousedown` では起きない。要素を並べただけのページでも起き、ChromiumとFirefoxでは起きない。
+  - 段組みのJS（`initializeColumnLayout`）が `.cl-viewport` に付けるpassiveな `wheel` のリスナーで、記事全体のスタイルを計算し直す。同時に付ける `pointerdown`・`touchstart` は、passiveなものが既に `document` に付いているので、種類が増えない。ハッシュの有無、1段・n段のどれでも起きる。記事を直接開くと、`astro:page-load` から本文を表示するまでが延びる。ハッシュのないURLでは、本文の後半を表示していないので、計算し直す量が少ない。一覧から開くときの差は、測定の揺れより小さかった。
+  - 記事を直接開くと、モジュールのスクリプトが `document` に付けるリスナー（Astroの先読みの `touchstart`、`article-background.ts` の `pointerdown`、`math-font-prefetch.ts` の `pointerover`・`pointerout`、`ArticleInteractions.astro` の非passiveな `pointerup`）でも、文書全体のスタイルを計算し直す。headのスクリプトでこれらの種類のpassiveなリスナーを先に `document` に付け、`pointerup` のリスナーをpassiveにすると、`load` イベントと本文の表示は早くなった。しかし、残りの本文を表示する最初のタスクで、記事全体と同じくらいのレイアウトが起きるようになった。そのため、ハッシュのないURLでは全文を表示し終えるまでが延び、一覧から開くと本文の表示は早くならずに全文の表示だけが延びた。このレイアウトが起きる理由は分かっていない。
+  - 計測はコミット `aa10ccc` のメッセージにある。
