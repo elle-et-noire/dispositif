@@ -180,6 +180,11 @@ export class ColumnFragments {
       margin: "0",
       boxSizing: "border-box",
     });
+    // The rules that look at an element's siblings skip elements with this
+    // mark (globals.css, astro.config.mjs). Otherwise Firefox restyles other
+    // copies with all their contents when a copy is inserted or removed
+    // (docs/column-layout.md, "操作への応答").
+    copy.dataset.clPlaced = "";
   }
 
   render(content: HTMLElement, from: number, height: number, length: number) {
