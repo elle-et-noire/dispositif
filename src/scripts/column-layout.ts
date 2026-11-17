@@ -761,6 +761,8 @@ export function initializeColumnLayout() {
   }, { passive: true, signal });
   // Native vertical input never initiates horizontal movement, including at
   // an edge. Manual gestures only interrupt an explicit key animation.
+  // Layout.astro adds passive listeners of these kinds before the article is
+  // styled (listenOnViewport); a new kind here goes there too.
   viewport.addEventListener("wheel", () => { endFragmentGuard(); motion.cancelAnimation(); }, { passive: true, signal });
   viewport.addEventListener("pointerdown", () => motion.cancelAnimation(), { passive: true, signal });
   viewport.addEventListener("touchstart", () => { endFragmentGuard(); motion.cancelAnimation(); }, { passive: true, signal });
