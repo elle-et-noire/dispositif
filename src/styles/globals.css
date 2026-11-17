@@ -48,6 +48,24 @@
   transform: translateY(var(--article-index-offset, 0px));
 }
 
+/* Blur what lies behind the paper with a filter on it rather than a
+   backdrop-filter on .cl-backdrop (docs/column-layout.md, "操作への応答").
+   In 1段 the header is behind the paper too; in n段 it holds the toolbar in
+   front of it. The filter treats the outside of the header as transparent,
+   so ::before extends its background past the top and side edges of the
+   screen; without it, those edges blur into the colour behind. */
+@media screen {
+  [data-page-kind="article"] .article-index-shell,
+  html[data-page-kind="article"]:not(.cl-multi) header[data-site-header] { filter: blur(3px); }
+  html[data-page-kind="article"]:not(.cl-multi) header[data-site-header]::before {
+    position: absolute;
+    inset: -12px -12px 0;
+    z-index: -1;
+    background: inherit;
+    content: "";
+  }
+}
+
 @media print {
   [data-page-kind="article"] :is(.article-index-shell, .cl-backdrop) { display: none; }
 }
