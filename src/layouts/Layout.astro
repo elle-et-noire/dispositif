@@ -105,6 +105,22 @@ const {
         }
         return Boolean(viewport);
       };
+      // Likewise for the whole document: the module scripts add listeners of
+      // these kinds to document or window (Astro's prefetch: touchstart;
+      // article-background.ts: pointerdown; math-font-prefetch.ts: pointerover
+      // and pointerout; ArticleInteractions.astro and Toc.astro: non-passive
+      // pointerup), and each new kind there makes WebKit restyle the whole
+      // document. Only for a full load that shows the whole text before the
+      // reader's first frame (no deferText): with the text deferred, that
+      // restyle is short, and without it the first element with a new font
+      // weight and size in the deferred text takes about as long to style in
+      // a text step (docs/article-open.md).
+      const listenOnDocument = () => {
+        for (const type of ["touchstart", "pointerdown", "pointerover", "pointerout"]) {
+          document.addEventListener(type, () => {}, { passive: true });
+        }
+        document.addEventListener("pointerup", () => {});
+      };
       // Leave all but the first blocks of the article text out of its first
       // layout (column-layout.css), which is then a fraction of the whole
       // article; the reader shows the rest once its first frame is painted
@@ -136,6 +152,7 @@ const {
         let listened = false;
         let column = wantsColumn(document, location);
         let defer = !location.hash && typeof history.state?.dispositifReadingKey !== "string";
+        if (!defer) listenOnDocument();
         const observer = new MutationObserver(() => {
           if (!hidden) hidden = hideArticle(document);
           if (!listened) listened = listenOnViewport(document);
