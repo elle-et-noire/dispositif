@@ -309,18 +309,21 @@ export function initializeColumnLayout() {
   // Columns entirely outside the viewport are filled a frame later, so their
   // copies are not styled and laid out before the visible ones are painted.
   let offscreenFrame = 0;
-  // During a vertical scroll, columns whose text is outside the viewport keep
-  // their copies until the scroll ends (settleWindow). Firefox paints the
-  // copies of columns beside the viewport on every frame of a scroll, and
-  // renewing them there as well made it drop many frames in n段
-  // (docs/column-layout.md, "操作への応答").
+  // During a vertical scroll (deferFar, set by present), columns farther than
+  // the next column on either side of the viewport keep their copies until
+  // the scroll ends (settleWindow). Firefox paints the copies of columns
+  // beside the viewport on every frame of a scroll, and renewing them there
+  // as well made it drop many frames in n段 (docs/column-layout.md, "操作への
+  // 応答"). The next columns are still filled a frame later: a horizontal
+  // scroll can bring them in before the JS handles it.
   let offscreenStale = false;
+  let deferFar = false;
   // How far the text starts inside a column: its side padding, less the 4 px
   // that the rail's clip also leaves outside the column.
   let textInset = 0;
-  const updateSlots = (includeOffscreen = false, deferOffscreen = false) => {
+  const updateSlots = (includeOffscreen = false) => {
     if (!geometry || !reading) return;
-    if (includeOffscreen) offscreenStale = false;
+    if (includeOffscreen && !deferFar) offscreenStale = false;
     const { start, count } = slotColumns(reading.point, reading.layout);
     // Read native geometry before any DOM edits. Reading it inside the slot
     // loop used to force layout after inserting each new math fragment.
@@ -413,10 +416,11 @@ export function initializeColumnLayout() {
       // fragments until they become visible instead of cloning/removing blocks
       // that would immediately be clipped away.
       if (content === source || paperHeight === 0) continue;
-      if (includeOffscreen || (left + textInset < nativeX + viewportWidth && left + geometry.w - textInset > nativeX)) {
-        fragments.render(content, from, geometry.h, geometry.l);
-      } else if (deferOffscreen) {
+      const textLeft = left + textInset, textRight = left + geometry.w - textInset;
+      if (deferFar && (textLeft >= nativeX + viewportWidth + geometry.p || textRight <= nativeX - geometry.p)) {
         offscreenStale = true;
+      } else if (includeOffscreen || (textLeft < nativeX + viewportWidth && textRight > nativeX)) {
+        fragments.render(content, from, geometry.h, geometry.l);
       } else if (!offscreenFrame) {
         // Fill it once the frame showing the visible columns is produced. A
         // frame request made in an input handler runs before that frame, so
@@ -434,7 +438,8 @@ export function initializeColumnLayout() {
     if (!multi || !reading || printing.matches) return;
     geometry = native.place(reading.point, reading.layout, force, moved);
     position = toCss(reading.anchor);
-    updateSlots(false, moved !== undefined && moved.x === undefined);
+    deferFar = moved !== undefined && moved.x === undefined;
+    updateSlots();
     announceHeading();
   };
 
@@ -469,6 +474,7 @@ export function initializeColumnLayout() {
   const settleWindow = () => {
     clearTimeout(settleTimer);
     settleTimer = 0;
+    deferFar = false;
     if (measuring) return;
     syncPosition();
     if (native.deferred) present();
