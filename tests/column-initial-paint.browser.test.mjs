@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { BASE_URL, engines, launch } from "./browser.mjs";
+import { articleUrl, BASE_URL, engines, launch, waitForColumnLayout } from "./browser.mjs";
 
 // cl-pending hides the article without an inherited property (clip-path), so
 // check what it hides: computed clip-path, hit testing at the viewport centre
@@ -101,6 +101,50 @@ for (const [name, engine] of engines) {
       for (let i = 0; i < 3 && !await focusInArticle(); i++) await stalled.keyboard.press('Tab');
       assert.equal(await focusInArticle(), true);
       await stalled.close();
+    } finally { await browser.close(); }
+  });
+
+  if (name !== 'chromium') continue; // Layout Instability API
+  test('chromium: a direct n-column load stays stable when the reader starts after the first frame', { timeout: 60_000 }, async () => {
+    const browser = await launch(engine);
+    try {
+      const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+      await page.addInitScript(() => {
+        // Keep the reader fallback out of this test when a busy runner takes
+        // more than ten seconds to open the page. It is tested above.
+        const setTimeout = window.setTimeout;
+        window.setTimeout = (handler, delay, ...args) => setTimeout(handler, delay === 10000 ? 60000 : delay, ...args);
+
+        let shift = 0;
+        const record = entries => {
+          for (const entry of entries) {
+            if (!entry.hadRecentInput) shift += entry.value;
+          }
+        };
+        const observer = new PerformanceObserver(list => record(list.getEntries()));
+        observer.observe({ type: 'layout-shift', buffered: true });
+        window.readInitialLayoutShift = () => {
+          record(observer.takeRecords());
+          return shift;
+        };
+
+        // Let Chromium render a frame with the background on screen before
+        // the reader lays out and reveals the article.
+        window.addEventListener('astro:page-load', event => {
+          event.stopImmediatePropagation();
+          requestAnimationFrame(() => requestAnimationFrame(() => document.dispatchEvent(new Event('astro:page-load'))));
+        }, { capture: true, once: true });
+      });
+      await page.goto(articleUrl('symmetric-polynomial', '?columns=multi'));
+      await waitForColumnLayout(page);
+      assert.equal(await page.locator('html').evaluate(el => el.classList.contains('cl-multi')), true);
+      const shift = await page.evaluate(async () => {
+        // The layout work runs before drawing the frame, so let it paint
+        // before reading the observer.
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        return window.readInitialLayoutShift();
+      });
+      assert.ok(shift < 0.1, `layout shift on direct n-column load: ${shift}`);
     } finally { await browser.close(); }
   });
 }

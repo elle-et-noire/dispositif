@@ -38,10 +38,10 @@ const {
         if (root.dataset.pageKind === "article") root.classList.add("cl-pending");
       };
       markPending(document.documentElement);
-      // cl-pending hides the article with clip-path, which leaves it in the
-      // accessibility tree; aria-hidden keeps it out for the same span. The
-      // reader removes both in its first frame (column-layout.ts), as does the
-      // fallback below. Without JavaScript neither is set.
+      // cl-pending hides the article visually; aria-hidden keeps it out of the
+      // accessibility tree for the same span. The reader removes both in its
+      // first frame (column-layout.ts), as does the fallback below. Without
+      // JavaScript neither is set.
       const hideArticle = (doc) => {
         const scrollport = doc.querySelector(".cl-article-scrollport");
         scrollport?.setAttribute("aria-hidden", "true");
