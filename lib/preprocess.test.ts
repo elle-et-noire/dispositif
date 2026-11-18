@@ -57,14 +57,16 @@ test("掲載コードが独自記法に変換されず、後続の見出しを�
 });
 
 test("空行のない折りたたみ内でも掲載コードと旧記法の見出しを読める", () => {
-  const source = [
-    "<details><summary>{`開く`}</summary>",
-    "~~~txt",
-    "<summary>{'abc'}</summary> $x$",
-    "~~~",
-    "</details>",
-  ].join("\n");
-  const { processible, mathexprs } = preprocessMarkdown(source);
-  assert.match(processible, /<summary>開く<\/summary>\n\n~~~txt\n<summary>\{'abc'\}<\/summary> \$x\$\n~~~/);
-  assert.deepEqual(mathexprs, []);
+  for (const title of ["{`開く`}", "\n{`開く`}\n"]) {
+    const source = [
+      `<details><summary>${title}</summary>`,
+      "~~~txt",
+      "<summary>{'abc'}</summary> $x$",
+      "~~~",
+      "</details>",
+    ].join("\n");
+    const { processible, mathexprs } = preprocessMarkdown(source);
+    assert.match(processible, /<summary>\s*開く\s*<\/summary>\n\n~~~txt\n<summary>\{'abc'\}<\/summary> \$x\$\n~~~/);
+    assert.deepEqual(mathexprs, []);
+  }
 });

@@ -36,11 +36,15 @@ export function preprocessMarkdown(text: string): Preprocessed {
   let ord = 0;
 
   const evacuees: { [label: string]: string } = {};
-  // 空行のない旧記法の details も、下で空行を足した後は Markdown として読む。
-  // コードを探すときだけその開始行を空行に見せ、ソース位置と行頭の引用記号を保つ。
+  // 旧記法の details は、下で summary の後に空行を足してから Markdown として読む。
+  // コードを探すときだけ開始タグと summary を空白にし、ソース位置と引用記号を保つ。
+  // summary の終端を探す範囲はフェンスをまたがない。
   const parserInput = text.replace(
-    /^((?: {0,3}>[ \t]?)* {0,3})(<details[^>\r\n]*><summary>[^\r\n]*?<\/summary>)(?=[ \t]*\r?$)/gm,
-    (_, prefix: string, opening: string) => prefix + " ".repeat(opening.length),
+    /^((?: {0,3}>[ \t]?)* {0,3})(<details[^>\r\n]*><summary>(?:(?!<\/summary>|`{3}|~{3})[\s\S])*<\/summary>)(?=[ \t]*\r?$)/gm,
+    (_, prefix: string, opening: string) => prefix + opening.replace(
+      /^((?: {0,3}>[ \t]?)*)([^\r\n]+)/gm,
+      (line: string, quote: string) => quote + " ".repeat(line.length - quote.length),
+    ),
   );
   let protectedText = "";
   let cursor = 0;
