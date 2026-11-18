@@ -151,7 +151,8 @@ export function initializeColumnLayout() {
     const blocks = post.children;
     let next = nextHidden(blocks);
     if (next < 0) return;
-    for (let batch = Math.max(4, next); next < blocks.length; batch *= 2) {
+    // Check after a small batch before laying out more than this frame needs.
+    for (let batch = 4; next < blocks.length; batch *= 2) {
       const last = blocks[next - 1];
       if (offsetOf(last) + last.getBoundingClientRect().height >= extent) return;
       const end = Math.min(blocks.length, next + batch);
