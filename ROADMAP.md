@@ -31,7 +31,7 @@ CIで実行する検査と、各テストが確かめることは `README.md` �
 
 ## 数式の読み上げ
 
-各数式を `role="img"` とTeXのソースの `aria-label` で読ませる（PR #14）。決めた理由と採らなかった案は `docs/math-accessibility.md` にある。
+各数式を `role="img"` とTeXのソースの `aria-label` で読ませる（PR #14）。[実機での確認手順](docs/math-accessibility.md#実機での確認)にある例を使う。
 
 - [ ] NVDAまたはVoiceOverで、インライン数式とディスプレイ数式を読み上げ確認する
 - [ ] 式番号と `\eqref` の式参照が、読み上げとキーボード操作でも理解できることを確認する
@@ -45,21 +45,10 @@ CIで実行する検査と、各テストが確かめることは `README.md` �
 
 ## WebKitの検証
 
-現在のCIはChromiumとFirefoxで実行する。`main` のエンジン指定は [`tests/browser.mjs`](tests/browser.mjs) で検証し、WebKitの明示指定は [`test/webkit-browser-tests` ブランチ](https://github.com/elle-et-noire/dispositif/tree/test/webkit-browser-tests) にある。
+Ubuntu 24.04のPlaywright WebKitで、本番ビルドの一覧と記事の往復、段組みの切り替え、ハッシュ付きURLの直接読み込み、履歴と再読み込みでの読書位置の復元、閉じた節へのキーボードでの目次移動を確認した。再実行は[READMEの「WebKitでの検証」](README.md#webkitでの検証)を参照する。
 
-1. **WebKitを指定して起動する。** 検証ブランチに最新の `main` をマージする。PR #80の未知名の検査を保ち、`TEST_ENGINES=webkit` でWebKit、未指定でChromiumとFirefoxが選ばれるようにする。有効名と未知名が混在する指定でも失敗することを確認する。
-2. **本番ビルドで読書操作を確かめる。** `npx playwright-core install webkit` でブラウザーを用意する。[READMEの「テスト」](README.md#テスト)に従い、プレビューのベースパス付きURLを `TEST_BASE_URL` に設定する。一覧と記事の遷移、段組みの切り替え、ハッシュ付きの直接読み込み、履歴の位置復元、閉じた節への目次移動を確かめる。出力にWebKitの実行結果があることを確認する。
-
-   ```sh
-   TEST_ENGINES=webkit node --test --test-name-pattern='^webkit:' \
-     tests/column-ordinary-navigation.browser.test.mjs \
-     tests/column-url.browser.test.mjs tests/toc.browser.test.mjs
-   ```
-
-3. **失敗した操作を再現する。** CDPに依存する検査はChromiumで実行する。段の高さの反映やネイティブスクロールを待つ必要がある場合は、位置や表示が落ち着いたことを確認してから判定する。スクロールバーの矢印では、移動量の固定値の代わりに、意図した方向へ進み本文を読めることを確かめる。閲覧者に見える不具合には、記事・操作・期待した動作・実際の動作を添える。
-4. **Safariで既知のスクロール差を確かめる。** n段で左の余白から右へ、または上の余白から下へ戻るとき、LinuxのPlaywright WebKitではホイール操作の移動が短くなる。再現手順と原因は[段組みの実装](docs/column-layout.md#スクロールと段の描画)にある。macOSのSafariでも同じ操作を試し、ブラウザーと入力機器を記録する。PlaywrightとSafariの結果は実行環境を明記する。[PlaywrightのWebKitについて](https://playwright.dev/docs/browsers#webkit)
-
-主要な読書操作をWebKitで繰り返し検証でき、残る失敗の再現条件と対応方針をPRまたは課題に示せれば完了とする。CIへの追加は、その結果を見て判断する。
+- [ ] macOSのSafariで、n段の左の余白から右へ、上の余白から下へ戻る操作を確認する。[段組みの実装](docs/column-layout.md#スクロールと段の描画)の手順で、macOSとSafariのバージョン、入力機器、本文が入力に追従したかを記録する。Playwright WebKitとSafariの実行環境の違いは[PlaywrightのWebKitの説明](https://playwright.dev/docs/browsers#webkit)を参照する。
+- [ ] Safariでの結果を記録し、スクロール差への対応とCIへのWebKit追加を判断する。
 
 ---
 

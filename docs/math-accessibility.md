@@ -10,6 +10,31 @@ CHTMLの字形の箱（`mjx-c`）には𝑎や+などの文字が入っている
 - `\eqref` を含む数式は中にリンクがある。`img` にするとリンクが支援技術から消えるのにTabでは止まるので、手を加えない。
 - 幅からはみ出したディスプレイ数式は、包み（`span.scrollable`）に `tabindex="0"`、`role="group"`、`aria-label` を付け、名前を持つTabの停止位置にする（`src/components/ArticleInteractions.astro`）。ChromiumとFirefoxは、はみ出したスクロール要素にtabindexがなくてもTabで止まるが、名前もロールもないので、Chromiumでは何も読まれない停止位置になる。Safariはスクロール要素にTabで止まらないので、キーボードで横へ送れない。はみ出さない数式では止まらないよう、包みと数式の幅が変わるたびに付け外しする。
 
+## 実機での確認
+
+次の内容を確認用の記事 `post/math-speech-check.md` に入れ、本番ビルドのプレビューで `/dispositif/math-speech-check/` を開く。
+
+```markdown
+---
+title: 数式の読み上げ確認
+publish: 2026-11-18
+---
+
+## 数式
+
+文中の数式は $x^2$ で、次が番号付きのディスプレイ数式です。
+
+\begin{equation}
+x^2 + y^2 = z^2\label{eq:speech}
+\end{equation}
+
+式 $\eqref{eq:speech}$ を参照します。
+```
+
+1段とn段で、NVDAまたはVoiceOverで本文を順に読み、文中の数式、ディスプレイ数式、式番号と参照リンクの読み上げを記録する。Tabで参照リンクに移動してEnterで式を表示し、数式の表示とコピーも確認する。終わったらローカルの確認用記事を取り除く。
+
+この例では、LinuxのPlaywright ChromiumとWebKitで、両方の段組みに数式と参照リンクのアクセシブルな名前があり、Tabで参照リンクに移動してEnterで式を表示できることを確認した。実際の読み上げは[ロードマップ](../ROADMAP.md#数式の読み上げ)の確認項目にある。
+
 ## 採らなかった案
 
 計測値と手順は、コミット `ea88223` の版のこの文書にある。
