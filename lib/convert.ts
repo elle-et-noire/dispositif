@@ -17,23 +17,27 @@ import { mathFontFaces, type MathFont } from "./math-fonts";
 import { withBase } from "./base";
 import { rehypeToc, type Heading } from "./toc";
 
-// 本文リンクの安全化。
-// 外部リンク（/ や # で始まらない）は新規タブで開き rel を付ける。
-// 空 href はサイトのベースURLへ向ける。
+// 記事の相対リンクはどのページで解決しても公開サイトと同じオリジンになる。
+// Astro のサイト設定はビルド全体で共通なので、変換結果を本文だけで共有できる。
 function rehypeSafeLinks() {
+  const site = new URL(import.meta.env.SITE);
   return (tree: Root) => {
     visit(tree, "element", (node: Element) => {
       if (node.tagName !== "a") return;
-      let href = node.properties?.href;
+      const { href, target, rel } = node.properties;
       if (typeof href !== "string") return;
       if (href === "") {
-        href = withBase();
-        node.properties.href = href;
+        node.properties.href = withBase();
+        return;
       }
-      if (!href.startsWith("/") && !href.startsWith("#")) {
-        node.properties.target = "_blank";
-        node.properties.rel = ["noopener", "noreferrer"];
-      }
+      if (target !== undefined) return;
+
+      const url = URL.parse(href, site);
+      if (url && (url.protocol === "http:" || url.protocol === "https:") && url.origin === site.origin) return;
+
+      // mailto: なども従来どおり新規タブの属性を付ける。
+      node.properties.target = "_blank";
+      node.properties.rel = [...new Set([...(rel ?? []), "noopener", "noreferrer"])];
     });
   };
 }
@@ -127,7 +131,7 @@ export type Converted = {
 };
 
 // 記事ページと、全ページに入る記事一覧（各記事の数式フォント）の両方が同じ記事を変換する。
-// 結果は本文だけで決まるので、同じ本文の変換を 1 回にまとめる。
+// 同じサイト設定の下では、同じ本文の変換を 1 回にまとめる。
 const converted = new Map<string, Promise<Converted>>();
 
 export const markdownToHtml = (text: string): Promise<Converted> => {
