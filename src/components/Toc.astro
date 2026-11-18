@@ -66,6 +66,8 @@ const { headings, variant = "header" } = Astro.props;
 }
 
 <script>
+  import { revealDetails } from "../scripts/reveal-details";
+
   const TOC_SCROLL_DURATION = 180;
 
   // 最初に最も速く、目的地に近づくにつれて減速する。
@@ -379,6 +381,7 @@ const { headings, variant = "header" } = Astro.props;
           // The n段 layout handles the native plane during capture. Its header
           // stays visible; only single-column reading uses a disclosure.
           if (document.documentElement.classList.contains("cl-multi")) return;
+          revealDetails(heading, articleScrollport);
           await scrollToHeading(heading);
           history.replaceState(history.state, "", `#${encodeURIComponent(id)}`);
           activate(id);
