@@ -1,3 +1,4 @@
+import { revealDetails } from "./reveal-details";
 import { devicePixels, type ColumnGeometry } from "./column-geometry";
 import type { ColumnMetrics, ReadingPoint } from "./column-coordinates";
 import { createLayout, fromCss, toCss, ticks, zero, paperWindow, slotColumns, visibleColumnCount,
@@ -575,11 +576,7 @@ export function initializeColumnLayout() {
   const navigate = (target: HTMLElement) => {
     if (!multi || !geometry) return;
     syncPosition();
-    let parent = target.parentElement;
-    while (parent && parent !== source) {
-      if (parent instanceof HTMLDetailsElement && parent.querySelector(":scope > summary") !== target) parent.open = true;
-      parent = parent.parentElement;
-    }
+    revealDetails(target, source);
     syncDetails();
     // Flush measurement so freshly opened details and loaded images are included.
     cancelAnimationFrame(measuring);
