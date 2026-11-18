@@ -234,10 +234,8 @@
 
   /* The same grid and flex item as in 1段, without the space around the
      text: Firefox took several times longer to lay the text out again when
-     the grid's tracks or the item's flex changed. The reader's height takes
-     the header's height from the article (column-layout.ts measure). */
+     the grid's tracks or the item's flex changed. */
   :is(.cl-multi, .cl-premount) .cl-layout {
-    --cl-header-height: inherit;
     margin: 0;
   }
 
@@ -279,9 +277,10 @@
      viewport does not scroll. In n段
      the reader stays in the grid's second row and first column, and its
      margins and height take it over the toolbar's row and the sidebar's
-     column, which are empty in n段. */
+     column, which are empty in n段. The reader's own --cl-header-height
+     (column-layout.ts measure): WebKit did not update its height when the
+     value came by inherit from the article. */
   :is(.cl-multi, .cl-premount) .cl-reader {
-    --cl-header-height: inherit;
     position: relative;
     min-height: 0;
     height: calc(100dvh - var(--cl-header-height, 3rem) - 2 * var(--cl-reader-space));

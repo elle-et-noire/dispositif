@@ -49,6 +49,7 @@ export function initializeColumnLayout() {
   const source = document.querySelector<HTMLElement>(".cl-source");
   const articleScrollport = document.querySelector<HTMLElement>(".cl-article-scrollport");
   const viewport = document.querySelector<HTMLElement>(".cl-viewport");
+  const reader = viewport?.parentElement;
   const plane = document.querySelector<HTMLElement>(".cl-plane");
   const copies = plane?.querySelector<HTMLElement>(":scope > .cl-copies");
   const ruler = document.querySelector<HTMLElement>(".cl-ruler");
@@ -61,7 +62,7 @@ export function initializeColumnLayout() {
   // The original's column, around the text in both column layouts (ColumnLayout.astro).
   const originalSlot = source?.parentElement;
   const originalTrack = originalSlot?.parentElement;
-  if (!source || !articleScrollport || !viewport || !plane || !copies || !ruler || !toggle
+  if (!source || !articleScrollport || !viewport || !reader || !plane || !copies || !ruler || !toggle
     || !originalSlot?.matches(".cl-original-slot") || !originalTrack) return;
 
   // Astro preserves state properties on history traversal. Give each article
@@ -504,7 +505,9 @@ export function initializeColumnLayout() {
     const oldEnd = reading && endPoint(reading.layout);
     const wasEnd = oldPoint && oldEnd && oldPoint.x === oldEnd.x && oldPoint.y === oldEnd.y;
     const wasHome = oldPoint?.x === 0 && oldPoint?.y === 0;
-    article.style.setProperty("--cl-header-height", `${header?.getBoundingClientRect().height ?? 0}px`);
+    // On the reader too (column-layout.css).
+    const headerHeight = `${header?.getBoundingClientRect().height ?? 0}px`;
+    for (const element of [article, reader]) element.style.setProperty("--cl-header-height", headerHeight);
     const gap = Math.max(0, parseFloat(getComputedStyle(ruler).marginRight) || 0);
     const edge = Math.max(0, parseFloat(getComputedStyle(ruler).paddingRight) || 0);
     // DPR alone is insufficient: browser zoom and device emulation can round
@@ -1079,7 +1082,7 @@ export function initializeColumnLayout() {
     [initialFrame, measuring, scrolling, offscreenFrame, textFrame].forEach(cancelAnimationFrame);
     clearTimeout(settleTimer);
     root.classList.remove("cl-multi", "cl-ready");
-    article.style.removeProperty("--cl-header-height");
+    for (const element of [article, reader]) element.style.removeProperty("--cl-header-height");
     if (toolbar) toolbarParent?.insertBefore(toolbar, toolbarNextSibling);
     unmountOriginal();
     clearPlane();
