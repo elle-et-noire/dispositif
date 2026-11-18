@@ -7,8 +7,10 @@ import { join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import rehypeRaw from "rehype-raw";
+import rehypeSlug from "rehype-slug";
 import { visit } from "unist-util-visit";
 import config from "../astro.config.mjs";
+import { rehypeToc } from "../lib/toc.ts";
 
 const dist = fileURLToPath(new URL("../dist/", import.meta.url));
 const base = `${config.base.replace(/\/$/, "")}/`;
@@ -39,8 +41,16 @@ function readPage(file) {
   const names = new Set();
   const urls = [];
   const idrefs = [];
+  const headingIds = new Set();
+  const tocLinks = [];
   visit(parse(readFileSync(file, "utf8")), "element", (node) => {
     const { properties } = node;
+    if (properties.className?.includes("cl-source")) {
+      visit(node, "element", (heading) => {
+        if (["h2", "h3"].includes(heading.tagName) && heading.properties.id) headingIds.add(heading.properties.id);
+      });
+    }
+    if (node.tagName === "a" && properties.className?.includes("toc-link")) tocLinks.push(properties.href);
     if (typeof properties.id === "string") ids.set(properties.id, (ids.get(properties.id) ?? 0) + 1);
     if (node.tagName === "a" && typeof properties.name === "string") names.add(properties.name);
     for (const property of urlProperties) {
@@ -58,7 +68,7 @@ function readPage(file) {
     ].join("\n");
     for (const [, , url] of css.matchAll(cssUrl)) urls.push({ url, where: `<${node.tagName}> url()` });
   });
-  return { path, url, ids, names, urls, idrefs };
+  return { path, url, ids, names, urls, idrefs, headingIds, tocLinks };
 }
 
 const pages = new Map(htmlFiles(dist).map((file) => readPage(file)).map((page) => [page.url.pathname, page]));
@@ -107,6 +117,13 @@ function problems(page) {
     if (problem) found.push(`${where} ${value}: ${problem}`);
     else if (url.hash && linked && !hasFragment(linked, url.hash)) found.push(`${where} ${value}: ${linked.path} に id がない`);
   }
+  for (const href of page.tocLinks) {
+    let id;
+    try {
+      if (href?.startsWith("#")) id = decodeURIComponent(href.slice(1));
+    } catch {}
+    if (!page.headingIds.has(id)) found.push(`目次の ${href}: この記事の見出しを指していない`);
+  }
   for (const { id, where } of page.idrefs) {
     if (!page.ids.has(id)) found.push(`${where} ${id}: このページに id がない`);
   }
@@ -125,3 +142,22 @@ for (const page of pages.values()) {
     assert.deepEqual(problems(page), []);
   });
 }
+
+test("数式だけの見出しも、本文の既存IDと重ならず目次から区別できる", () => {
+  const tree = parse(`<h2><span data-im="0"></span></h2>
+    <h2><span data-im="1"></span></h2>
+    <h2>Section</h2><h2>Section</h2>
+    <div id="section-2"></div><h2 id="explicit">Explicit</h2>`);
+  rehypeSlug()(tree);
+  const headings = [];
+  rehypeToc({ headings, mathHtml: ["x", "y"] })()(tree);
+
+  const ids = [];
+  visit(tree, "element", (node) => {
+    if (["h2", "div"].includes(node.tagName)) ids.push(node.properties.id);
+  });
+  assert.ok(ids.every(Boolean));
+  assert.equal(new Set(ids).size, ids.length);
+  assert.deepEqual(headings.map(({ id }) => id), [...ids.slice(0, 4), ids[5]]);
+  assert.deepEqual(ids.slice(2), ["section", "section-1", "section-2", "explicit"]);
+});

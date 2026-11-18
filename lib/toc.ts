@@ -1,4 +1,5 @@
 import type { Element, ElementContent, Root } from "hast";
+import { visit } from "unist-util-visit";
 
 export type Heading = {
   level: 2 | 3;
@@ -23,23 +24,39 @@ export type Heading = {
 // 指すので残し、段組みも同じ見出しを除く（column-layout.ts の TOC_HEADINGS）。
 export function rehypeToc({ headings, mathHtml }: { headings: Heading[]; mathHtml: string[] }) {
   return () => (tree: Root) => {
-    const visit = (node: Root | Element, quoted: boolean) => {
+    // 後に現れる見出しや、見出し以外の明示IDも割り当て済みとして扱う。
+    const usedIds = new Set<string>();
+    visit(tree, "element", (node) => {
+      if (typeof node.properties.id === "string") usedIds.add(node.properties.id);
+    });
+    let section = 0;
+
+    const collect = (node: Root | Element, quoted: boolean) => {
       for (const child of node.children) {
         if (child.type !== "element") continue;
         if (child.properties.dataFootnotes !== undefined) continue;
         if (quoted && /^h[1-6]$/.test(child.tagName)) {
           delete child.properties.id;
         } else if ((child.tagName === "h2" || child.tagName === "h3") && typeof child.properties.id === "string") {
+          if (child.properties.id === "") {
+            let id: string;
+            do {
+              id = section === 0 ? "section" : `section-${section}`;
+              section++;
+            } while (usedIds.has(id));
+            usedIds.add(id);
+            child.properties.id = id;
+          }
           headings.push({
             level: child.tagName === "h2" ? 2 : 3,
             id: child.properties.id,
             html: tocHtml(child.children, mathHtml),
           });
         }
-        visit(child, quoted || child.tagName === "blockquote");
+        collect(child, quoted || child.tagName === "blockquote");
       }
     };
-    visit(tree, false);
+    collect(tree, false);
   };
 }
 
