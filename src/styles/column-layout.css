@@ -100,12 +100,15 @@
 }
 
 @media screen {
-  /* Avoid painting the single-column source before the initial column layout is known. */
-  /* clip-path is not inherited: visibility (or anything inherited) would
-     restyle every element of the article when cl-pending is removed. It
-     also clips the n段 article inside. Layout.astro hides the
-     scrollport from assistive technology for the same span (aria-hidden). */
-  html.cl-pending .cl-article-scrollport { clip-path: inset(50%); }
+  /* Keep the article hidden until its initial layout is ready. Chromium can
+     count movements inside a clip-path toward CLS. Opacity keeps that hidden
+     layout out of the score, and clip-path keeps it out of pointer hit testing.
+     Both are non-inherited, so revealing the article does not restyle the
+     whole text. Layout.astro sets aria-hidden for the same span. */
+  html.cl-pending .cl-article-scrollport {
+    opacity: 0;
+    clip-path: inset(50%);
+  }
   html[data-page-kind="article"],
   html[data-page-kind="article"] body { overflow: hidden; }
 

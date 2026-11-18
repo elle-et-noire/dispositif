@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { BASE_URL, engines, launch } from "./browser.mjs";
+import { articleUrl, BASE_URL, engines, launch, waitForColumnLayout } from "./browser.mjs";
 
 // cl-pending hides the article without an inherited property (clip-path), so
 // check what it hides: computed clip-path, hit testing at the viewport centre
@@ -101,6 +101,51 @@ for (const [name, engine] of engines) {
       for (let i = 0; i < 3 && !await focusInArticle(); i++) await stalled.keyboard.press('Tab');
       assert.equal(await focusInArticle(), true);
       await stalled.close();
+    } finally { await browser.close(); }
+  });
+
+  if (name !== 'chromium') continue; // Layout Instability API
+  test('chromium: a direct n-column load stays stable when the reader loads after the first paint', { timeout: 60_000 }, async () => {
+    const browser = await launch(engine);
+    try {
+      const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+      await page.addInitScript(() => {
+        let shift = 0;
+        const record = entries => {
+          for (const entry of entries) {
+            if (!entry.hadRecentInput) shift += entry.value;
+          }
+        };
+        const observer = new PerformanceObserver(list => record(list.getEntries()));
+        observer.observe({ type: 'layout-shift', buffered: true });
+        window.readInitialLayoutShift = () => {
+          record(observer.takeRecords());
+          return shift;
+        };
+      });
+      // Give Chromium a frame with the background already on screen before
+      // the reader can lay out and reveal the article.
+      const reader = Promise.withResolvers();
+      await page.route(/\/ColumnLayout\.[^/]+\.js$/, async route => {
+        await reader.promise;
+        await route.continue();
+      });
+      try {
+        await page.goto(articleUrl('symmetric-polynomial', '?columns=multi'), { waitUntil: 'commit' });
+        await page.waitForFunction(() => performance.getEntriesByName('first-contentful-paint').length > 0
+          && document.documentElement.classList.contains('cl-pending'));
+      } finally {
+        reader.resolve();
+      }
+      await waitForColumnLayout(page);
+      assert.equal(await page.locator('html').evaluate(el => el.classList.contains('cl-multi')), true);
+      const shift = await page.evaluate(async () => {
+        // The layout work runs before drawing the frame, so let it paint
+        // before reading the observer.
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        return window.readInitialLayoutShift();
+      });
+      assert.ok(shift < 0.1, `layout shift on direct n-column load: ${shift}`);
     } finally { await browser.close(); }
   });
 }
