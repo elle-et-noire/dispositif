@@ -67,7 +67,10 @@ $x$
 | --- | --- | --- |
 | 一覧のビルド | 各ページの `ArticleIndex.astro` が `getAllPosts()` で全ファイルを再読・再解析し、全記事のフォントを求める。本文変換Promiseは再利用されるが、`articleMathFonts` のHTML/CSS走査はその外側。記事数Nに対してページ数もNなら読み出し・抽出の組み合わせは二次的に増える。ビルド時間が課題になったとき最初に測る。 | ビルド単位で一覧用メタデータとフォントを共有する。devで記事を変更・追加・削除して一覧と先読みが即時に追従し、変換失敗から再試行できること。共有するMathJaxの組版とCSS抽出は一組で直列化を保つ。[一覧](../src/components/ArticleIndex.astro)・[取得](../lib/post.ts)・[フォント抽出](../lib/math-fonts.ts) |
 | 段組み制御の再編 | 初回描画、印刷、履歴移動、ページ破棄のすべてが `initializeColumnLayout` の状態を読み書きする。自分なら次に履歴の仕様を変える際、まず保存先との読み書き・更新キー管理だけを既存の `reading-history.ts` の純粋な規則の隣に切り出す。DOM計測と描画の順序は呼び出し元で読めるようにする。 | 未保存の位置、別文書から戻った際の新しい保存値、初回復元前に離脱した場合を既存テストで確認する。初期化のタイミングまで変える案は直接読み込み・一覧からの遷移・印刷・初回描画を比較して判断する。[履歴の規則](../src/scripts/reading-history.ts)・[初回描画の計測](article-open.md) |
-| 配布する成果物 | workflowのbrowserジョブで検査した `dist/` はそこで終わり、buildジョブで配布用に再ビルドする。現在の配布物に差異があるという証拠はない。自分なら次のCI変更時に、検査済み成果物をそのまま配布する。 | 本番対象の実行でだけ検査後の `dist/` をPages用artifactとして渡す。deployは型・単体・ブラウザー検査の成功を待つ。PRでは公開せず、手動実行とmain pushの既存条件を維持する。[配布workflow](../.github/workflows/deploy.yml) |
+
+## GitHub Pagesの配布
+
+browserジョブで一度ビルドし、リンク検査とブラウザー検査を通過した同じ `dist/` を配布に使う。`main` へのpushと手動実行ではbrowserジョブが成果物を渡し、deployジョブは型・単体テストとbrowserジョブの成功を待って公開する。PRでは型・単体・リンク・ブラウザー検査を実行する。[配布workflow](../.github/workflows/deploy.yml)
 
 ## 後続セッションの検証と引き渡し
 
