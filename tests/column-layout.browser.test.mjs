@@ -32,7 +32,13 @@ async function layout(page) {
       left: rect.left,
       width: viewport.clientWidth,
       slots: [...document.querySelectorAll(".cl-slot")].map((slot) => {
-        const frame = slot.getBoundingClientRect();
+        // A copy's column is a sticky window over the viewport. The
+        // original's column scrolls with the plane, and its window is the
+        // viewport over its horizontal extent (column-layout.css).
+        const box = slot.getBoundingClientRect();
+        const frame = slot.querySelector(".cl-source")
+          ? { left: box.left, right: box.right, width: box.width, top: rect.top, bottom: rect.top + viewport.clientHeight, height: viewport.clientHeight }
+          : box;
         const style = getComputedStyle(slot.querySelector(".cl-content"));
         const textLeft = frame.left + parseFloat(style.paddingLeft);
         const textRight = frame.right - parseFloat(style.paddingRight);

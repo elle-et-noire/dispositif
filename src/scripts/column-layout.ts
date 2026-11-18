@@ -49,6 +49,7 @@ export function initializeColumnLayout() {
   const source = document.querySelector<HTMLElement>(".cl-source");
   const articleScrollport = document.querySelector<HTMLElement>(".cl-article-scrollport");
   const viewport = document.querySelector<HTMLElement>(".cl-viewport");
+  const reader = viewport?.parentElement;
   const plane = document.querySelector<HTMLElement>(".cl-plane");
   const copies = plane?.querySelector<HTMLElement>(":scope > .cl-copies");
   const ruler = document.querySelector<HTMLElement>(".cl-ruler");
@@ -61,7 +62,7 @@ export function initializeColumnLayout() {
   // The original's column, around the text in both column layouts (ColumnLayout.astro).
   const originalSlot = source?.parentElement;
   const originalTrack = originalSlot?.parentElement;
-  if (!source || !articleScrollport || !viewport || !plane || !copies || !ruler || !toggle
+  if (!source || !articleScrollport || !viewport || !reader || !plane || !copies || !ruler || !toggle
     || !originalSlot?.matches(".cl-original-slot") || !originalTrack) return;
 
   // Astro preserves state properties on history traversal. Give each article
@@ -117,7 +118,7 @@ export function initializeColumnLayout() {
   const native = new ColumnViewport(viewport, plane);
   let rangeStart = NaN;
   const placements = new WeakMap<HTMLElement, {
-    left: number; translate: string; paperTranslate: string; clip: string; length: number;
+    x: number; translate: string; paperTranslate: string; clip: string; length: number;
   }>();
   let dirty = true;
   let activeHeading = "";
@@ -368,7 +369,6 @@ export function initializeColumnLayout() {
       const left = geometry.leading + geometry.edge + (k - geometry.originColumn) * geometry.p;
       const top = -(k * geometry.h + geometry.originY);
       const previous = placements.get(slot);
-      if (previous?.left !== left) track.style.left = `${left}px`;
       // Translate the text in both axes. Moving its layout left offset would
       // lay out the entire MathJax tree again when recycling a column.
       // Whole device pixels only: when a column is recycled, Chromium moves
@@ -377,7 +377,11 @@ export function initializeColumnLayout() {
       // text resampled and blurred until something repaints it. Compared
       // after rounding, so a zoom change re-rounds an unmoved column.
       const x = devicePixels(left, pixel), y = devicePixels(top, pixel);
-      const translate = `${x}px ${y}px`;
+      // The column is at the same whole device pixel. The original text is in
+      // normal flow in its column, which takes it across the plane
+      // (column-layout.css); the copies are fixed to the plane.
+      if (previous?.x !== x) track.style.left = `${x}px`;
+      const translate = content === source ? `0px ${y}px` : `${x}px ${y}px`;
       // The paper and the clip span the whole article in plane coordinates,
       // like the text, so native scrolling moves their edges with the text.
       // Fitting them to the current window would need JS on every scroll
@@ -398,7 +402,7 @@ export function initializeColumnLayout() {
       if (previous?.paperTranslate !== paperTranslate) paper.style.translate = paperTranslate;
       if (previous?.clip !== clip) track.style.clipPath = clip;
       if (previous?.length !== geometry.l) paper.style.height = `${geometry.l}px`;
-      placements.set(slot, { left, translate, paperTranslate, clip, length: geometry.l });
+      placements.set(slot, { x, translate, paperTranslate, clip, length: geometry.l });
       // Slots outside the article have no visible paper. Keep their existing
       // fragments until they become visible instead of cloning/removing blocks
       // that would immediately be clipped away.
@@ -501,7 +505,9 @@ export function initializeColumnLayout() {
     const oldEnd = reading && endPoint(reading.layout);
     const wasEnd = oldPoint && oldEnd && oldPoint.x === oldEnd.x && oldPoint.y === oldEnd.y;
     const wasHome = oldPoint?.x === 0 && oldPoint?.y === 0;
-    article.style.setProperty("--cl-header-height", `${header?.getBoundingClientRect().height ?? 0}px`);
+    // On the reader too (column-layout.css).
+    const headerHeight = `${header?.getBoundingClientRect().height ?? 0}px`;
+    for (const element of [article, reader]) element.style.setProperty("--cl-header-height", headerHeight);
     const gap = Math.max(0, parseFloat(getComputedStyle(ruler).marginRight) || 0);
     const edge = Math.max(0, parseFloat(getComputedStyle(ruler).paddingRight) || 0);
     // DPR alone is insufficient: browser zoom and device emulation can round
@@ -617,6 +623,10 @@ export function initializeColumnLayout() {
     // A pre-mounted original has no single-column position; it starts at the top.
     if (next) position = anchor ?? (premounted ? 0 : Math.max(0, readingInset - source.getBoundingClientRect().top));
     const contentAnchor = !suspendedForPrint && anchor === undefined && position > 0 ? captureAnchor(position) : undefined;
+    // The column width first: moving the toolbar below makes Chromium lay
+    // the article out, which would otherwise be at the width of the n段
+    // reader, and measure() then again at the column's.
+    if (next && !slots.length) { premounted = false; mountOriginal(); }
     multi = next;
     root.classList.toggle("cl-multi", multi);
     // The pre-mounted layout (Layout.astro) is now the reader's own.
@@ -753,6 +763,10 @@ export function initializeColumnLayout() {
   }, { passive: true, signal });
   viewport.addEventListener("scrollend", settleWindow, { passive: true, signal });
   articleScrollport.addEventListener("scroll", () => {
+    // In n段 the article is in normal flow in this scrollport, which does not
+    // scroll. Under CSS zoom 100dvh is taller than the scrollport, and
+    // operating the reader scrolled it, moving the article up.
+    if (multi && articleScrollport.scrollTop) { articleScrollport.scrollTop = 0; return; }
     if (!multi && fragmentScrolled(articleScrollport) && articleScrollport.scrollTop !== fragmentTop) {
       articleScrollport.scrollTop = fragmentTop;
       return;
@@ -1068,7 +1082,7 @@ export function initializeColumnLayout() {
     [initialFrame, measuring, scrolling, offscreenFrame, textFrame].forEach(cancelAnimationFrame);
     clearTimeout(settleTimer);
     root.classList.remove("cl-multi", "cl-ready");
-    article.style.removeProperty("--cl-header-height");
+    for (const element of [article, reader]) element.style.removeProperty("--cl-header-height");
     if (toolbar) toolbarParent?.insertBefore(toolbar, toolbarNextSibling);
     unmountOriginal();
     clearPlane();

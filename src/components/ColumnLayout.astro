@@ -4,8 +4,9 @@
 // styles around it but never moves it: a moved element loses its styles and
 // boxes, and laying the whole article out from scratch was most of the
 // switch's time (docs/column-layout.md, "操作への応答"). In 1段 the wrappers
-// are plain blocks in the article; the reader adds cl-track and cl-slot to
-// them in n段, and Layout.astro does when it opens an article in n段.
+// are blocks around the text that do not move it (column-layout.css); the
+// reader adds cl-track and cl-slot to them in n段, and Layout.astro does when
+// it opens an article in n段.
 //
 // The original's column (.cl-original) is the plane's first child, and the
 // copies' columns go at the end of .cl-copies, which has no box. Adding a copy

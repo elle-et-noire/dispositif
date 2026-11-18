@@ -129,7 +129,13 @@ test("先頭と末尾だけ丸角にし、紙面操作・文字選択・段組�
     // article's ends (head, tail) show its rounded corners.
     const corners = () => page.evaluate(() => [...document.querySelectorAll(".cl-slot")].map((slot) => {
       const paper = slot.querySelector(".cl-paper"), s = getComputedStyle(paper);
-      const window = slot.getBoundingClientRect(), r = paper.getBoundingClientRect();
+      // The original's column scrolls with the plane; its window is the
+      // viewport (column-layout.css). A copy's column is a sticky window.
+      const viewport = document.querySelector(".cl-viewport");
+      const window = slot.querySelector(".cl-source")
+        ? { top: viewport.getBoundingClientRect().top, bottom: viewport.getBoundingClientRect().top + viewport.clientHeight }
+        : slot.getBoundingClientRect();
+      const r = paper.getBoundingClientRect();
       return { shown: Math.min(r.bottom, window.bottom) - Math.max(r.top, window.top) > 1,
         head: r.top > window.top - 0.5, tail: r.bottom < window.bottom + 0.5,
         corners: [s.borderTopLeftRadius, s.borderTopRightRadius, s.borderBottomRightRadius, s.borderBottomLeftRadius] };
