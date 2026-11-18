@@ -64,7 +64,7 @@ async function animationDone(page) {
   await settle(page);
 }
 
-test("左右キーは途中の位置を通り、連打を合成し、逆入力・ホイール・タッチで中断できる", { timeout: 45_000 }, async () => {
+test("左右キーは途中の位置を通り、連打を合成し、逆入力・ホイール・タッチで中断でき、中断したタップでは一覧へ戻らない", { timeout: 45_000 }, async () => {
   const browser = await launch(chromium);
   const page = await browser.newPage({ viewport: { width: 1600, height: 900 }, hasTouch: true });
   try {
@@ -123,17 +123,22 @@ test("左右キーは途中の位置を通り、連打を合成し、逆入力�
     await page.waitForTimeout(220);
     assert.ok(Math.abs((await state(page)).x - cancelled.x) < 2, "ホイール後にキー移動が再開した");
 
+    // Put the article's beginning at the bottom of the left column, so the
+    // tap lands outside the paper, where a tap with nothing moving opens the
+    // list (article-background.ts), until the next column moves under it most
+    // of the way through the motion. The tap stops the motion and only that.
+    await page.keyboard.press("Home");
+    await setY(page, 100);
     await page.keyboard.press("ArrowLeft");
+    await animationDone(page);
+    await page.evaluate(() => document.addEventListener("astro:before-preparation", () => { window.leftArticle = true; }));
+    await page.keyboard.press("ArrowRight");
     await page.waitForTimeout(40);
-    // The touch lands wherever the moving text is when the page receives it,
-    // which under load can be the gap between two columns. A tap there opens
-    // the list (article-background.ts). The press alone interrupts the motion
-    // (column-layout.ts cancels it on touchstart and pointerdown), so end the
-    // touch with a cancel, which fires no click.
     const session = await page.context().newCDPSession(page);
-    await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: box.x + 100, y: box.y + 100 }] });
-    await session.send("Input.dispatchTouchEvent", { type: "touchCancel", touchPoints: [] });
+    await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: box.x + 20, y: box.y + 100 }] });
+    await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
     await settle(page);
+    assert.ok(!await page.evaluate(() => window.leftArticle), "段送りを止めたタップで一覧へ戻った");
     const touched = await state(page);
     assert.equal(touched.animating, false);
     await page.waitForTimeout(220);
