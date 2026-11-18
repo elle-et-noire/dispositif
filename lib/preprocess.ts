@@ -5,6 +5,20 @@
 // を行う。数式まわりは「$ の開閉判定」「日本語句読点に応じたスペーシング」を担う
 // 状態機械で、この一連の replace チェーンは順序に意味がある（丸ごと 1 つの処理単位）。
 
+import remarkGfm from "remark-gfm";
+import remarkParse from "remark-parse";
+import { unified } from "unified";
+import { visit } from "unist-util-visit";
+
+const markdownParser = unified().use(remarkParse).use(remarkGfm);
+
+function fenceInfo(source: string): string {
+  return source.replace(/^(`{3,}|~{3,})([^`\r\n]+)/, (_, fence: string, info: string) => {
+    const [language, file] = info.split(":");
+    return fence + language.replace(/diff\s/, "diff-") + (file === undefined ? "" : `[data-file='${file}']`);
+  });
+}
+
 export type Preprocessed = {
   // プレースホルダ（<span data-im/dm>）と展開済み HTML を含む、パイプラインに渡す本文。
   processible: string;
@@ -22,17 +36,27 @@ export function preprocessMarkdown(text: string): Preprocessed {
   let ord = 0;
 
   const evacuees: { [label: string]: string } = {};
-  // MDX 版では summary 内の文字列を JSX 式で書いていた。通常の Markdown として
-  // パースする前に summary の中だけプレーンな文字列へ戻す。
-  const normalizedText = text.replace(
-    /<summary>([\s\S]*?)<\/summary>/g,
-    (_, summary: string) =>
-      `<summary>${summary.replace(
-        /\{`([^`]*)`\}|\{'([^']*)'\}|\{"([^"]*)"\}/g,
-        (__, a: string | undefined, b: string | undefined, c: string | undefined) =>
-          a ?? b ?? c ?? "",
-      )}</summary>`,
+  // 空行のない旧記法の details も、下で空行を足した後は Markdown として読む。
+  // コードを探すときだけその開始行を空行に見せ、ソース位置と行頭の引用記号を保つ。
+  const parserInput = text.replace(
+    /^((?: {0,3}>[ \t]?)* {0,3})(<details[^>\r\n]*><summary>[^\r\n]*?<\/summary>)(?=[ \t]*\r?$)/gm,
+    (_, prefix: string, opening: string) => prefix + " ".repeat(opening.length),
   );
+  let protectedText = "";
+  let cursor = 0;
+  visit(markdownParser.parse(parserInput), ["code", "inlineCode"], (node) => {
+    const start = node.position?.start.offset;
+    const end = node.position?.end.offset;
+    if (start === undefined || end === undefined) return;
+    const block = node.type === "code";
+    const label = (block ? "blockcode" : "inlinecode") + ord++;
+    const source = text.slice(start, end);
+    evacuees[label] = node.type === "code" && node.lang ? fenceInfo(source) : source;
+    protectedText += text.slice(cursor, start) + `<${label}/>`;
+    cursor = end;
+  });
+  protectedText += text.slice(cursor);
+
   // offset は $ 基準
   const opener = (string: string, offset: number) => rsmashers.includes(string.substring(offset - 1, offset)) ? "\\(" : "\\(" + spacer;
   const closer = (string: string, offset: number) => lsmashers.includes(string.substring(offset + 1, offset + 2)) ? "\\)" : spacer + "\\)";
@@ -67,10 +91,7 @@ export function preprocessMarkdown(text: string): Preprocessed {
     return (nextop ? opener(string, offset) : closer(string, offset));
   }
 
-  const processible = normalizedText.replace(/````[\s\S]*?````|```[\s\S]*?```|``[\s\S]*?``|`[\s\S]*?`/g, (match: string) => { // pre > code
-    evacuees["quote" + ord] = match;
-    return `<quote${ord++}/>`;
-  }).replace(/<!--[\s\S]*?-->/g, () => "") // インラインのコメントは取り除く
+  const processible = protectedText.replace(/<!--[\s\S]*?-->/g, () => "") // インラインのコメントは取り除く
     // Next.js/MDX 版の記事に残っている文字列式を、通常の Markdown/HTML として
     // 読める形へ戻す。コードは上で退避済みなので、掲載コードには作用しない。
     .replace(
@@ -135,7 +156,9 @@ ${content}
     .replace(/\^\[([^\]]+)\]/g, (_, p1: string): string => {
       footnotes += `\n[^${++footnum}]: ${p1}\n`;
       return `<span class='has-tooltip relative items-center no-underline'><span class='inline-block tooltip balloon'>${p1}</span>[^${footnum}]</span>`;
-    }).concat(footnotes).replace(/(<(?:inmath|dispmath)\d+\/>)(\r?\n|<br\/>)/g, "$1") // 数式と文章の間の改行による隙間を消す
+    }).concat(footnotes)
+    // 数式と文章の間の隙間を詰め、コードブロックの開始行は保つ。
+    .replace(/(<(?:inmath|dispmath)\d+\/>)(\r?\n|<br\/>)(?!(?:[ \t>]*\r?\n)*[^<\r\n]*<blockcode\d+\/>)/g, "$1")
     .replace(/<((?:inmath|dispmath)\d+)\/>/g, (_, mode: string): string => {
       const display = mode.substring(0, 8) == "dispmath";
       const index = mathexprs.length;
@@ -143,11 +166,7 @@ ${content}
       // 組版済み CHTML をあとから流し込むための空プレースホルダ。
       return display ? `<span data-dm="${index}"></span>` : `<span data-im="${index}"></span>`;
     })
-    .replace(/<(quote\d+)\/>/g, (_, mode: string) => evacuees[mode].replace(/(^`{3,})([^`\r\n]+)/g, (__, p1: string, p2: string): string => {
-      const titles = p2.split(':');
-      return p1 + titles[0].replace(/diff\s/, "diff-") + (titles.length > 1 ? ("[data-file='" + titles[1] + "']") : '');
-    })
-    );
+    .replace(/<((?:blockcode|inlinecode)\d+)\/>/g, (_, label: string) => evacuees[label]);
 
   // $ の数式の波括弧が閉じないまま本文が終わると、上の置換は残りの本文をすべて
   // その数式に取り込み、本文から消してしまう。報告には、記事内で検索できるよう、
