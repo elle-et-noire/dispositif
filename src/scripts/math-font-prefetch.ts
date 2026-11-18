@@ -42,6 +42,19 @@ const loaded = new Map<FontFace, { family: string; url: string }>();
 const resolve = (url: string) => new URL(url, location.href).href;
 
 document.addEventListener("astro:before-swap", (event) => {
+  // The faces this page loaded through its own rules leave with them. Keep a
+  // copy, as if prefetched, for a return to the page by back, forward or a
+  // link. WebKit loads the returning page's rules again, and the faces can
+  // arrive after its first layout. The reading position is restored in that
+  // layout, so the text moves away from it when they arrive.
+  if (typeof FontFace !== "undefined") {
+    const families = new Set([...document.fonts].filter((face) => face.status === "loaded")
+      .map((face) => face.family.replace(/^"|"$/g, "")));
+    for (const style of document.head.querySelectorAll<HTMLStyleElement>("style[data-math-font]")) {
+      const { mathFont: family, mathFontUrl: url } = style.dataset;
+      if (family && url && families.has(family)) load(family, url);
+    }
+  }
   // Before the swap rather than after: Astro may scroll (and so lay out) the
   // new page between the swap and astro:after-swap, as on history traversal.
   for (const face of loaded.keys()) if (!document.fonts.has(face)) document.fonts.add(face);
@@ -71,19 +84,21 @@ function parseFonts(anchor: HTMLAnchorElement): [family: string, url: string][] 
   }
 }
 
+function load(family: string, url: string) {
+  if (requested.has(url)) return;
+  requested.add(url);
+  const face = new FontFace(family, `url("${url}") format("woff2")`);
+  loaded.set(face, { family, url });
+  face.load().catch(() => {
+    requested.delete(url);
+    loaded.delete(face);
+    document.fonts.delete(face);
+  });
+}
+
 function prefetchFonts(anchor: HTMLAnchorElement) {
   if (!navigator.onLine || slowConnection() || typeof FontFace === "undefined") return;
-  for (const [family, url] of parseFonts(anchor)) {
-    if (requested.has(url)) continue;
-    requested.add(url);
-    const face = new FontFace(family, `url("${url}") format("woff2")`);
-    loaded.set(face, { family, url });
-    face.load().catch(() => {
-      requested.delete(url);
-      loaded.delete(face);
-      document.fonts.delete(face);
-    });
-  }
+  for (const [family, url] of parseFonts(anchor)) load(family, url);
 }
 
 const fontLink = (target: EventTarget | null) =>

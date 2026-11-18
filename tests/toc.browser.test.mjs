@@ -2,7 +2,7 @@ import { toggleColumns } from "./column-controls.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { chromium } from "playwright-core";
-import { BASE_URL, ARTICLE_URL, launch, storeColumns } from "./browser.mjs";
+import { BASE_URL, ARTICLE_URL, engines, launch, storeColumns, waitForColumnLayout } from "./browser.mjs";
 
 
 async function waitForActiveItem(page) {
@@ -173,8 +173,10 @@ test("1段のサイドバー目次とn段の上部目次を切り替えて使え
             assert.equal(await page.locator(".toc-toggle").isVisible(), false);
             assert.equal(await page.locator(".site-article-index").isVisible(), true);
             const side = await singleToc.boundingBox();
-            const source = await page.locator(".cl-source").boundingBox();
-            assert.ok(side.x >= source.x + source.width + 16, "目次が本文の横にない");
+            // The text's right edge, inside the padding it has in both column layouts.
+            const textRight = await page.locator(".cl-source").evaluate((source) =>
+              source.getBoundingClientRect().right - parseFloat(getComputedStyle(source).paddingRight));
+            assert.ok(side.x >= textRight + 16, "目次が本文の横にない");
           } else {
             assert.equal(await page.locator("[data-toc-variant=sidebar]").isVisible(), false);
           }
@@ -250,51 +252,6 @@ test("1段のサイドバー目次とn段の上部目次を切り替えて使え
       } finally { await page.close(); }
     });
 
-    // After a keyboard jump, the next Tab continues in the
-    // article after the heading instead of returning to the table of contents.
-    for (const [mode, width, variant] of [
-      ["single", 1600, "sidebar"], ["single", 390, "mobile"], ["multi", 1600, "header"], ["multi", 390, "header"],
-    ]) {
-      await t.test(`${mode} ${width}px: キーボードで目次から移動すると、次のTabは見出しの後の本文へ進む`, async () => {
-        const page = await browser.newPage({ viewport: { width, height: 900 } });
-        try {
-          await storeColumns(page, mode);
-          await page.goto(new URL("tips-typst/", BASE_URL).href);
-          await page.waitForSelector(`[data-toc-variant=${variant}][data-ready="true"]`, { state: "attached" });
-          await page.waitForFunction((multi) => document.documentElement.classList.contains("cl-multi") === multi,
-            mode === "multi");
-          await page.evaluate(() => document.fonts.ready);
-          if (variant === "mobile") {
-            await page.locator(".toc-mobile-toggle").focus();
-            await page.keyboard.press("Enter");
-            await page.waitForFunction(() => document.querySelector("[data-toc-variant=mobile]").open);
-          }
-          const link = page.locator(`[data-toc-variant=${variant}] .toc-link`, { hasText: "LaTeXとの対応" });
-          const id = await link.evaluate((link) => decodeURIComponent(link.hash.slice(1)));
-          await link.focus();
-          await page.keyboard.press("Enter");
-          await page.waitForFunction((id) => document.activeElement === document.getElementById(id), id);
-          assert.equal(await page.evaluate(() => document.activeElement.matches(":focus-visible")), true,
-            "見出しのフォーカス表示が出ていない");
-          // The first tabbable element after the heading. n段 slots
-          // are inert copies; the focusable original follows the heading.
-          const expected = await page.evaluate((id) => {
-            const heading = document.getElementById(id);
-            const next = [...heading.closest("article").querySelectorAll("a[href], button, summary, pre, [tabindex]")]
-              .find((node) => node.tabIndex >= 0 && !node.closest("[inert]") && node.getClientRects().length
-                && heading.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING);
-            next.dataset.tocFocusExpected = "";
-            return next.textContent.trim().slice(0, 40);
-          }, id);
-          await page.keyboard.press("Tab");
-          assert.equal(await page.evaluate(() => document.activeElement.hasAttribute("data-toc-focus-expected")), true,
-            `次のTabが「${expected}」へ進まず ${await page.evaluate(() => document.activeElement.outerHTML.slice(0, 80))} へ移った`);
-        } finally {
-          await page.close();
-        }
-      });
-    }
-
     await t.test("JavaScript 無効でも目次の開閉と見出しリンクを使える", async () => {
       const page = await browser.newPage({ javaScriptEnabled: false, viewport: { width: 390, height: 844 } });
       try {
@@ -320,3 +277,77 @@ test("1段のサイドバー目次とn段の上部目次を切り替えて使え
     await browser.close();
   }
 });
+
+for (const [name, engine] of engines) {
+  test(`${name}: キーボードで閉じた節へ目次から移動できる`, { timeout: 90_000 }, async (t) => {
+    const browser = await launch(engine);
+    try {
+      for (const [mode, width, variant, reducedMotion] of [
+        ["single", 1600, "sidebar", "no-preference"],
+        ["single", 1600, "sidebar", "reduce"],
+        ["single", 390, "mobile", "no-preference"],
+        ["single", 390, "mobile", "reduce"],
+        ["multi", 1600, "header", "no-preference"],
+        ["multi", 390, "header", "no-preference"],
+      ]) {
+        await t.test(`${mode} ${width}px ${reducedMotion}`, async () => {
+          const page = await browser.newPage({ viewport: { width, height: 900 }, reducedMotion });
+          try {
+            const url = new URL("tips-typst/", BASE_URL).href;
+            await page.route(url, async (route) => {
+              const response = await route.fetch();
+              const html = await response.text();
+              const nested = html.replace(
+                /(<h2\b[^>]*>LaTeXとの対応<\/h2>[\s\S]*?)(?=<h2\b)/,
+                '<details data-toc-test><summary>外側</summary><details data-toc-test><summary>内側</summary>$1</details></details>',
+              );
+              assert.notEqual(nested, html, "目次の移動先として使う節がない");
+              await route.fulfill({ response, body: nested });
+            });
+            await storeColumns(page, mode);
+            await page.goto(url);
+            await waitForColumnLayout(page);
+            const toc = page.locator(`[data-toc-variant=${variant}]`);
+            await page.waitForSelector(`[data-toc-variant=${variant}][data-ready="true"]`, { state: "attached" });
+            await page.waitForFunction((multi) => document.documentElement.classList.contains("cl-multi") === multi,
+              mode === "multi");
+            await page.evaluate(() => document.fonts.ready);
+            if (variant === "mobile") {
+              await page.locator(".toc-mobile-toggle").focus();
+              await page.keyboard.press("Enter");
+              await page.waitForFunction(() => document.querySelector("[data-toc-variant=mobile]").open);
+            }
+            const link = toc.locator(".toc-link", { hasText: "LaTeXとの対応" });
+            const id = await link.evaluate((link) => decodeURIComponent(link.hash.slice(1)));
+            const closed = page.locator(".cl-source details[data-toc-test]:not([open])");
+            const historyLength = await page.evaluate(() => history.length);
+            assert.equal(await closed.count(), 2);
+            await link.focus();
+            await page.keyboard.press("Enter");
+            await page.waitForFunction((id) => decodeURIComponent(location.hash.slice(1)) === id, id);
+            assert.equal(await closed.count(), 0, "移動先の折りたたみが閉じている");
+            assert.equal(await page.evaluate(() => history.length), historyLength);
+            if (variant === "mobile") assert.equal(await toc.evaluate((node) => node.open), false);
+            await page.waitForFunction((id) => document.activeElement === document.getElementById(id), id);
+            assert.equal(await page.evaluate(() => document.activeElement.matches(":focus-visible")), true,
+              "見出しのフォーカス表示が出ていない");
+            const heading = await page.evaluate(() => {
+              const { top, bottom, left, right } = document.activeElement.getBoundingClientRect();
+              return top >= 0 && bottom <= innerHeight && left >= 0 && right <= innerWidth;
+            });
+            assert.ok(heading, "移動先の見出しが画面内にない");
+            await page.keyboard.press("Tab");
+            const next = page.getByRole("link", { name: "Equivalent Typst Function Names of LaTeX Commands (PDF)" });
+            await next.evaluate((node) => {
+              if (node !== document.activeElement) throw new Error("次のTabで見出しの後のリンクへ移らなかった");
+            });
+          } finally {
+            await page.close();
+          }
+        });
+      }
+    } finally {
+      await browser.close();
+    }
+  });
+}

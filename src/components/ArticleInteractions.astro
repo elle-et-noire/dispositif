@@ -67,7 +67,49 @@
     }
   };
 
+  // はみ出したディスプレイ数式の包み（lib/convert.ts の span.scrollable）だけを、名前を
+  // 持つTabの停止位置にする。ChromiumとFirefoxは、はみ出したスクロール要素に
+  // tabindexがなくてもTabで止まるが、名前もロールもないので、スクリーンリーダーでは
+  // 何も読まれない位置になる。Safariはスクロール要素にTabで止まらないので、
+  // キーボードで数式を横へ送れない。はみ出さない数式でTabが止まらないよう、幅が
+  // 変わるたびに付け外しする。数式の字形の箱（mjx-math）も見るのは、数式フォントが
+  // 届いて、包みの幅は変わらずに数式の幅だけが変わることがあるため。
+  // n段の複製の段は、column-fragments.ts が支援技術とTabの対象から外すので見ない。
+  let mathScrollObserver: ResizeObserver | undefined;
+  const observeMathScrollers = () => {
+    mathScrollObserver?.disconnect();
+    mathScrollObserver = new ResizeObserver((entries) => {
+      const scrollers = new Set<HTMLElement>();
+      for (const { target } of entries) {
+        const scroller = target.closest<HTMLElement>(".scrollable");
+        if (scroller) scrollers.add(scroller);
+      }
+      // 幅をすべて読んでから属性を書き、読むたびにレイアウトし直さないようにする。
+      const overflows = Array.from(scrollers, (scroller) =>
+        [scroller, scroller.scrollWidth > scroller.clientWidth] as const);
+      for (const [scroller, overflowing] of overflows) {
+        if (overflowing === scroller.hasAttribute("tabindex")) continue;
+        if (overflowing) {
+          scroller.tabIndex = 0;
+          scroller.setAttribute("role", "group");
+          scroller.setAttribute("aria-label", "数式の横スクロール");
+        } else {
+          scroller.removeAttribute("tabindex");
+          scroller.removeAttribute("role");
+          scroller.removeAttribute("aria-label");
+        }
+      }
+    });
+    document.querySelectorAll<HTMLElement>(".post .scrollable").forEach((scroller) => {
+      if (scroller.closest(".cl-copies")) return;
+      mathScrollObserver!.observe(scroller);
+      const math = scroller.querySelector("mjx-math");
+      if (math) mathScrollObserver!.observe(math);
+    });
+  };
+
   const enhanceArticle = () => {
+    observeMathScrollers();
     document.querySelectorAll<HTMLDetailsElement>(".post details").forEach((details) => {
       if (details.querySelector(":scope > .details-close-button")) return;
 
@@ -125,6 +167,70 @@
         });
       });
   };
+
+  // 本文の吹き出し（lib/preprocess.tsの.has-tooltipの.tooltip）は、CSSが出す間
+  // （語が:hoverか:focus-withinの間、globals.css）、最上位の層（popover）に移す。
+  // 段組みの読書領域は1段でもn段でも本文の外を切り取る（column-layout.css）ので、
+  // 本文の中に描くと、本文の左端に近い語の吹き出しが切り取られる。位置は、本文の
+  // 中に描くときと同じく、語の右端と上端から決める。
+  // ChromiumとWebKitは、最上位の層の吹き出しに乗っている間、語を:hoverにしない。
+  // そのため、吹き出しの:hoverも見る。
+  let shownTooltip: HTMLElement | undefined;
+  const hideTooltip = () => {
+    if (!shownTooltip) return;
+    shownTooltip.hidePopover();
+    shownTooltip.removeAttribute("popover");
+    shownTooltip.style.removeProperty("right");
+    shownTooltip.style.removeProperty("bottom");
+    shownTooltip = undefined;
+  };
+  const showTooltip = (anchor: Element, tooltip: HTMLElement) => {
+    if (tooltip !== shownTooltip) hideTooltip();
+    // 語が行をまたぐときは、最初の行の上端と最後の行の右端。
+    const lines = anchor.getClientRects();
+    if (!lines.length) return;
+    const { clientWidth, clientHeight } = document.documentElement;
+    tooltip.style.right = `${clientWidth - lines[lines.length - 1].right}px`;
+    tooltip.style.bottom = `${clientHeight - lines[0].top}px`;
+    if (tooltip === shownTooltip) return;
+    tooltip.popover = "manual";
+    tooltip.showPopover();
+    shownTooltip = tooltip;
+  };
+  // 次のフレームで調べる語。:hoverは、イベントを送った後に変わることがある。
+  // Playwrightのタッチの操作では、Chromiumはタップした語の:hoverを、イベントを
+  // 送らずに数フレーム後に戻した。:hoverが変わると吹き出しの不透明度が遷移するので、
+  // その開始（transitionrun）でも調べる。
+  const tooltipAnchors = new Set<Element>();
+  let tooltipFrame = 0;
+  const syncTooltip = () => {
+    tooltipFrame = 0;
+    if (shownTooltip?.parentElement) tooltipAnchors.add(shownTooltip.parentElement);
+    let shown = false;
+    for (const anchor of tooltipAnchors) {
+      const tooltip = anchor.querySelector<HTMLElement>(":scope > .tooltip");
+      if (shown || !tooltip || !anchor.isConnected) continue;
+      if (!anchor.matches(":hover, :focus-within") && !tooltip.matches(":hover")) continue;
+      showTooltip(anchor, tooltip);
+      shown = true;
+    }
+    if (!shown) hideTooltip();
+    tooltipAnchors.clear();
+  };
+  const queueTooltip = (...targets: (EventTarget | null)[]) => {
+    for (const target of targets) {
+      const anchor = target instanceof Element ? target.closest(".post .has-tooltip") : null;
+      if (anchor) tooltipAnchors.add(anchor);
+    }
+    if (!tooltipAnchors.size && !shownTooltip) return;
+    tooltipFrame ||= requestAnimationFrame(syncTooltip);
+  };
+  for (const type of ["mouseover", "mouseout", "focusin", "focusout", "click", "transitionrun"] as const) {
+    document.addEventListener(type, (event) =>
+      queueTooltip(event.target, "relatedTarget" in event ? event.relatedTarget : null));
+  }
+  // 語がスクロールで動いたら、吹き出しを置き直すか閉じる。
+  document.addEventListener("scroll", () => queueTooltip(), { capture: true, passive: true });
 
   document.addEventListener("astro:page-load", enhanceArticle);
 

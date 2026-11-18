@@ -5,13 +5,16 @@ import { BASE_URL, engines, launch } from "./browser.mjs";
 
 // Columns that a slot shows but that lie outside the viewport, and whether
 // each has its copied blocks yet. Columns outside the article have no paper.
+// The viewport, not the slot, gives the height the columns show: WebKit leaves
+// a slot 0 px high for a while after the plane's --cl-h changes, which readers
+// do not see (ROADMAP.md, WebKit).
 const columns = () => {
   const viewport = document.querySelector('.cl-viewport');
   const bounds = viewport.getBoundingClientRect();
   return [...document.querySelectorAll('.cl-slot')]
     .filter((slot) => {
-      const window = slot.getBoundingClientRect(), paper = slot.querySelector('.cl-paper').getBoundingClientRect();
-      return Math.min(paper.bottom, window.bottom) > Math.max(paper.top, window.top);
+      const paper = slot.querySelector('.cl-paper').getBoundingClientRect();
+      return Math.min(paper.bottom, bounds.bottom) > Math.max(paper.top, bounds.top);
     })
     .map((slot) => {
       const box = slot.parentElement.getBoundingClientRect();
@@ -109,9 +112,11 @@ const checkPremount = async (engine) => {
 // into the first column as soon as the parser attaches it. A ResizeObserver
 // attached as soon as the original is parsed reports every size it is rendered
 // at, from the first frame on. Frames of the original while it is still empty
-// are ignored.
+// are ignored. Scrollbars take space here, as in desktop Chrome: a reload
+// restored the position only approximately when the first measurement ran
+// before the horizontal bar appeared.
 const checkDirectPremount = async (engine) => {
-  const browser = await launch(engine);
+  const browser = await launch(engine, { ignoreDefaultArgs: ["--hide-scrollbars"] });
   try {
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     await context.addInitScript(() => {
@@ -164,10 +169,19 @@ const checkDirectPremount = async (engine) => {
     await page.reload();
     await shown('reload');
     assert.deepEqual(await position(), before, 'reload');
-    // A fragment in the address is followed from the premounted column.
+    // A fragment in the address is followed from the premounted column. From
+    // the article itself, page.goto() with a fragment would not load it again.
+    await page.goto(BASE_URL);
     await page.goto(`${article}#${encodeURIComponent('cauchy和公式')}`);
     await shown('hash');
     assert.notDeepEqual(await position(), ['0', '0'], 'hash');
+    // With a fragment, too, a reload restores the position scrolled to.
+    await page.locator('.cl-viewport').evaluate((viewport) => { viewport.scrollTop += 150; });
+    await frames();
+    const scrolled = await position();
+    await page.reload();
+    await shown('hash reload');
+    assert.deepEqual(await position(), scrolled, 'hash reload');
     // Astro runs inline scripts again after swapping a page in. There the
     // navigation has already premounted the article.
     await page.locator('.cl-close:visible').click();

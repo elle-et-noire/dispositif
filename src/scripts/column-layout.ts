@@ -1,14 +1,21 @@
+import { revealDetails } from "./reveal-details";
 import { devicePixels, type ColumnGeometry } from "./column-geometry";
 import type { ColumnMetrics, ReadingPoint } from "./column-coordinates";
 import { createLayout, fromCss, toCss, ticks, zero, paperWindow, slotColumns, visibleColumnCount,
   ReadingState, endPoint, refitPoint } from "./column-coordinates";
-import { ColumnViewport } from "./column-viewport";
+import { ColumnViewport, type NativeMovement } from "./column-viewport";
 import { ColumnFragments, SCROLLERS } from "./column-fragments";
 import { ColumnMotion } from "./column-motion";
 import { opensMulti, COLUMNS_STORAGE_KEY } from "./column-preference";
-import { type HistoryPosition, HISTORY_STORAGE_KEY, parseSavedHistory, mergeHistory, resolveHistoryEntry } from "./reading-history";
+import { type HistoryPosition, HISTORY_STORAGE_KEY, parseSavedHistory, mergeHistory, resolveHistoryEntry, trimHistory } from "./reading-history";
 
+// The headings listed in the TOC (lib/toc.ts). The footnotes' hidden heading has
+// an id for the footnote references' aria-describedby, but is not in the TOC.
+const TOC_HEADINGS = ":is(h2, h3)[id]:not([data-footnotes] *)";
 let dispose: (() => void) | undefined;
+// Whether the next reader is the first one of a full page load. On a full
+// load this module runs before the load event.
+let loadedDocument = document.readyState !== "complete";
 // Saves the active reader's current position; the single pagehide listener
 // below calls it before persisting so storage is written once per unload.
 let saveActiveReader: (() => void) | undefined;
@@ -43,7 +50,7 @@ export function initializeColumnLayout() {
   const source = document.querySelector<HTMLElement>(".cl-source");
   const articleScrollport = document.querySelector<HTMLElement>(".cl-article-scrollport");
   const viewport = document.querySelector<HTMLElement>(".cl-viewport");
-  const reader = document.querySelector<HTMLElement>(".cl-reader");
+  const reader = viewport?.parentElement;
   const plane = document.querySelector<HTMLElement>(".cl-plane");
   const copies = plane?.querySelector<HTMLElement>(":scope > .cl-copies");
   const ruler = document.querySelector<HTMLElement>(".cl-ruler");
@@ -53,7 +60,11 @@ export function initializeColumnLayout() {
   const toolbar = document.querySelector<HTMLElement>(".cl-toolbar");
   const toolbarParent = toolbar?.parentNode;
   const toolbarNextSibling = toolbar?.nextSibling ?? null;
-  if (!source || !articleScrollport || !viewport || !reader || !plane || !copies || !ruler || !toggle) return;
+  // The original's column, around the text in both column layouts (ColumnLayout.astro).
+  const originalSlot = source?.parentElement;
+  const originalTrack = originalSlot?.parentElement;
+  if (!source || !articleScrollport || !viewport || !reader || !plane || !copies || !ruler || !toggle
+    || !originalSlot?.matches(".cl-original-slot") || !originalTrack) return;
 
   // Astro preserves state properties on history traversal. Give each article
   // entry its own key; the positions stay in memory rather than writing to
@@ -82,15 +93,10 @@ export function initializeColumnLayout() {
   const savedHistoryPosition = historyPositions.get(entryKey);
   let historyReady = false;
 
-  // With n段 stored, Layout.astro has already put the original in the first
+  // With n段 stored, Layout.astro has already made the original's column a
   // column (at astro:before-swap, or while a full load parses it), so that its
-  // first layout is at the column width. Adopt that slot instead of mounting
-  // the original again.
-  let premounted = source.parentElement?.matches(".cl-plane > .cl-track > .cl-slot")
-    ? source.parentElement : undefined;
-  // The pre-mounted original came from just after the reader.
-  const sourceParent = premounted ? reader.parentNode! : source.parentNode!;
-  const sourceNextSibling = premounted ? reader.nextSibling : source.nextSibling;
+  // first layout is at the column width.
+  let premounted = originalSlot.classList.contains("cl-slot");
   const controller = new AbortController();
   const { signal } = controller;
   const printing = window.matchMedia("print");
@@ -108,11 +114,12 @@ export function initializeColumnLayout() {
   let position = 0;
   let measuring = 0;
   let scrolling = 0;
+  let settleTimer = 0;
   let reading: ReadingState | undefined;
   const native = new ColumnViewport(viewport, plane);
   let rangeStart = NaN;
   const placements = new WeakMap<HTMLElement, {
-    left: number; translate: string; paperTranslate: string; clip: string; length: number;
+    x: number; translate: string; paperTranslate: string; clip: string; length: number;
   }>();
   let dirty = true;
   let activeHeading = "";
@@ -255,9 +262,33 @@ export function initializeColumnLayout() {
     document.dispatchEvent(new CustomEvent("cl:heading", { detail: { id } }));
   };
 
-  const clearPlane = () => {
-    copies.replaceChildren();
-    plane.replaceChildren(copies);
+  const clearPlane = () => copies.replaceChildren();
+
+  // The original's column only changes its classes and styles: moving the
+  // text would make the browser style and lay out all of it from scratch
+  // (ColumnLayout.astro).
+  const mountOriginal = () => {
+    originalTrack.classList.add("cl-track");
+    originalSlot.classList.add("cl-slot");
+    source.classList.add("cl-content");
+    // Not laid out at its own width before measure() sets the column's.
+    if (!source.style.width) source.style.width = "var(--cl-column-width)";
+    slots.push(originalSlot);
+  };
+  const unmountOriginal = () => {
+    premounted = false;
+    root.classList.remove("cl-premount");
+    originalTrack.classList.remove("cl-track");
+    originalSlot.classList.remove("cl-slot");
+    source.classList.remove("cl-content");
+    for (const property of ["width", "left", "translate"]) source.style.removeProperty(property);
+    for (const property of ["left", "clip-path"]) originalTrack.style.removeProperty(property);
+    const paper = originalSlot.lastElementChild as HTMLElement;
+    for (const property of ["translate", "height"]) paper.style.removeProperty(property);
+    delete originalSlot.dataset.clK;
+    placements.delete(originalSlot);
+    // The native plane's extent (column-viewport.ts); place() sets it again.
+    for (const property of ["width", "height"]) plane.style.removeProperty(property);
   };
 
   const mountSlot = (content: HTMLElement) => {
@@ -266,15 +297,14 @@ export function initializeColumnLayout() {
     track.className = "cl-track";
     const slot = document.createElement("div");
     slot.className = "cl-slot";
-    if (content !== source) slot.setAttribute("aria-hidden", "true");
+    slot.setAttribute("aria-hidden", "true");
     slot.appendChild(content);
     const paper = document.createElement("div");
     paper.className = "cl-paper";
     paper.setAttribute("aria-hidden", "true");
     slot.appendChild(paper);
     track.appendChild(slot);
-    // The original first in the plane, the copies in .cl-copies (ColumnLayout.astro).
-    if (content === source) plane.insertBefore(track, copies); else copies.appendChild(track);
+    copies.appendChild(track);
     slots.push(slot);
   };
 
@@ -303,7 +333,9 @@ export function initializeColumnLayout() {
         }
         return true;
       });
-      while (slots.length < count) mountSlot(slots.length === 0 ? source : fragments.createContent());
+      while (slots.length < count) {
+        if (slots.length) mountSlot(fragments.createContent()); else mountOriginal();
+      }
       const retained = new Set(slots.map((slot) => Number(slot.dataset.clK)));
       const missing = [...wanted].filter((k) => !retained.has(k));
       for (const slot of slots) {
@@ -338,7 +370,6 @@ export function initializeColumnLayout() {
       const left = geometry.leading + geometry.edge + (k - geometry.originColumn) * geometry.p;
       const top = -(k * geometry.h + geometry.originY);
       const previous = placements.get(slot);
-      if (previous?.left !== left) track.style.left = `${left}px`;
       // Translate the text in both axes. Moving its layout left offset would
       // lay out the entire MathJax tree again when recycling a column.
       // Whole device pixels only: when a column is recycled, Chromium moves
@@ -347,7 +378,11 @@ export function initializeColumnLayout() {
       // text resampled and blurred until something repaints it. Compared
       // after rounding, so a zoom change re-rounds an unmoved column.
       const x = devicePixels(left, pixel), y = devicePixels(top, pixel);
-      const translate = `${x}px ${y}px`;
+      // The column is at the same whole device pixel. The original text is in
+      // normal flow in its column, which takes it across the plane
+      // (column-layout.css); the copies are fixed to the plane.
+      if (previous?.x !== x) track.style.left = `${x}px`;
+      const translate = content === source ? `0px ${y}px` : `${x}px ${y}px`;
       // The paper and the clip span the whole article in plane coordinates,
       // like the text, so native scrolling moves their edges with the text.
       // Fitting them to the current window would need JS on every scroll
@@ -368,7 +403,7 @@ export function initializeColumnLayout() {
       if (previous?.paperTranslate !== paperTranslate) paper.style.translate = paperTranslate;
       if (previous?.clip !== clip) track.style.clipPath = clip;
       if (previous?.length !== geometry.l) paper.style.height = `${geometry.l}px`;
-      placements.set(slot, { left, translate, paperTranslate, clip, length: geometry.l });
+      placements.set(slot, { x, translate, paperTranslate, clip, length: geometry.l });
       // Slots outside the article have no visible paper. Keep their existing
       // fragments until they become visible instead of cloning/removing blocks
       // that would immediately be clipped away.
@@ -376,14 +411,21 @@ export function initializeColumnLayout() {
       if (includeOffscreen || (left < nativeX + viewportWidth && left + geometry.w > nativeX)) {
         fragments.render(content, from, geometry.h, geometry.l);
       } else if (!offscreenFrame) {
-        offscreenFrame = requestAnimationFrame(() => { offscreenFrame = 0; updateSlots(true); });
+        // Fill it once the frame showing the visible columns is produced. A
+        // frame request made in an input handler runs before that frame, so
+        // post a task from the next frame callback instead.
+        offscreenFrame = requestAnimationFrame(() => {
+          const channel = new MessageChannel();
+          channel.port1.onmessage = () => { offscreenFrame = 0; if (!signal.aborted) updateSlots(true); };
+          channel.port2.postMessage(null);
+        });
       }
     }
   };
 
-  const present = (force = false) => {
+  const present = (force = false, moved?: NativeMovement) => {
     if (!multi || !reading || printing.matches) return;
-    geometry = native.place(reading.point, reading.layout, force);
+    geometry = native.place(reading.point, reading.layout, force, moved);
     position = toCss(reading.anchor);
     updateSlots();
     announceHeading();
@@ -400,25 +442,41 @@ export function initializeColumnLayout() {
     reducedMotion,
     (active) => viewport.toggleAttribute("data-cl-animating", active),
     signal,
+    () => geometry?.unit ?? 0,
   );
 
-  const syncPosition = () => {
+  // `continuing` is true while the scroll may go on, which lets place() keep
+  // the window of the axis that did not move (column-viewport.ts).
+  const syncPosition = (continuing = false) => {
     if (!multi || !reading || printing.matches) return;
     const movement = native.read(reading.point);
     if (!movement) return;
     motion.cancelAnimation();
     if (movement.x !== undefined) reading.horizontal(movement.x);
     if (movement.y !== undefined) reading.vertical(movement.y);
-    present();
+    present(false, continuing ? movement : undefined);
+  };
+  // Replace a window kept during a scroll once the scroll ends. scrollend can
+  // come before the frame that handles the last scroll event, so take that
+  // movement here.
+  const settleWindow = () => {
+    clearTimeout(settleTimer);
+    settleTimer = 0;
+    if (measuring) return;
+    syncPosition();
+    if (native.deferred) present();
   };
 
   function saveHistoryPosition() {
     if (!historyReady || suspendedForPrint) return;
     const details = historyPositions.get(entryKey)?.details;
+    // Move the entry to the newest end, as mergeHistory does in storage.
+    historyPositions.delete(entryKey);
     historyPositions.set(entryKey, multi
       ? { mode: "multi", position, point: reading?.point, layout: reading?.layout, details }
       : { mode: "single", position: articleScrollport!.scrollTop, details });
     dirtyHistoryPositions.add(entryKey);
+    trimHistory(historyPositions, dirtyHistoryPositions, entryKey);
   }
 
   const goToEdge = (end: boolean) => {
@@ -432,9 +490,11 @@ export function initializeColumnLayout() {
   const measure = () => {
     measuring = 0;
     if (!multi || printing.matches) return;
-    // On enabling, detach the original while reading the page's new geometry,
-    // so it is not laid out at an intermediate width before its column.
-    if (!slots.length && !premounted) source.remove();
+    // Lay the original out in its column, at the column width estimated in
+    // CSS until it is set below. A pre-mounted original was laid out there
+    // already, at the same width unless the column width differs from the
+    // estimate (then once more here).
+    if (!slots.length) { premounted = false; mountOriginal(); }
     // The scroll handler skips a native scroll while this frame is pending.
     // Apply it before reading the old point, or the point kept below (or the
     // offsets present() acknowledges) drops it and the view snaps back. After
@@ -446,7 +506,9 @@ export function initializeColumnLayout() {
     const oldEnd = reading && endPoint(reading.layout);
     const wasEnd = oldPoint && oldEnd && oldPoint.x === oldEnd.x && oldPoint.y === oldEnd.y;
     const wasHome = oldPoint?.x === 0 && oldPoint?.y === 0;
-    article.style.setProperty("--cl-header-height", `${header?.getBoundingClientRect().height ?? 0}px`);
+    // On the reader too (column-layout.css).
+    const headerHeight = `${header?.getBoundingClientRect().height ?? 0}px`;
+    for (const element of [article, reader]) element.style.setProperty("--cl-header-height", headerHeight);
     const gap = Math.max(0, parseFloat(getComputedStyle(ruler).marginRight) || 0);
     const edge = Math.max(0, parseFloat(getComputedStyle(ruler).paddingRight) || 0);
     // DPR alone is insufficient: browser zoom and device emulation can round
@@ -461,12 +523,6 @@ export function initializeColumnLayout() {
     const h = Math.max(1, viewport.clientHeight);
     plane.style.setProperty("--cl-w", `${w}px`);
     plane.style.setProperty("--cl-h", `${h}px`);
-    // Lay the original out once, at W and in its column. A pre-mounted
-    // original was laid out there already, at the same width unless the
-    // column width differs from the CSS estimate (then once more here).
-    if (!slots.length) {
-      if (premounted) { slots.push(premounted); premounted = undefined; } else mountSlot(source);
-    }
     // The visible columns and the next ones on either side.
     showText(position + (Math.ceil(viewport.clientWidth / w) + 2) * h);
     const sourceBox = source.getBoundingClientRect();
@@ -474,7 +530,7 @@ export function initializeColumnLayout() {
     const l = Math.max(1, Math.ceil(sourceBox.height / scale));
     fragments.measure(dirty);
     // Headings not shown yet (data-cl-defer) have no box.
-    headings = Array.from(source.querySelectorAll<HTMLElement>("h2[id], h3[id]"))
+    headings = Array.from(source.querySelectorAll<HTMLElement>(TOC_HEADINGS))
       .filter((heading) => heading.getClientRects().length)
       .map((heading) => ({ id: heading.id, t: offsetOf(heading) }));
     const layout = createLayout(w, gap, h, l, viewport.clientWidth, edge);
@@ -520,11 +576,7 @@ export function initializeColumnLayout() {
   const navigate = (target: HTMLElement) => {
     if (!multi || !geometry) return;
     syncPosition();
-    let parent = target.parentElement;
-    while (parent && parent !== source) {
-      if (parent instanceof HTMLDetailsElement && parent.querySelector(":scope > summary") !== target) parent.open = true;
-      parent = parent.parentElement;
-    }
+    revealDetails(target, source);
     syncDetails();
     // Flush measurement so freshly opened details and loaded images are included.
     cancelAnimationFrame(measuring);
@@ -535,7 +587,7 @@ export function initializeColumnLayout() {
     preferredSourceColumn = Math.floor((fromCss(offsetOf(target)) - reading.point.y) / reading.layout.h);
     rangeStart = NaN;
     present(true);
-    if (target.matches("h2[id], h3[id]")) {
+    if (target.matches(TOC_HEADINGS)) {
       // At the trailing edge a heading can land in a column to the right.
       // Keep the selected TOC entry until the reader moves again.
       navigationHeading = { id: target.id, position };
@@ -556,14 +608,6 @@ export function initializeColumnLayout() {
     if (target) navigate(target);
   };
 
-  const restoreSource = () => {
-    premounted = undefined;
-    root.classList.remove("cl-premount");
-    sourceParent.insertBefore(source, sourceNextSibling);
-    source.classList.remove("cl-content");
-    for (const property of ["width", "left", "translate"]) source.style.removeProperty(property);
-  };
-
   const setMulti = (next: boolean, anchor?: number) => {
     if (next === multi) return;
     const toggleFocused = document.activeElement === toggle;
@@ -576,6 +620,10 @@ export function initializeColumnLayout() {
     // A pre-mounted original has no single-column position; it starts at the top.
     if (next) position = anchor ?? (premounted ? 0 : Math.max(0, readingInset - source.getBoundingClientRect().top));
     const contentAnchor = !suspendedForPrint && anchor === undefined && position > 0 ? captureAnchor(position) : undefined;
+    // The column width first: moving the toolbar below makes Chromium lay
+    // the article out, which would otherwise be at the width of the n段
+    // reader, and measure() then again at the column's.
+    if (next && !slots.length) { premounted = false; mountOriginal(); }
     multi = next;
     root.classList.toggle("cl-multi", multi);
     // The pre-mounted layout (Layout.astro) is now the reader's own.
@@ -585,7 +633,15 @@ export function initializeColumnLayout() {
       if (multi && header) header.appendChild(toolbar);
       else toolbarParent?.insertBefore(toolbar, toolbarNextSibling);
     }
-    reader.hidden = !multi;
+    // The viewport's name stays short and carries no key instructions:
+    // screen readers speak it whenever a click or text selection focuses the
+    // viewport, and they read the original text in order, not the visual
+    // columns. In 1段 the viewport is a plain block around the text.
+    if (multi) {
+      viewport.tabIndex = 0;
+      viewport.setAttribute("role", "region");
+      viewport.setAttribute("aria-label", "n段の本文");
+    } else for (const name of ["tabindex", "role", "aria-label"]) viewport.removeAttribute(name);
     toggle.setAttribute("aria-pressed", String(multi));
     toggle.title = multi ? "1段表示に切り替える" : "n段表示に切り替える";
     activeHeading = "";
@@ -599,7 +655,7 @@ export function initializeColumnLayout() {
       if (target !== undefined && reading) { reading.restore(fromCss(target)); present(true); }
       articleScrollport.scrollTo({ top: 0, behavior: "instant" });
     } else {
-      restoreSource();
+      unmountOriginal();
       const target = anchorOffset(contentAnchor);
       if (target !== undefined) position = target;
       clearPlane();
@@ -620,9 +676,8 @@ export function initializeColumnLayout() {
   // reader does not start in n段 (print, a changed preference, the fallback).
   const releasePremounted = () => {
     if (!premounted || multi) return;
-    restoreSource();
+    unmountOriginal();
     clearPlane();
-    reader.hidden = true;
     // The table of contents skipped its position while pre-mounted (Toc.astro).
     document.dispatchEvent(new CustomEvent("cl:single"));
   };
@@ -632,8 +687,7 @@ export function initializeColumnLayout() {
     setMulti(startMulti);
   };
 
-  // The original normally lives inside the reader. Return it to the document
-  // for printing, where the reader is hidden, then resume the saved position.
+  // Print the article in 1段, then resume the saved position.
   const suspendForPrint = () => {
     showAllText();
     if (suspendedForPrint) return;
@@ -670,20 +724,59 @@ export function initializeColumnLayout() {
     setMulti(!multi);
   }, { signal });
 
+  // After a full load with a fragment in the URL, WebKit scrolls to the
+  // fragment's target once more after the first frame has placed the reading
+  // position (docs/column-layout.md, "保存と復元"). Until the user's first
+  // input, put back one scroll that leaves the target where that scroll puts
+  // it: its scroll-margin-top below the top of the scrolling area. Set in the
+  // first frame.
+  const fragmentLoad = loadedDocument && Boolean(location.hash);
+  loadedDocument = false;
+  let fragmentGuard = false;
+  let fragmentTop = 0;
+  const fragmentScrolled = (scroller: HTMLElement) => {
+    if (!fragmentGuard || !historyReady) return false;
+    const target = hashTarget(location.hash);
+    if (!target) return false;
+    const offset = target.getBoundingClientRect().top - scroller.getBoundingClientRect().top
+      - (parseFloat(getComputedStyle(target).scrollMarginTop) || 0);
+    if (Math.abs(offset) >= 1) return false;
+    fragmentGuard = false;
+    return true;
+  };
+  const endFragmentGuard = () => { fragmentGuard = false; };
   viewport.addEventListener("scroll", () => {
+    if (fragmentScrolled(viewport)) { present(true); return; }
     if (!scrolling) scrolling = requestAnimationFrame(() => {
       scrolling = 0;
       // ResizeObserver's anchor takes priority over scrolls caused by resizing.
-      if (!measuring) syncPosition();
+      if (!measuring) syncPosition(true);
       saveHistoryPosition();
     });
+    // Not every browser fires scrollend after a wheel scroll (Playwright's
+    // Firefox does not), so a pause in scroll events also ends the scroll.
+    clearTimeout(settleTimer);
+    settleTimer = window.setTimeout(settleWindow, 200);
   }, { passive: true, signal });
-  articleScrollport.addEventListener("scroll", saveHistoryPosition, { passive: true, signal });
+  viewport.addEventListener("scrollend", settleWindow, { passive: true, signal });
+  articleScrollport.addEventListener("scroll", () => {
+    // In n段 the article is in normal flow in this scrollport, which does not
+    // scroll. Under CSS zoom 100dvh is taller than the scrollport, and
+    // operating the reader scrolled it, moving the article up.
+    if (multi && articleScrollport.scrollTop) { articleScrollport.scrollTop = 0; return; }
+    if (!multi && fragmentScrolled(articleScrollport) && articleScrollport.scrollTop !== fragmentTop) {
+      articleScrollport.scrollTop = fragmentTop;
+      return;
+    }
+    saveHistoryPosition();
+  }, { passive: true, signal });
   // Native vertical input never initiates horizontal movement, including at
   // an edge. Manual gestures only interrupt an explicit key animation.
-  viewport.addEventListener("wheel", () => motion.cancelAnimation(), { passive: true, signal });
+  // Layout.astro adds passive listeners of these kinds before the article is
+  // styled (listenOnViewport); a new kind here goes there too.
+  viewport.addEventListener("wheel", () => { endFragmentGuard(); motion.cancelAnimation(); }, { passive: true, signal });
   viewport.addEventListener("pointerdown", () => motion.cancelAnimation(), { passive: true, signal });
-  viewport.addEventListener("touchstart", () => motion.cancelAnimation(), { passive: true, signal });
+  viewport.addEventListener("touchstart", () => { endFragmentGuard(); motion.cancelAnimation(); }, { passive: true, signal });
 
   // Firefox reports detail=1 for Enter-generated clicks on links. Remember
   // the activating key as well as supporting detail=0 from other browsers
@@ -925,7 +1018,7 @@ export function initializeColumnLayout() {
 
   // Window listeners in the capture phase run before every other handler.
   for (const type of ["keydown", "pointerdown"]) {
-    window.addEventListener(type, showAllText, { capture: true, passive: true, signal });
+    window.addEventListener(type, () => { endFragmentGuard(); showAllText(); }, { capture: true, passive: true, signal });
   }
 
   root.classList.add("cl-ready");
@@ -944,6 +1037,9 @@ export function initializeColumnLayout() {
       if (savedHistoryPosition) restoreHistoryPosition(savedHistoryPosition);
       else followHash();
       historyReady = true;
+      // In 1段 the browser itself scrolls to a fragment without a saved position.
+      fragmentGuard = fragmentLoad && (multi || Boolean(savedHistoryPosition));
+      fragmentTop = articleScrollport.scrollTop;
       saveHistoryPosition();
     } finally {
       // The layout fallback stands down once cl-ready is set, so never leave
@@ -981,11 +1077,11 @@ export function initializeColumnLayout() {
     resizeObserver.disconnect();
     mutationObserver.disconnect();
     [initialFrame, measuring, scrolling, offscreenFrame, textFrame].forEach(cancelAnimationFrame);
+    clearTimeout(settleTimer);
     root.classList.remove("cl-multi", "cl-ready");
-    article.style.removeProperty("--cl-header-height");
+    for (const element of [article, reader]) element.style.removeProperty("--cl-header-height");
     if (toolbar) toolbarParent?.insertBefore(toolbar, toolbarNextSibling);
-    restoreSource();
-    reader.hidden = true;
+    unmountOriginal();
     clearPlane();
   };
   document.addEventListener("astro:before-swap", () => { dispose?.(); dispose = undefined; }, { once: true, signal });

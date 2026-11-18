@@ -32,7 +32,13 @@ async function layout(page) {
       left: rect.left,
       width: viewport.clientWidth,
       slots: [...document.querySelectorAll(".cl-slot")].map((slot) => {
-        const frame = slot.getBoundingClientRect();
+        // A copy's column is a sticky window over the viewport. The
+        // original's column scrolls with the plane, and its window is the
+        // viewport over its horizontal extent (column-layout.css).
+        const box = slot.getBoundingClientRect();
+        const frame = slot.querySelector(".cl-source")
+          ? { left: box.left, right: box.right, width: box.width, top: rect.top, bottom: rect.top + viewport.clientHeight, height: viewport.clientHeight }
+          : box;
         const style = getComputedStyle(slot.querySelector(".cl-content"));
         const textLeft = frame.left + parseFloat(style.paddingLeft);
         const textRight = frame.right - parseFloat(style.paddingRight);
@@ -552,7 +558,7 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
         await page.keyboard.press("ArrowRight");
         await settle(page);
         await page.emulateMedia({ media: "print" });
-        await page.waitForSelector(".cl-layout > .cl-source", { state: "attached" });
+        await page.waitForSelector(".cl-original-slot:not(.cl-slot) > .cl-source:not(.cl-content)", { state: "attached" });
         assert.ok(await page.locator(".cl-source").isVisible(), "印刷時に元本文が消えた");
         await page.emulateMedia({ media: "screen" });
         await page.waitForSelector(".cl-slot .cl-source");
@@ -570,7 +576,7 @@ test("スクロール後も固定高さの各段が続きの本文で描画さ�
         assert.ok(await original.evaluate((source) => source.isConnected && !!source.closest(".cl-slot")));
         for (let i = 0; i < 2; i++) {
           await toggleColumns(page);
-          assert.ok(await original.evaluate((source) => source.parentElement.classList.contains("cl-layout")
+          assert.ok(await original.evaluate((source) => !source.closest(".cl-slot") && !source.classList.contains("cl-content")
             && !source.style.width && !source.style.left && !source.style.translate));
           await toggleColumns(page);
           await page.waitForSelector(".cl-slot .cl-source");

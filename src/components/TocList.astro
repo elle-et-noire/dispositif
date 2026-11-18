@@ -15,7 +15,7 @@ const { headings } = Astro.props;
         class={`toc-list-item toc-level-${heading.level}`}
         data-toc-id={heading.id}
       >
-        <a href={`#${heading.id}`} class="toc-link" set:html={heading.html} />
+        <a href={`#${encodeURIComponent(heading.id)}`} class="toc-link" set:html={heading.html} />
       </li>
     ))
   }

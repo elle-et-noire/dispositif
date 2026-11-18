@@ -17,6 +17,16 @@ document.addEventListener("keydown", (event) => {
     focused.classList.add("index-restored-keyboard-focus");
   }
 }, { capture: true });
+// In WebKit, Home or End pressed while a scroll animation runs (a scrollbar
+// arrow, PageDown, the wheel) stops short of the edge by the distance that
+// animation had left. Writing the position stops the animation, so the key
+// scrolls the list or the 1段 article from rest. In n段 the article
+// scrollport does not scroll, and column-layout.ts moves the text instead.
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Home" && event.key !== "End") return;
+  const scroller = isArticle() ? document.querySelector<HTMLElement>(".cl-article-scrollport") : indexScrollport();
+  if (scroller) scroller.scrollTop = scroller.scrollTop;
+});
 document.addEventListener("focusout", (event) => {
   if (event.target instanceof HTMLElement) {
     event.target.classList.remove("index-restored-pointer-focus", "index-restored-keyboard-focus");
@@ -70,13 +80,17 @@ document.addEventListener("astro:page-load", () => {
   returningToIndex = false;
 });
 
-let press: { x: number; y: number; scrollX: number; scrollY: number; selected: boolean } | undefined;
+let press: { x: number; y: number; scrollX: number; scrollY: number; selected: boolean; stopped: boolean } | undefined;
+// Capture, so the press is read before the viewport's own listener
+// (column-layout.ts) stops the text that the left and right keys are moving.
 document.addEventListener("pointerdown", (event) => {
   const viewport = document.querySelector<HTMLElement>(".cl-viewport");
   press = { x: event.clientX, y: event.clientY,
     scrollX: viewport?.scrollLeft ?? 0, scrollY: viewport?.scrollTop ?? 0,
-    selected: !window.getSelection()?.isCollapsed };
-}, { passive: true });
+    selected: !window.getSelection()?.isCollapsed,
+    stopped: Boolean(viewport?.hasAttribute("data-cl-animating")
+      && event.target instanceof Node && viewport.contains(event.target)) };
+}, { capture: true, passive: true });
 
 document.addEventListener("click", (event) => {
   if (!document.documentElement.classList.contains("cl-multi")
@@ -86,7 +100,9 @@ document.addEventListener("click", (event) => {
   if (!target?.closest(".cl-article")
     || target.closest("a, button, input, select, textarea, summary")) return;
   const viewport = document.querySelector<HTMLElement>(".cl-viewport");
-  if (!viewport || !press || press.selected || !window.getSelection()?.isCollapsed
+  // A press that stopped the text the left and right keys were moving only
+  // stops it, though the moving text may have put a gap under the press.
+  if (!viewport || !press || press.stopped || press.selected || !window.getSelection()?.isCollapsed
     || Math.hypot(event.clientX - press.x, event.clientY - press.y) > 5
     || Math.abs(viewport.scrollLeft - press.scrollX) > 1
     || Math.abs(viewport.scrollTop - press.scrollY) > 1) return;

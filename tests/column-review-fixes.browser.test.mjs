@@ -7,8 +7,12 @@ const settle = (page) => page.evaluate(async () => {
   for (let i = 0; i < 5; i++) await new Promise(requestAnimationFrame);
 });
 
+// Scrollbars take space in the history tests, as in desktop Chrome, so a
+// restore that depends on when the bars appear fails here.
+const showScrollbars = { ignoreDefaultArgs: ["--hide-scrollbars"] };
+
 for (const columns of ["single", "multi"]) test(`${columns}: 本文内リンクの履歴ごとに位置と折りたたみを保存し、戻る・進む・一覧からの復帰で復元する`, { timeout: 45_000 }, async () => {
-  const browser = await launch(chromium);
+  const browser = await launch(chromium, showScrollbars);
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   try {
     await storeColumns(page, columns);
@@ -160,7 +164,7 @@ const readingPoint = (page, mode) => page.evaluate((mode) => mode === "single"
   : [document.querySelector(".cl-plane").dataset.clXTicks, document.querySelector(".cl-plane").dataset.clYTicks], mode);
 
 test("履歴復元では折りたたみの開閉状態を先に戻し、中や後の読書位置を保つ", { timeout: 90_000 }, async () => {
-  const browser = await launch(chromium);
+  const browser = await launch(chromium, showScrollbars);
   try {
     for (const mode of ["single", "multi"]) for (const location of ["inside", "after"]) {
       const page = await browser.newPage({ viewport: { width: 1280, height: 700 } });
@@ -465,6 +469,36 @@ for (const [name, engine] of engines) {
         const expected = await scrolled(change, true);
         assert.notEqual(expected.x, "0", `${change}: ${JSON.stringify(expected)}`);
         assert.deepEqual(await scrolled(change, false), expected, change);
+      }
+    } finally { await browser.close(); }
+  });
+
+  test(`${name}: ホイールのスクロールが動いている途中に段の境界をまたいでも、回した分だけ進む`, { timeout: 90_000 }, async () => {
+    const browser = await launch(engine);
+    try {
+      for (const axis of ["y", "x"]) {
+        // Reduced motion would turn the scroll animation off, so leave it unset.
+        const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+        await storeColumns(page, "multi");
+        await page.goto(ARTICLE_URL);
+        await waitForColumnLayout(page);
+        await settle(page);
+        const key = axis === "y" ? "clYTicks" : "clXTicks";
+        const point = () => page.locator(".cl-plane").evaluate((plane, key) => Number(plane.dataset[key]) / 1024, key);
+        const box = await page.locator(".cl-viewport").boundingBox();
+        await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+        const before = await point();
+        // Ten ticks sent without waiting cross several column boundaries
+        // while the scroll is still moving.
+        for (let i = 0; i < 10; i++) await page.mouse.wheel(axis === "x" ? 312 : 0, axis === "y" ? 312 : 0);
+        let previous, current = await point();
+        while (current !== previous) {
+          previous = current;
+          await page.waitForTimeout(300);
+          current = await point();
+        }
+        assert.equal(current - before, 3120, `${axis}: 段の境界で動いている途中のスクロールが止まった`);
+        await page.close();
       }
     } finally { await browser.close(); }
   });

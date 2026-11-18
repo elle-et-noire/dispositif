@@ -1,29 +1,24 @@
 ---
-// The article text (.cl-source) goes in the slot, directly after the reader's
-// markup: with n段 stored, Layout.astro moves it into the reader's first
-// column as soon as the parser attaches it.
+// The article text (.cl-source) goes in the slot, inside the original's
+// column, in both column layouts. Switching between 1段 and n段 changes the
+// styles around it but never moves it: a moved element loses its styles and
+// boxes, and laying the whole article out from scratch was most of the
+// switch's time (docs/column-layout.md, "操作への応答"). In 1段 the wrappers
+// are blocks around the text that do not move it (column-layout.css); the
+// reader adds cl-track and cl-slot to them in n段, and Layout.astro does when
+// it opens an article in n段.
 //
-// The viewport's name stays short and carries no key instructions: screen
-// readers speak it whenever a click or text selection focuses the viewport,
-// and they read the original text in order, not the visual columns.
-//
-// The original's column (.cl-track) is the plane's first child, and the copies'
-// columns go at the end of .cl-copies, which has no box. Adding a copy as a
-// sibling of the original's column restyled the whole original text in the
-// reader's first frame: in Firefox when the original's column stopped being
-// the last child, in Chromium when the copy went before a later sibling.
+// The original's column (.cl-original) is the plane's first child, and the
+// copies' columns go at the end of .cl-copies, which has no box. Adding a copy
+// as a sibling of the original's column restyled the whole original text in
+// the reader's first frame: in Firefox when the original's column stopped
+// being the last child, in Chromium when the copy went before a later sibling.
 ---
-<div class="cl-reader" hidden>
-  <div
-    class="cl-viewport"
-    tabindex="0"
-    role="region"
-    aria-label="n段の本文"
-  >
-    <div class="cl-plane"><div class="cl-copies"></div></div>
+<div class="cl-reader">
+  <div class="cl-viewport">
+    <div class="cl-plane"><div class="cl-original"><div class="cl-original-slot"><slot /><div class="cl-paper" aria-hidden="true"></div></div></div><div class="cl-copies"></div></div>
   </div>
 </div>
-<slot />
 <div class="cl-ruler" aria-hidden="true"><div></div></div>
 
 <script>

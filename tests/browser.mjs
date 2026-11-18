@@ -11,13 +11,16 @@ export const articleUrl = (slug = "symmetric-polynomial", suffix = "") => new UR
 /** The article most tests use: it has math, code, details and many headings. */
 export const ARTICLE_URL = articleUrl();
 
-const selected = process.env.TEST_ENGINES?.split(",");
-/**
- * [name, engine] pairs for the tests that run in both engines. TEST_ENGINES=chromium,firefox narrows them.
- * WebKit runs only when TEST_ENGINES names it, as in TEST_ENGINES=webkit.
- */
-export const engines = Object.entries({ chromium, firefox, webkit })
-  .filter(([name]) => selected ? selected.includes(name) : name !== "webkit");
+const available = { chromium, firefox, webkit };
+const names = Object.keys(available);
+const selected = process.env.TEST_ENGINES?.split(",").map((name) => name.trim()) ?? ["chromium", "firefox"];
+const unknown = selected.filter((name) => !names.includes(name));
+if (unknown.length) {
+  throw new Error(`Invalid TEST_ENGINES value: ${unknown.map((name) => JSON.stringify(name)).join(", ")}. Choose from: ${names.join(", ")}.`);
+}
+
+/** [name, engine] pairs for cross-browser tests. WebKit runs only when listed in TEST_ENGINES. */
+export const engines = Object.entries(available).filter(([name]) => selected.includes(name));
 
 /** Launches a browser. TEST_BROWSER_PATH replaces Playwright's Chromium with a local one. */
 export function launch(engine, options = {}) {

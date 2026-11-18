@@ -18,6 +18,12 @@
   --cl-surface: var(--note-surface);
   --cl-ink: #324e73;
   --cl-scrollbar-size: 8px;
+  /* The article's grid in 1段 (.cl-layout): the toolbar's row and the
+     sidebar's column. n段 keeps the same grid and moves the reader over them
+     with margins (see the n段 .cl-reader). */
+  --cl-toolbar-row: 3rem;
+  --cl-sidebar-width: 13rem;
+  --cl-sidebar-gap: 2rem;
 }
 
 .cl-toolbar {
@@ -73,7 +79,19 @@
 
 .cl-ruler > div { width: calc(100% + 10px); height: 1px; }
 
-.cl-reader[hidden] { display: none; }
+.cl-paper { display: none; }
+/* As in a column (.cl-content): changing display would make the browser
+   build the article's boxes again when the column layout changes. */
+.cl-source { display: flow-root; }
+/* The space around the text inside the paper. It is a margin of the
+   article's only child rather than the article's padding: n段 removes it, and
+   Firefox took several times longer to lay the text out again when the
+   padding of an ancestor of the text changed than when a margin or a width
+   did (docs/column-layout.md, "操作への応答"). */
+.cl-layout { margin: 0 1rem 4rem; }
+@media (min-width: 768px) {
+  .cl-layout { margin-left: 4rem; }
+}
 
 .cl-article {
   border-radius: var(--note-radius);
@@ -85,7 +103,7 @@
   /* Avoid painting the single-column source before the initial column layout is known. */
   /* clip-path is not inherited: visibility (or anything inherited) would
      restyle every element of the article when cl-pending is removed. It
-     also clips the fixed n段 article inside. Layout.astro hides the
+     also clips the n段 article inside. Layout.astro hides the
      scrollport from assistive technology for the same span (aria-hidden). */
   html.cl-pending .cl-article-scrollport { clip-path: inset(50%); }
   html[data-page-kind="article"],
@@ -110,8 +128,38 @@
   .cl-article { grid-area: 1 / 1; margin-bottom: 3rem; }
   :is(.cl-multi, .cl-premount) .cl-article-scrollport { overflow: hidden; }
 
-  .cl-layout { grid-template-rows: 3rem auto; }
-  .cl-source { grid-column: 1; grid-row: 2; }
+  .cl-layout { grid-template-rows: var(--cl-toolbar-row) auto; }
+  .cl-reader { grid-column: 1; grid-row: 2; min-width: 0; }
+  /* Switching between 1段 and n段 changes the sizes and margins of the
+     text's ancestors, not the kind of their boxes: in both column layouts
+     the viewport is a scroll container, and the original's column
+     (.cl-original) and the text are positioned in normal flow. Firefox
+     otherwise builds the boxes of the whole text again on every switch
+     (docs/column-layout.md, "操作への応答"). In 1段 the viewport does not
+     scroll. It reaches as far beyond the text as a column's padding, so that
+     its clip leaves focus rings and shadows at the edges of the text. The
+     text's padding is the same in both column layouts; in 1段 the viewport's
+     margin cancels it. The original's column isolates the text, so that the
+     sidebar's toolbar (z-index 1) stays in front of it on narrow screens. */
+  .cl-viewport {
+    overflow: hidden;
+    margin: calc(-1 * var(--cl-column-padding));
+  }
+  .cl-plane {
+    position: relative;
+    margin-block: var(--cl-column-padding);
+    /* Make this scrolling plane the containing block for .cl-content's fixed
+       positioning. The text scrolls natively with the plane, independently of
+       the sticky window. No scroll-event translation is needed. In 1段 too:
+       removing it made the switch to 1段 slow in Firefox again. */
+    transform: translate(0);
+  }
+  .cl-original { position: relative; }
+  .cl-original-slot { isolation: isolate; }
+  .cl-source {
+    position: relative;
+    padding-inline: var(--cl-column-padding);
+  }
   /* The article's first layout covers only the blocks up to the marked one;
      the reader shows the rest (data-cl-defer, Layout.astro and
      column-layout.ts). The mark is on a block, not on .cl-source: when an
@@ -126,9 +174,12 @@
     min-width: 0;
     pointer-events: none;
   }
+  /* Above the original's column (.cl-original-slot), which isolates the text
+     and comes later, covering it on narrow screens. */
   .cl-sidebar-stack {
     position: sticky;
     top: 0;
+    z-index: 1;
     display: flex;
     flex-direction: column;
     max-height: calc(100svh - 1rem);
@@ -168,26 +219,24 @@
     flex: none;
     padding: 0 1rem 0 0;
   }
-  /* .cl-premount: the n段 article before the reader starts (Layout.astro). */
+  /* .cl-premount: the n段 article before the reader starts (Layout.astro).
+     In normal flow below the header, as in 1段: Firefox builds the boxes of
+     the whole text again when an ancestor of it moves out of flow. */
   :is(.cl-multi, .cl-premount) .cl-article {
-    position: fixed;
-    inset: var(--cl-header-height, 3rem) 0 0;
-    display: flex;
     width: 100%;
     max-width: none;
     height: calc(100dvh - var(--cl-header-height, 3rem));
-    margin: 0;
-    padding: 0;
+    margin: var(--cl-header-height, 3rem) 0 0;
     border-radius: 0;
     background: transparent;
     box-shadow: none;
   }
 
+  /* The same grid and flex item as in 1段, without the space around the
+     text: Firefox took several times longer to lay the text out again when
+     the grid's tracks or the item's flex changed. */
   :is(.cl-multi, .cl-premount) .cl-layout {
-    flex: 1;
-    min-height: 0;
-    grid-template-rows: minmax(0, 1fr);
-    grid-template-columns: minmax(0, 1fr);
+    margin: 0;
   }
 
   /* Measure and display the same padded box, including MathJax's available
@@ -223,21 +272,32 @@
     --cl-code-number: 0px;
   }
 
-  .cl-reader {
+  /* In 1段 the reader, its viewport and plane, and the original's column
+     (ColumnLayout.astro) are blocks around the article text, and the
+     viewport does not scroll. In n段
+     the reader stays in the grid's second row and first column, and its
+     margins and height take it over the toolbar's row and the sidebar's
+     column, which are empty in n段. The reader's own --cl-header-height
+     (column-layout.ts measure): WebKit did not update its height when the
+     value came by inherit from the article. */
+  :is(.cl-multi, .cl-premount) .cl-reader {
     position: relative;
-    grid-column: 1;
-    grid-row: 1;
-    min-width: 0;
     min-height: 0;
+    height: calc(100dvh - var(--cl-header-height, 3rem) - 2 * var(--cl-reader-space));
     overflow: clip;
-    margin-inline: 0;
-    margin-block: var(--cl-reader-space);
+    margin-block: calc(var(--cl-reader-space) - var(--cl-toolbar-row)) var(--cl-reader-space);
   }
 
-  .cl-viewport {
+  /* Scrollbars that take space are always there, so the measured column
+     height and viewport width (column-layout.ts measure) do not depend on
+     whether the plane overflows yet. With overflow: auto the first
+     measurement ran before the horizontal bar appeared, and a reload could
+     not restore the exact reading point saved at the later height. */
+  :is(.cl-multi, .cl-premount) .cl-viewport {
+    margin: 0;
     width: 100%;
     height: 100%;
-    overflow: auto;
+    overflow: scroll;
     overscroll-behavior: contain;
     scroll-snap-type: none;
     overflow-anchor: none;
@@ -286,14 +346,10 @@
     }
   }
 
-  .cl-plane {
-    position: relative;
+  :is(.cl-multi, .cl-premount) .cl-plane {
+    margin: 0;
     isolation: isolate;
     overflow: clip;
-    /* Make this scrolling plane the containing block for .cl-content's fixed
-       positioning. The text scrolls natively with the plane, independently of
-       the sticky window. No scroll-event translation is needed. */
-    transform: translate(0);
   }
 
   /* The copies' columns (ColumnLayout.astro). Passes the plane's sizes on to
@@ -318,6 +374,10 @@
        text even though the text's bounding rectangle has moved correctly. */
     clip-path: inset(0 -4px);
   }
+  /* The original's column stays in normal flow, at the top of the plane like
+     the copies' columns, and the text in it as well: in 1段 they are in normal
+     flow around the text. */
+  .cl-original.cl-track { position: relative; }
 
   .cl-slot {
     --cl-w: inherit;
@@ -330,14 +390,18 @@
     /* The shared viewport clips all windows vertically to exactly H. Keep this
        sticky box unclipped so the plane-relative text can keep painting. */
   }
+  /* Not sticky: the text in it is in normal flow and would stay with it
+     instead of scrolling with the plane. */
+  .cl-original-slot.cl-slot { position: static; }
 
   /* A separate sibling keeps surface updates out of the MathJax tree. Fixed
      to the plane like .cl-content, with the same translate, so it scrolls
      natively with the text and spans the whole article: its rounded corners
      are the article's two ends. */
-  .cl-paper {
+  .cl-slot > .cl-paper {
     --cl-w: inherit;
     position: fixed;
+    display: block;
     top: 0;
     left: 0;
     width: var(--cl-w);
@@ -360,15 +424,21 @@
     translate: 0;
     font-family: var(--font-noto-sans);
   }
+  /* The original text is in normal flow in its column, which places it
+     across the plane; its translate moves it only vertically. */
+  .cl-source.cl-content { position: relative; }
 
 }
 
 @media screen and (min-width: 768px) {
   .cl-layout {
-    grid-template-columns: minmax(0, 1fr) 13rem;
-    column-gap: 2rem;
+    grid-template-columns: minmax(0, 1fr) var(--cl-sidebar-width);
+    column-gap: var(--cl-sidebar-gap);
   }
   .cl-sidebar { grid-column: 2; }
+  :is(.cl-multi, .cl-premount) .cl-reader {
+    margin-right: calc(-1 * (var(--cl-sidebar-width) + var(--cl-sidebar-gap)));
+  }
 }
 
 @media print {
@@ -376,7 +446,6 @@
   .cl-article { margin-top: 0; }
   .cl-source { width: 100% !important; }
   .cl-dismiss,
-  .cl-reader,
   .cl-sidebar,
   .cl-toolbar,
   .cl-toc,

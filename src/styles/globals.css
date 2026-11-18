@@ -48,6 +48,24 @@
   transform: translateY(var(--article-index-offset, 0px));
 }
 
+/* Blur what lies behind the paper with a filter on it rather than a
+   backdrop-filter on .cl-backdrop (docs/column-layout.md, "操作への応答").
+   In 1段 the header is behind the paper too; in n段 it holds the toolbar in
+   front of it. The filter treats the outside of the header as transparent,
+   so ::before extends its background past the top and side edges of the
+   screen; without it, those edges blur into the colour behind. */
+@media screen {
+  [data-page-kind="article"] .article-index-shell,
+  html[data-page-kind="article"]:not(.cl-multi) header[data-site-header] { filter: blur(3px); }
+  html[data-page-kind="article"]:not(.cl-multi) header[data-site-header]::before {
+    position: absolute;
+    inset: -12px -12px 0;
+    z-index: -1;
+    background: inherit;
+    content: "";
+  }
+}
+
 @media print {
   [data-page-kind="article"] :is(.article-index-shell, .cl-backdrop) { display: none; }
 }
@@ -168,7 +186,7 @@ body {
 }
 
 .toc-list-item .toc-link {
-  @apply inline-block w-full font-medium text-gray-400 no-underline;
+  @apply inline-block w-full font-medium text-gray-500 no-underline;
   border-inline-start: 4px solid var(--color-gray-200, #e5e7eb);
   padding-inline: 0.5rem 0;
   padding-block: 0.375rem;
@@ -433,15 +451,20 @@ body {
   @apply font-medium;
 }
 
-.post p + p {
+/* The margins set from a sibling skip the copies and their parents that the
+   n段 layout places at a measured box with no margin (data-cl-placed,
+   column-fragments.ts). The mark is checked before the sibling, so Firefox
+   does not restyle the later copies when a copy is inserted or removed
+   (docs/column-layout.md, "操作への応答"). :where() keeps the specificity. */
+.post p + p:where(:not([data-cl-placed])) {
   @apply mt-5;
 }
 
-.post p:has(+ .scrollable) {
+.post p:where(:not([data-cl-placed])):has(+ .scrollable) {
   @apply mb-0;
 }
 
-.post .scrollable + p {
+.post .scrollable + p:where(:not([data-cl-placed])) {
   @apply mt-0;
 }
 
@@ -464,7 +487,7 @@ body {
   white-space: nowrap;
 }
 
-.post img:has(+ .img-caption) {
+.post img:where(:not([data-cl-placed])):has(+ .img-caption) {
   @apply mb-0;
 }
 
@@ -822,6 +845,19 @@ body {
 
 .post .has-tooltip:hover .tooltip,
 .post .has-tooltip:focus-within .tooltip {
+  visibility: visible;
+  opacity: 1;
+}
+
+/* 最上位の層に移した吹き出し（src/components/ArticleInteractions.astro）。
+   rightとbottomは、スクリプトが語の位置から入れる。 */
+.post .tooltip:popover-open {
+  position: fixed;
+  top: auto;
+  left: auto;
+  margin: 0 0 0.4rem;
+  border: 0;
+  overflow: visible;
   visibility: visible;
   opacity: 1;
 }

@@ -17,23 +17,27 @@ import { mathFontFaces, type MathFont } from "./math-fonts";
 import { withBase } from "./base";
 import { rehypeToc, type Heading } from "./toc";
 
-// 本文リンクの安全化。
-// 外部リンク（/ や # で始まらない）は新規タブで開き rel を付ける。
-// 空 href はサイトのベースURLへ向ける。
+// 記事の相対リンクはどのページで解決しても公開サイトと同じオリジンになる。
+// Astro のサイト設定はビルド全体で共通なので、変換結果を本文だけで共有できる。
 function rehypeSafeLinks() {
+  const site = new URL(import.meta.env.SITE);
   return (tree: Root) => {
     visit(tree, "element", (node: Element) => {
       if (node.tagName !== "a") return;
-      let href = node.properties?.href;
+      const { href, target, rel } = node.properties;
       if (typeof href !== "string") return;
       if (href === "") {
-        href = withBase();
-        node.properties.href = href;
+        node.properties.href = withBase();
+        return;
       }
-      if (!href.startsWith("/") && !href.startsWith("#")) {
-        node.properties.target = "_blank";
-        node.properties.rel = ["noopener", "noreferrer"];
-      }
+      if (target !== undefined) return;
+
+      const url = URL.parse(href, site);
+      if (url && (url.protocol === "http:" || url.protocol === "https:") && url.origin === site.origin) return;
+
+      // mailto: なども従来どおり新規タブの属性を付ける。
+      node.properties.target = "_blank";
+      node.properties.rel = [...new Set([...(rel ?? []), "noopener", "noreferrer"])];
     });
   };
 }
@@ -41,6 +45,33 @@ function rehypeSafeLinks() {
 // Markdown から生成されたルート相対 URL に Astro の base を付ける。
 // .astro 内のリンクと異なり、Markdown 本文の /foo はビルド時に自動変換されないため、
 // GitHub Pages のプロジェクトサイトでは /dispositif/foo に補正する必要がある。
+// GFM のタスクリストのチェックボックスに、項目の文を名前として付ける。remark-gfm の
+// 出力のままでは名前がなく、スクリーンリーダーで部品を一覧すると、名前のない
+// チェックボックスが並ぶ。チェックボックスと、その後の文（入れ子のリストの手前まで）を
+// <label> で包む。id を使わないので、n段の複製で id を外しても関係が壊れない。
+function rehypeTaskListLabels() {
+  const block = /^(?:ul|ol|p|div|pre|figure|blockquote|table|details|h[1-6])$/;
+  const isTaskItem = (node: Element | Root | undefined) => node?.type === "element" && node.tagName === "li"
+    && [node.properties.className ?? []].flat().includes("task-list-item");
+  return (tree: Root) => {
+    // 項目が段落を持つ（項目の間に空行がある）リストでは、チェックボックスは段落の中にある。
+    visit(tree, "element", (node: Element, _, parent) => {
+      if (!isTaskItem(node) && !(node.tagName === "p" && isTaskItem(parent))) return;
+      const i = node.children.findIndex((child) => child.type === "element" && child.tagName === "input"
+        && child.properties.type === "checkbox");
+      if (i < 0) return;
+      let end = i + 1;
+      while (end < node.children.length) {
+        const child = node.children[end];
+        if (child.type === "element" && block.test(child.tagName)) break;
+        end++;
+      }
+      const label: Element = { type: "element", tagName: "label", properties: {}, children: node.children.slice(i, end) };
+      node.children.splice(i, end - i, label);
+    });
+  };
+}
+
 function rehypeBasePaths() {
   const base = withBase();
   const baseWithoutTrailingSlash = base.replace(/\/$/, "");
@@ -100,7 +131,7 @@ export type Converted = {
 };
 
 // 記事ページと、全ページに入る記事一覧（各記事の数式フォント）の両方が同じ記事を変換する。
-// 結果は本文だけで決まるので、同じ本文の変換を 1 回にまとめる。
+// 同じサイト設定の下では、同じ本文の変換を 1 回にまとめる。
 const converted = new Map<string, Promise<Converted>>();
 
 export const markdownToHtml = (text: string): Promise<Converted> => {
@@ -151,6 +182,7 @@ const convert = async (text: string): Promise<Converted> => {
     .use(rehypeToc({ headings, mathHtml }))
     .use(rehypeSafeLinks)
     .use(rehypeArticleImages)
+    .use(rehypeTaskListLabels)
     .use(rehypeBasePaths)
     .use(rehypeStringify, { allowDangerousHtml: true })
     .process(processible);
