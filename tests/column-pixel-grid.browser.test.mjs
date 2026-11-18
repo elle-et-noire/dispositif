@@ -6,10 +6,12 @@ import { BASE_URL, launch, storeColumns } from "./browser.mjs";
 
 // Chromium moves a recycled column's rasterized text instead of painting it
 // again. A move by a fraction of a device pixel left the text blurred, e.g. at
-// 125 %, where a 706 px column step is 882.5 device pixels.
+// 125 %, where a 706 px column step is 882.5 device pixels. The original text
+// is in normal flow in its column, which carries its horizontal offset.
 const offGrid = () => [...document.querySelectorAll('.cl-slot')].flatMap((slot) => {
   const [x, y = '0'] = slot.firstElementChild.style.translate.split(/\s+/);
-  return [parseFloat(x), parseFloat(y)].map((value) => value * devicePixelRatio)
+  const column = slot.firstElementChild.matches('.cl-source') ? parseFloat(slot.parentElement.style.left) || 0 : 0;
+  return [parseFloat(x) + column, parseFloat(y)].map((value) => value * devicePixelRatio)
     // Serialized with 6 significant digits (1263.6364px reads as 1263.64px).
     .filter((device) => Math.abs(device - Math.round(device)) > 0.01)
     .map((device) => `k${slot.dataset.clK}: ${slot.firstElementChild.style.translate} (${device} device px)`);

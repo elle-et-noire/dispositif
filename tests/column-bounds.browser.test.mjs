@@ -22,7 +22,13 @@ async function state(page) {
     return { x, y, projectedX, projectedY, xTicks: Number(plane.dataset.clXTicks), yTicks: Number(plane.dataset.clYTicks), p, h, l, leading, edge, zoom, w: number("w"), width: v.clientWidth, maxX: v.scrollWidth - v.clientWidth,
       nativeX: v.scrollLeft, nativeY: v.scrollTop, maxY: v.scrollHeight - v.clientHeight,
       slots: [...document.querySelectorAll(".cl-slot")].map(slot => {
-        const r = slot.getBoundingClientRect(), paper = slot.querySelector(".cl-paper");
+        // A copy's column is a sticky window over the viewport. The
+        // original's column scrolls with the plane, and its window is the
+        // viewport over its horizontal extent (column-layout.css).
+        const box = slot.getBoundingClientRect(), paper = slot.querySelector(".cl-paper"), vr = v.getBoundingClientRect();
+        const r = slot.querySelector(".cl-source")
+          ? { left: box.left, right: box.right, top: vr.top, bottom: vr.top + h * zoom, height: h * zoom }
+          : box;
         // The part of the paper inside the column's window, in units of the
         // window, whose height is h.
         // A column outside the article is hidden whole by its track's clip.

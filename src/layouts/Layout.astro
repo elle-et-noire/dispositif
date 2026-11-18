@@ -87,8 +87,8 @@ const {
         source.classList.add("cl-content");
         // The reader replaces this with the same width in px.
         source.style.width = "var(--cl-column-width)";
-        // The article's n段 layout too (not the header's, which is visible):
-        // Firefox rebuilds the text's boxes when its ancestors change position.
+        // The article's n段 layout too (not the header's, which is visible),
+        // so that the text's first layout is in its n段 ancestors' sizes.
         doc.documentElement.classList.add("cl-premount");
       };
       // WebKit keeps in each element's style which kinds of event listeners

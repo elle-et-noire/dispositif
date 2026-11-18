@@ -173,8 +173,10 @@ test("1段のサイドバー目次とn段の上部目次を切り替えて使え
             assert.equal(await page.locator(".toc-toggle").isVisible(), false);
             assert.equal(await page.locator(".site-article-index").isVisible(), true);
             const side = await singleToc.boundingBox();
-            const source = await page.locator(".cl-source").boundingBox();
-            assert.ok(side.x >= source.x + source.width + 16, "目次が本文の横にない");
+            // The text's right edge, inside the padding it has in both column layouts.
+            const textRight = await page.locator(".cl-source").evaluate((source) =>
+              source.getBoundingClientRect().right - parseFloat(getComputedStyle(source).paddingRight));
+            assert.ok(side.x >= textRight + 16, "目次が本文の横にない");
           } else {
             assert.equal(await page.locator("[data-toc-variant=sidebar]").isVisible(), false);
           }
