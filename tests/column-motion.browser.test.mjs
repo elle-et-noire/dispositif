@@ -125,9 +125,14 @@ test("左右キーは途中の位置を通り、連打を合成し、逆入力�
 
     await page.keyboard.press("ArrowLeft");
     await page.waitForTimeout(40);
+    // The touch lands wherever the moving text is when the page receives it,
+    // which under load can be the gap between two columns. A tap there opens
+    // the list (article-background.ts). The press alone interrupts the motion
+    // (column-layout.ts cancels it on touchstart and pointerdown), so end the
+    // touch with a cancel, which fires no click.
     const session = await page.context().newCDPSession(page);
     await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: box.x + 100, y: box.y + 100 }] });
-    await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await session.send("Input.dispatchTouchEvent", { type: "touchCancel", touchPoints: [] });
     await settle(page);
     const touched = await state(page);
     assert.equal(touched.animating, false);

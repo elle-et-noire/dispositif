@@ -451,15 +451,20 @@ body {
   @apply font-medium;
 }
 
-.post p + p {
+/* The margins set from a sibling skip the copies and their parents that the
+   n段 layout places at a measured box with no margin (data-cl-placed,
+   column-fragments.ts). The mark is checked before the sibling, so Firefox
+   does not restyle the later copies when a copy is inserted or removed
+   (docs/column-layout.md, "操作への応答"). :where() keeps the specificity. */
+.post p + p:where(:not([data-cl-placed])) {
   @apply mt-5;
 }
 
-.post p:has(+ .scrollable) {
+.post p:where(:not([data-cl-placed])):has(+ .scrollable) {
   @apply mb-0;
 }
 
-.post .scrollable + p {
+.post .scrollable + p:where(:not([data-cl-placed])) {
   @apply mt-0;
 }
 
@@ -482,7 +487,7 @@ body {
   white-space: nowrap;
 }
 
-.post img:has(+ .img-caption) {
+.post img:where(:not([data-cl-placed])):has(+ .img-caption) {
   @apply mb-0;
 }
 
