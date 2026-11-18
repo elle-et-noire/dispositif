@@ -151,10 +151,17 @@ export function initializeColumnLayout() {
     const blocks = post.children;
     let next = nextHidden(blocks);
     if (next < 0) return;
-    // Check after a small batch before laying out more than this frame needs.
-    for (let batch = 4; next < blocks.length; batch *= 2) {
+    const smallBatch = 4;
+    for (let batch = 0; next < blocks.length; batch *= 2) {
       const last = blocks[next - 1];
-      if (offsetOf(last) + last.getBoundingClientRect().height >= extent) return;
+      const shown = offsetOf(last) + last.getBoundingClientRect().height;
+      if (shown >= extent) return;
+      if (!batch) {
+        // In n段, try a few blocks when their estimated height would fill
+        // the remaining space. Keep the larger batch when much is missing.
+        const estimatedHeight = shown / next * smallBatch;
+        batch = multi && extent - shown <= estimatedHeight ? smallBatch : Math.max(smallBatch, next);
+      }
       const end = Math.min(blocks.length, next + batch);
       for (; next < end; next++) blocks[next].setAttribute("data-cl-shown", "");
     }
