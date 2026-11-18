@@ -105,7 +105,7 @@ for (const [name, engine] of engines) {
   });
 
   if (name !== 'chromium') continue; // Layout Instability API
-  test('chromium: a direct n-column load stays stable when the reader loads after the first paint', { timeout: 60_000 }, async () => {
+  test('chromium: a direct n-column load stays stable when the reader starts after the first frame', { timeout: 60_000 }, async () => {
     const browser = await launch(engine);
     try {
       const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
@@ -122,21 +122,15 @@ for (const [name, engine] of engines) {
           record(observer.takeRecords());
           return shift;
         };
+
+        // Let Chromium render a frame with the background on screen before
+        // the reader lays out and reveals the article.
+        window.addEventListener('astro:page-load', event => {
+          event.stopImmediatePropagation();
+          requestAnimationFrame(() => requestAnimationFrame(() => document.dispatchEvent(new Event('astro:page-load'))));
+        }, { capture: true, once: true });
       });
-      // Give Chromium a frame with the background already on screen before
-      // the reader can lay out and reveal the article.
-      const reader = Promise.withResolvers();
-      await page.route(/\/ColumnLayout\.[^/]+\.js$/, async route => {
-        await reader.promise;
-        await route.continue();
-      });
-      try {
-        await page.goto(articleUrl('symmetric-polynomial', '?columns=multi'), { waitUntil: 'commit' });
-        await page.waitForFunction(() => performance.getEntriesByName('first-contentful-paint').length > 0
-          && document.documentElement.classList.contains('cl-pending'));
-      } finally {
-        reader.resolve();
-      }
+      await page.goto(articleUrl('symmetric-polynomial', '?columns=multi'));
       await waitForColumnLayout(page);
       assert.equal(await page.locator('html').evaluate(el => el.classList.contains('cl-multi')), true);
       const shift = await page.evaluate(async () => {
