@@ -95,11 +95,27 @@ npm run test:browser   # astro preview などを起動した状態で
 | `math-fonts` | Chromium | フォントの準備処理を再実行しても全フォントを配信でき、1段・n段・記事遷移後も数式フォントを使えること。数式の記事が使うフォントだけをpreloadすること |
 | `math-speech` | Chromium | 数式がTeXのソースを名前にした画像として読み上げの対象になり、字形の文字が外れること。はみ出したディスプレイ数式だけが名前を持つTabの停止位置になり、幅が変わると付け外しされること |
 | `single-column` | Chromium | 1段の目次を右へ寄せ、操作ボタンと一緒に追従させること。標準バー越しに背景が透け、キー・矢印・段組みの切り替え・紙面外のホイールで記事自身がスクロールすること |
-| `toc` | Chromium | 1段のサイドバー目次とn段の上部目次を切り替えて使えること。目次から見出しへ移動した後のキーボードフォーカス |
+| `toc` | Chromium（閉じた節への移動は両方） | 1段のサイドバー目次とn段の上部目次を切り替えて使えること。閉じた節の見出しへの目次移動と、その後のキーボードフォーカス |
 
 本文全体のスタイル再計算がFirefoxだけで再発しても、どのテストも検知できません。この検査は `column-layout` にあり、Chromiumでしか実行しません。
 
 テストで確かめられない項目は、`ROADMAP.md` の「手作業での確認」の一覧で確認します。
+
+### WebKitでの検証
+
+PlaywrightのWebKitを指定して、主要な読書操作を確認できます。`npm run build` の後に `npx astro preview --background` を起動し、`TEST_BASE_URL` をベースパスまで含む配信先に合わせます。
+
+```sh
+npx playwright-core install webkit
+TEST_BASE_URL=http://localhost:4321/dispositif/ TEST_ENGINES=webkit \
+  node --test --test-name-pattern='^webkit:' \
+  tests/column-assembly.browser.test.mjs \
+  tests/column-ordinary-navigation.browser.test.mjs \
+  tests/column-review-fixes.browser.test.mjs \
+  tests/column-url.browser.test.mjs tests/toc.browser.test.mjs
+```
+
+結果に `webkit:` で始まる検査が出ます。CDPを使う検査はChromiumで実行します。Safari実機での確認項目は[ロードマップ](ROADMAP.md#webkitの検証)にあります。
 
 ## 記事の段組み
 
