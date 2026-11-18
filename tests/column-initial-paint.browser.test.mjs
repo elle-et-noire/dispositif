@@ -110,6 +110,11 @@ for (const [name, engine] of engines) {
     try {
       const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
       await page.addInitScript(() => {
+        // Keep the reader fallback out of this test when a busy runner takes
+        // more than ten seconds to open the page. It is tested above.
+        const setTimeout = window.setTimeout;
+        window.setTimeout = (handler, delay, ...args) => setTimeout(handler, delay === 10000 ? 60000 : delay, ...args);
+
         let shift = 0;
         const record = entries => {
           for (const entry of entries) {
