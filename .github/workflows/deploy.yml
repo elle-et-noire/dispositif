@@ -22,11 +22,8 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-# このジョブがリポジトリをクローンし、ページデプロイメントを作成することを許可します。
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 jobs:
   # 型検査と単体テスト。
@@ -66,21 +63,20 @@ jobs:
           npm run test:browser
       - if: failure()
         run: cat preview.log
+      - name: Upload the tested GitHub Pages artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: dist/
+          include-hidden-files: true
 
-  build:
+  deploy:
     needs: [check, browser]
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout your repository using git
-        uses: actions/checkout@v6
-      - name: Install, build, and upload your site
-        uses: withastro/action@v6
-
-  deploy:
-    needs: build
-    if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
